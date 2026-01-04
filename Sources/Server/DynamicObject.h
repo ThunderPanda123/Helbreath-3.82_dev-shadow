@@ -1,0 +1,46 @@
+// DynamicObject.h: interface for the CDynamicObject class.
+//
+//////////////////////////////////////////////////////////////////////
+
+#pragma once
+
+#include <windows.h>
+
+class CDynamicObject
+{
+public:
+	inline CDynamicObject(short sOwner, char cOwnerType, short sType, char cMapIndex, short sX, short sY, DWORD dwRegisterTime, DWORD dwLastTime, int iV1)
+	{
+		m_sOwner         = sOwner;
+		m_cOwnerType     = cOwnerType;
+
+		m_sType          = sType;
+
+		m_cMapIndex      = cMapIndex;
+		m_sX             = sX;
+		m_sY             = sY;
+
+		m_dwRegisterTime = dwRegisterTime;
+		m_dwLastTime     = dwLastTime;
+
+		m_iCount         = 0;
+		m_iV1            = iV1;
+	}
+
+	inline virtual ~CDynamicObject()
+	{
+	}
+
+	short m_sOwner;
+	char  m_cOwnerType;
+
+	short m_sType;
+	char  m_cMapIndex;
+	short m_sX, m_sY; 
+	DWORD m_dwRegisterTime;
+	DWORD m_dwLastTime;
+
+	int   m_iCount;			// Ư�� ������Ʈ�� ��� ����ϴ� ī���� ���� 
+	int   m_iV1;			// �߰� ������ ������ ����Ѵ�.
+};
+
