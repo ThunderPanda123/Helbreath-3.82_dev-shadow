@@ -3,6 +3,7 @@
 #define _WINSOCKAPI_
 
 #include <windows.h>
+#include "CommonTypes.h"
 #include <iostream>
 #include <vector>
 using namespace std;
@@ -31,8 +32,8 @@ public:
 	void RequestEnterGame(int h, char* pData);
 	void CreateNewAccount(int h, char* pData);
 	bool SaveAccountInfo(int iAccount, char* cAccountName, char* cTemp, char* cCharName, char cMode, int h);
-	void SaveInfo(char cFileName[255], char* pData, DWORD dwStartSize);
-	void SendLoginMsg(DWORD msgid, WORD msgtype, char* data, int sz, int h);
+	void SaveInfo(char cFileName[255], char* pData, uint32_t dwStartSize);
+	void SendLoginMsg(uint32_t msgid, uint16_t msgtype, char* data, int sz, int h);
 	void LocalSavePlayerData(int h);
 	void Activated();
 };

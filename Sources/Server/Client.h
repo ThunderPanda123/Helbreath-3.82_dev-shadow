@@ -8,6 +8,7 @@
 #define _WINSOCKAPI_
 
 #include <windows.h>
+#include "CommonTypes.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -51,9 +52,9 @@ public:
 	bool bCreateNewParty();
 
 	// Hack Checkers
-	DWORD m_dwMagicFreqTime, m_dwMoveFreqTime, m_dwAttackFreqTime;
+	uint32_t m_dwMagicFreqTime, m_dwMoveFreqTime, m_dwAttackFreqTime;
 	bool m_bIsMoveBlocked, m_bMagicItem;
-	DWORD dwClientTime;
+	uint32_t dwClientTime;
 	bool m_bMagicConfirm;
 	int m_iSpellCount;
 	bool m_bMagicPauseTime;
@@ -91,7 +92,7 @@ public:
 	int   m_iApprColor;			// v1.4 ���� �÷����̺�
 	int   m_iStatus;
 
-	DWORD m_dwTime, m_dwHPTime, m_dwMPTime, m_dwSPTime, m_dwAutoSaveTime, m_dwHungerTime, m_dwWarmEffectTime;
+	uint32_t m_dwTime, m_dwHPTime, m_dwMPTime, m_dwSPTime, m_dwAutoSaveTime, m_dwHungerTime, m_dwWarmEffectTime;
 	// Player Ư��ġ 
 
 	char m_cSex, m_cSkin, m_cHairStyle, m_cHairColor, m_cUnderwear;
@@ -100,8 +101,8 @@ public:
 	int  m_iHPstock;
 	int  m_iMP;
 	int  m_iSP;
-	DWORD  m_iExp;
-	DWORD m_iNextLevelExp;
+	uint32_t  m_iExp;
+	uint32_t m_iNextLevelExp;
 	bool m_bIsKilled;
 
 	int  m_iDefenseRatio;		// Defense Ratio
@@ -132,7 +133,7 @@ public:
 	void read_mobs_data();
 	void save_mobs_data();
 
-	DWORD m_iRewardGold;
+	uint32_t m_iRewardGold;
 	int  m_iEnemyKillCount, m_iPKCount;
 	int  m_iCurWeightLoad;		// ���� �� ����ǰ ���� 
 
@@ -177,12 +178,12 @@ public:
 
 	int   m_iHungerStatus;		// �����? ����Ʈ. �̰� 0�̵Ǹ� ���¹̳ʰ� ������ ������ ü�µ� �����̻� ���� �ʽ��ϴ�. 
 
-	DWORD m_dwWarBeginTime;		// ������ ����? ������ ��ϵǴ�? �ð�. 
+	uint32_t m_dwWarBeginTime;		// ������ ����? ������ ��ϵǴ�? �ð�. 
 	bool  m_bIsWarLocation;		// ���� ������ �ִ����� ǥ�� 
 
 	bool  m_bIsPoisoned;		// �ߵ��Ǿ������� ���� 
 	int   m_iPoisonLevel;       // ���� ���� 
-	DWORD m_dwPoisonTime;		// �ߵ� �ð�.
+	uint32_t m_dwPoisonTime;		// �ߵ� �ð�.
 	
 	int   m_iPenaltyBlockYear, m_iPenaltyBlockMonth, m_iPenaltyBlockDay; // v1.4
 
@@ -204,13 +205,13 @@ public:
 
 	bool  m_bIsOnServerChange;     // �� ���� Ȱ��ȭ �Ǿ� ������ ������ ������ ���� �� ī������ ���� �ʴ´�.
 
-	DWORD   m_iExpStock;			 // �׿��ִ� ����ġ 
-	DWORD m_dwExpStockTime;		 // ExpStock ���? �ð�.
+	uint32_t   m_iExpStock;			 // �׿��ִ� ����ġ 
+	uint32_t m_dwExpStockTime;		 // ExpStock ���? �ð�.
 
-	DWORD   m_iAutoExpAmount;		 // Auto-Exp �ð� ���� ���� ����ġ 
-	DWORD m_dwAutoExpTime;		 // Auto-Exp ���? �ð�.
+	uint32_t   m_iAutoExpAmount;		 // Auto-Exp �ð� ���� ���� ����ġ 
+	uint32_t m_dwAutoExpTime;		 // Auto-Exp ���? �ð�.
 
-	DWORD m_dwRecentAttackTime;  // ���� �ֱٿ� �����ߴ� �ð� 
+	uint32_t m_dwRecentAttackTime;  // ���� �ֱٿ� �����ߴ� �ð� 
 
 	int   m_iAllocatedFish;		 // �� ���� 0�� �ƴϸ� �̺�Ʈ ���ø����? �̾߱��?. 
 	int   m_iFishChance;		 // ���� ���� ���� 
@@ -311,11 +312,11 @@ public:
 	int   m_iLastDamage;
 
 	int   m_iMoveMsgRecvCount, m_iAttackMsgRecvCount, m_iRunMsgRecvCount, m_iSkillMsgRecvCount;
-	DWORD m_dwMoveLAT, m_dwRunLAT, m_dwAttackLAT;
+	uint32_t m_dwMoveLAT, m_dwRunLAT, m_dwAttackLAT;
 
 	int   m_iSpecialAbilityTime;				// Ư�� �ɷ��� ����ϱ�? ���ؼ��� �� ���� 0�� �Ǿ��? �Ѵ�. 
 	bool  m_bIsSpecialAbilityEnabled;			// Ư�� �ɷ��� Ȱ��ȭ �� �����ΰ�?
-	DWORD m_dwSpecialAbilityStartTime;			// Ư�� �ɷ��� ����ϱ�? ������ �ð�
+	uint32_t m_dwSpecialAbilityStartTime;			// Ư�� �ɷ��� ����ϱ�? ������ �ð�
 	int   m_iSpecialAbilityLastSec;				// Ư�� �ɷ� ���� �ð�.
 
 	int   m_iSpecialAbilityType;				// �Ҵ��? Ư�� �ɷ� ����
@@ -329,19 +330,19 @@ public:
 
 	int   m_iWarContribution;					// ���� ���嵵 
 
-	DWORD m_dwSpeedHackCheckTime;				// �ӵ����� �˻� ��ƾ 
+	uint32_t m_dwSpeedHackCheckTime;				// �ӵ����� �˻� ��ƾ 
 	int   m_iSpeedHackCheckExp;		
-	DWORD m_dwLogoutHackCheck;
+	uint32_t m_dwLogoutHackCheck;
 
-	DWORD m_dwInitCCTimeRcv;
-	DWORD m_dwInitCCTime;
+	uint32_t m_dwInitCCTimeRcv;
+	uint32_t m_dwInitCCTime;
 
 	char  m_cLockedMapName[11];					// ���� �� �̸�
 	int   m_iLockedMapTime;						// �� ���� 0 �̻��̸� ���� �ڷ���Ʈ �ص� ���� ������ ����.
 
 	int   m_iCrusadeDuty;						// ũ�缼�̵忡�� ���� ����: 1-�뺴. 2-�Ǽ���. 3-���ְ�
-	DWORD m_dwCrusadeGUID;						// ũ�缼�̵� GUID
-	DWORD m_dwHeldenianGUID;
+	uint32_t m_dwCrusadeGUID;						// ũ�缼�̵� GUID
+	uint32_t m_dwHeldenianGUID;
 	bool m_bInRecallImpossibleMap;
 
 	// �� ��Ʈ���Ĵ� ���� ������ �����ϴ� ���̴�. �ѹ��� ���� �� �� ���� ������ �������� ���� ������ �����Ѵ�.
@@ -381,7 +382,7 @@ public:
 	} m_stPartyMemberName[DEF_MAXPARTYMEMBERS];
 
 	// New 07/05/2004
-	DWORD m_dwLastActionTime;
+	uint32_t m_dwLastActionTime;
 	int m_iDeadPenaltyTime;
 
 	// New 16/05/2004
@@ -400,7 +401,7 @@ public:
 	// New 25/05/2004
 	bool m_bIsBeingResurrected;
 
-	DWORD m_dwFightzoneDeadTime;
+	uint32_t m_dwFightzoneDeadTime;
 	char m_cSaveCount;
 
 };

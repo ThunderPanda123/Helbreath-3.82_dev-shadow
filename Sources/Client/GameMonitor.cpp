@@ -3,6 +3,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "GameMonitor.h"
+#include "CommonTypes.h"
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
@@ -32,7 +33,7 @@ int CGameMonitor::iReadBadWordFileList(char* pFn)
 	int  iIndex = 0;
 	HANDLE hFile;
 	FILE* pFile;
-	DWORD  dwFileSize;
+	uint32_t dwFileSize;
 
 	hFile = CreateFile(pFn, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
 	dwFileSize = GetFileSize(hFile, 0);
@@ -43,7 +44,7 @@ int CGameMonitor::iReadBadWordFileList(char* pFn)
 	else
 	{
 		pContents = new char[dwFileSize + 1];
-		ZeroMemory(pContents, dwFileSize + 1);
+		std::memset(pContents, 0, dwFileSize + 1);
 		fread(pContents, dwFileSize, 1, pFile);
 		fclose(pFile);
 	}
@@ -64,7 +65,7 @@ bool CGameMonitor::bCheckBadWord(char* pWord)
 #ifndef _DEBUG
 	int i;
 	char cBuffer[500];
-	ZeroMemory(cBuffer, sizeof(cBuffer));
+	std::memset(cBuffer, 0, sizeof(cBuffer));
 	strcpy(cBuffer, pWord);
 	i = 0;
 	while ((m_pWordList[i] != 0) && (strlen(m_pWordList[i]->m_pMsg) != 0))

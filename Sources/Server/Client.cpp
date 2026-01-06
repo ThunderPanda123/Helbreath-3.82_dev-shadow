@@ -2,8 +2,11 @@
 //
 //////////////////////////////////////////////////////////////////////
 
+#include "CommonTypes.h"
 #include "Client.h"
+#ifdef _WIN32
 #include <direct.h>
+#endif
 
 extern char G_cTxt[512];
 
@@ -19,15 +22,15 @@ CClient::CClient(HWND hWnd)
 	m_pXSock = new class XSocket(DEF_CLIENTSOCKETBLOCKLIMIT);
 	m_pXSock->bInitBufferSize(DEF_MSGBUFFERSIZE);
 
-	ZeroMemory(m_cProfile, sizeof(m_cProfile));
+	std::memset(m_cProfile, 0, sizeof(m_cProfile));
 	strcpy(m_cProfile, "__________");
 
-	ZeroMemory(m_cCharName, sizeof(m_cCharName));
-	ZeroMemory(m_cAccountName, sizeof(m_cAccountName));
-	ZeroMemory(m_cAccountPassword, sizeof(m_cAccountPassword));
+	std::memset(m_cCharName, 0, sizeof(m_cCharName));
+	std::memset(m_cAccountName, 0, sizeof(m_cAccountName));
+	std::memset(m_cAccountPassword, 0, sizeof(m_cAccountPassword));
 
-	ZeroMemory(m_cGuildName, sizeof(m_cGuildName));
-	ZeroMemory(m_cLocation, sizeof(m_cLocation));
+	std::memset(m_cGuildName, 0, sizeof(m_cGuildName));
+	std::memset(m_cLocation, 0, sizeof(m_cLocation));
 	strcpy(m_cLocation, "NONE");
 	m_iGuildRank = -1;
 	m_iGuildGUID = -1;
@@ -41,7 +44,7 @@ CClient::CClient(HWND hWnd)
 	m_iLU_Pool = 0;
 	m_cAura = 0;
 
-	// v1.432 사용하지 않는다.
+	// v1.432  苛쨈.
 	//m_iHitRatio_ItemEffect_SM = 0;
 	//m_iHitRatio_ItemEffect_L  = 0;
 	m_cVar = 0;
@@ -64,7 +67,7 @@ CClient::CClient(HWND hWnd)
 		m_stRepairAll[i].price = 0;
 	}
 
-	// 아이템 장착 상태 초기화한 후 설정한다.
+	//    珂화  磯.
 	for (i = 0; i < DEF_MAXITEMEQUIPPOS; i++) 
 		m_sItemEquipmentStatus[i] = -1;
 	
@@ -75,14 +78,14 @@ CClient::CClient(HWND hWnd)
 		m_ItemPosList[i].y   = 30;
 		m_bIsItemEquipped[i] = false;
 	}
-	m_cArrowIndex = -1;	// 화살 아이템 인덱스는 할당되지 않은 상태 
+	m_cArrowIndex = -1;	// 화  琯 年   
 
-	// 맡겨논 Initialize item list.
+	// 챨屛 Initialize item list.
 	for (i = 0; i < DEF_MAXBANKITEMS; i++) {
 		m_pItemInBankList[i] = 0;
 	}
 
-	// Magic - Skill 숙련도 리스트 초기화 
+	// Magic - Skill 천 트 珂화 
 	for (i = 0; i < DEF_MAXMAGICTYPE; i++)
 		m_cMagicMastery[i] = 0;
 	
@@ -114,14 +117,14 @@ CClient::CClient(HWND hWnd)
 	m_cHairColor  = 0;
 	m_cUnderwear  = 0;
 
-	m_cAttackDiceThrow_SM = 0;	// 공격치 주사위 던지는 회수 @@@@@@@@@@@@@
+	m_cAttackDiceThrow_SM = 0;	// 치 怜  회 @@@@@@@@@@@@@
 	m_cAttackDiceRange_SM = 0;
-	m_cAttackDiceThrow_L = 0;	// 공격치 주사위 던지는 회수 @@@@@@@@@@@@@
+	m_cAttackDiceThrow_L = 0;	// 치 怜  회 @@@@@@@@@@@@@
 	m_cAttackDiceRange_L = 0;
 	m_cAttackBonus_SM    = 0;
 	m_cAttackBonus_L     = 0;
 	
-	// 플레이어의 소속 마을에 따라서 사이드가 결정되며 이것을 보고 NPC가 공격여부를 결정할 것이다. 
+	// 첨潔 寗   絹弱� 퓔 隔  NPC 駙罐  甄. 
 	m_cSide = 0;
 
 	m_iHitRatio = 0;
@@ -137,7 +140,7 @@ CClient::CClient(HWND hWnd)
 		m_cMagicEffectStatus[i]	= 0;
 
 	m_iWhisperPlayerIndex = -1;
-	ZeroMemory(m_cWhisperPlayerName, sizeof(m_cWhisperPlayerName));
+	std::memset(m_cWhisperPlayerName, 0, sizeof(m_cWhisperPlayerName));
 
 	m_iHungerStatus  = 100;  // Maximum value is 100
 	
@@ -165,13 +168,13 @@ CClient::CClient(HWND hWnd)
 	m_iAllocatedFish = 0;
 	m_iFishChance    = 0;
 
-	ZeroMemory(m_cIPaddress, sizeof(m_cIPaddress)); 
+	std::memset(m_cIPaddress, 0, sizeof(m_cIPaddress)); 
 	m_bIsOnWaitingProcess = false;
 
 	m_iSuperAttackLeft  = 0;
 	m_iSuperAttackCount = 0;
 
-	m_sUsingWeaponSkill = 5; // 기본적으로 맨손격투 
+	m_sUsingWeaponSkill = 5; // 羞� 퓬卵 
 
 	m_iManaSaveRatio   = 0;
 	m_iAddResistMagic  = 0;
@@ -180,7 +183,7 @@ CClient::CClient(HWND hWnd)
 	m_bIsLuckyEffect     = false;
 	m_iSideEffect_MaxHPdown = 0;
 
-	m_iAddAbsAir   = 0;	// 속성별 대미지 흡수
+	m_iAddAbsAir   = 0;	// 憺  
 	m_iAddAbsEarth = 0;
 	m_iAddAbsFire  = 0;
 	m_iAddAbsWater = 0;
@@ -197,7 +200,7 @@ CClient::CClient(HWND hWnd)
 	m_iPartyID = 0;
 	m_iPartyStatus = 0;
 	m_iReqJoinPartyClientH = 0;
-	ZeroMemory(m_cReqJoinPartyName,sizeof(m_cReqJoinPartyName));
+	std::memset(m_cReqJoinPartyName, 0, sizeof(m_cReqJoinPartyName));
 
 	/*m_iPartyRank = -1; // v1.42
 	m_iPartyMemberCount = 0;
@@ -205,7 +208,7 @@ CClient::CClient(HWND hWnd)
 
 	for (i = 0; i < DEF_MAXPARTYMEMBERS; i++) {
 		m_stPartyMemberName[i].iIndex = 0;
-		ZeroMemory(m_stPartyMemberName[i].cName, sizeof(m_stPartyMemberName[i].cName));
+		std::memset(m_stPartyMemberName[i].cName, 0, sizeof(m_stPartyMemberName[i].cName));
 	}*/
 
 	m_iAbuseCount     = 0;
@@ -215,14 +218,14 @@ CClient::CClient(HWND hWnd)
 	//hbest
 	isForceSet = false;
 
-	// v1.4311-3 추가 변수 초기화 사투장 예약 관련 변수 
+	// v1.4311-3 煞  珂화     
     m_iFightZoneTicketNumber =	m_iFightzoneNumber = m_iReserveTime = 0 ;            
 
 	m_iPenaltyBlockYear = m_iPenaltyBlockMonth = m_iPenaltyBlockDay = 0; // v1.4
 
-	m_iExchangeH = 0;											// 교환할 대상의 인덱스 
-	ZeroMemory(m_cExchangeName, sizeof(m_cExchangeName));			// 교환할 대상의 이름 
-	ZeroMemory(m_cExchangeItemName, sizeof(m_cExchangeItemName));	// Exchange item name 
+	m_iExchangeH = 0;											// 환  琯 
+	std::memset(m_cExchangeName, 0, sizeof(m_cExchangeName));			// 환  見 
+	std::memset(m_cExchangeItemName, 0, sizeof(m_cExchangeItemName));	// Exchange item name 
 
 	for(i=0; i<4; i++){
 		m_cExchangeItemIndex[i]  = -1; 
@@ -233,11 +236,11 @@ CClient::CClient(HWND hWnd)
 
 	m_iQuest		 = 0; // Currently assigned Quest 
 	m_iQuestID       = 0; // QuestID
-	m_iAskedQuest	 = 0; // 물어본 퀘스트 
-	m_iCurQuestCount = 0; // 현재 퀘스트 상태 
+	m_iAskedQuest	 = 0; // 咀� 트 
+	m_iCurQuestCount = 0; //  트  
 
-	m_iQuestRewardType	 = 0; // 퀘스트 해결시 상품 종류 -> 아이템의 ID값이다.
-	m_iQuestRewardAmount = 0; // 상품 갯수 
+	m_iQuestRewardType	 = 0; // 트 莫 품  ->  ID甄.
+	m_iQuestRewardAmount = 0; // 품  
 
 	m_iContribution = 0;			// Contribution 
 	m_bQuestMatchFlag_Loc = false;  // Quest location verification flag.
@@ -248,11 +251,11 @@ CClient::CClient(HWND hWnd)
 	m_bIsNeutral      = false;
 	m_bIsObserverMode = false;
 
-	// 2000.8.1 이벤트 상품 수여 확인용 
+	// 2000.8.1 遣트 품  확恝 
 	m_iSpecialEventID = 200081;
 
-	m_iSpecialWeaponEffectType  = 0;	// 희귀 아이템 효과 종류: 0-None 1-필살기대미지추가 2-중독효과 3-정의의 4-저주의
-	m_iSpecialWeaponEffectValue = 0;	// 희귀 아이템 효과 값
+	m_iSpecialWeaponEffectType  = 0;	//   효 : 0-None 1-軻煞 2-森효 3- 4-
+	m_iSpecialWeaponEffectValue = 0;	//   효 
 
 	m_iAddHP = m_iAddSP = m_iAddMP = 0; 
 	m_iAddAR = m_iAddPR = m_iAddDR = 0;
@@ -282,7 +285,7 @@ CClient::CClient(HWND hWnd)
 	m_dwInitCCTimeRcv = 0;
 	m_dwInitCCTime = 0;
 
-	ZeroMemory(m_cLockedMapName, sizeof(m_cLockedMapName));
+	std::memset(m_cLockedMapName, 0, sizeof(m_cLockedMapName));
 	strcpy(m_cLockedMapName, "NONE");
 	m_iLockedMapTime = 0;
 
@@ -300,11 +303,11 @@ CClient::CClient(HWND hWnd)
 	m_iCSIsendPoint = 0;
 
 	m_bIsSendingMapStatus = false;
-	ZeroMemory(m_cSendingMapName, sizeof(m_cSendingMapName));
+	std::memset(m_cSendingMapName, 0, sizeof(m_cSendingMapName));
 
 	m_iConstructionPoint = 0;
 
-	ZeroMemory(m_cConstructMapName, sizeof(m_cConstructMapName));
+	std::memset(m_cConstructMapName, 0, sizeof(m_cConstructMapName));
 	m_iConstructLocX = m_iConstructLocY = -1;
 
 	m_bIsAdminOrderGoto = false;
@@ -360,11 +363,11 @@ bool CClient::bCreateNewParty()
 
 	m_iPartyRank = 0;
 	m_iPartyMemberCount = 0;
-	m_iPartyGUID = (rand() % 999999) + timeGetTime();
+	m_iPartyGUID = (rand() % 999999) + GameClock::GetTimeMS();
 
 	for (i = 0; i < DEF_MAXPARTYMEMBERS; i++) {
 		m_stPartyMemberName[i].iIndex = 0;
-		ZeroMemory(m_stPartyMemberName[i].cName, sizeof(m_stPartyMemberName[i].cName));
+		std::memset(m_stPartyMemberName[i].cName, 0, sizeof(m_stPartyMemberName[i].cName));
 	}
 
 	return true;
@@ -398,13 +401,15 @@ static string get_line(string file, string value1)
 
 string CClient::getvalue(string val, char* fileName)
 {
+#ifdef _WIN32
 	_mkdir(fileName);
+#endif
 
 	char cFileName[112] = {};
 	char cDir[112] = {};
 	strcat(cFileName, fileName);
 	strcat(cFileName, "\\");
-	wsprintf(cDir, "AscII%d", (unsigned char)m_cCharName[0]);
+	std::snprintf(cDir, sizeof(cDir), "AscII%d", (unsigned char)m_cCharName[0]);
 	strcat(cFileName, cDir);
 	strcat(cFileName, "\\");
 	strcat(cFileName, m_cCharName);
@@ -420,7 +425,7 @@ void CClient::read_mobs_data()
 {
 	for (int i = 0; i < 100; i++)
 	{
-		wsprintf(G_cTxt, "mob-%d = ", i + 1);
+		std::snprintf(G_cTxt, sizeof(G_cTxt), "mob-%d = ", i + 1);
 		string token = getvalue(G_cTxt, "Mobs");
 		if (string(token) == "#") continue;
 		const char* delim = " ";
@@ -453,7 +458,7 @@ void CClient::save_mobs_data()
 	char cDir[112] = {};
 	strcat(cFileName, "Mobs");
 	strcat(cFileName, "\\");
-	wsprintf(cDir, "AscII%d", (unsigned char)m_cCharName[0]);
+	std::snprintf(cDir, sizeof(cDir), "AscII%d", (unsigned char)m_cCharName[0]);
 	strcat(cFileName, cDir);
 	strcat(cFileName, "\\");
 	strcat(cFileName, m_cCharName);

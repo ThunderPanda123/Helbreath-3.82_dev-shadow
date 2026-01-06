@@ -1,4 +1,5 @@
 #pragma once
+#include "CommonTypes.h"
 
 #define DEF_INDEX4_MSGID			0
 #define DEF_INDEX2_MSGTYPE			4

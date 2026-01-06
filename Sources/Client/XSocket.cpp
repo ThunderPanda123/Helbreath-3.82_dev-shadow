@@ -3,6 +3,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "XSocket.h"
+#include "CommonTypes.h"
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
@@ -57,7 +58,7 @@ XSocket::~XSocket()
 	}
 }
 
-bool XSocket::bInitBufferSize(DWORD dwBufferSize)
+bool XSocket::bInitBufferSize(uint32_t dwBufferSize)
 {
 	if (m_pRcvBuffer != 0) delete[] m_pRcvBuffer;
 	if (m_pSndBuffer != 0) delete[] m_pSndBuffer;
@@ -77,7 +78,7 @@ bool XSocket::bInitBufferSize(DWORD dwBufferSize)
 int XSocket::Poll()
 {
 	WSANETWORKEVENTS networkEvents;
-	DWORD dwRet;
+	uint32_t dwRet;
 	int iResult = 0;
 
 	if (m_cType == 0) return DEF_XSOCKEVENT_NOTINITIALIZED;
@@ -168,7 +169,7 @@ bool XSocket::bBlockConnect(char* pAddr, int iPort)
 {
 	SOCKADDR_IN	 saTemp;
 	int             iRet;
-	DWORD			 dwOpt;
+	uint32_t dwOpt;
 	struct hostent* hp;
 
 	if (m_cType == DEF_XSOCK_LISTENSOCK) return false;
@@ -216,7 +217,7 @@ bool XSocket::bConnect(char* pAddr, int iPort)
 	SOCKADDR_IN	 saTemp;
 	u_long          arg;
 	int             iRet;
-	DWORD			 dwOpt;
+	uint32_t dwOpt;
 
 	if (m_cType == DEF_XSOCK_LISTENSOCK) return false;
 	if (m_Sock != INVALID_SOCKET) closesocket(m_Sock);
@@ -269,7 +270,7 @@ bool XSocket::bConnect(char* pAddr, int iPort)
 int XSocket::_iOnRead()
 {
 	int iRet, WSAErr;
-	WORD* wp;
+	uint16_t* wp;
 
 	if (m_cStatus == DEF_XSOCKSTATUS_READINGHEADER) {
 
@@ -294,7 +295,7 @@ int XSocket::_iOnRead()
 
 		if (m_dwReadSize == 0) {
 			m_cStatus = DEF_XSOCKSTATUS_READINGBODY;
-			wp = (WORD*)(m_pRcvBuffer + 1);
+			wp = (uint16_t*)(m_pRcvBuffer + 1);
 			m_dwReadSize = (int)(*wp - 3);
 
 			if (m_dwReadSize == 0) {
@@ -484,9 +485,9 @@ int XSocket::_iSendUnsentData()
 }
 
 
-int XSocket::iSendMsg(char* cData, DWORD dwSize, char cKey)
+int XSocket::iSendMsg(char* cData, uint32_t dwSize, char cKey)
 {
-	WORD* wp;
+	uint16_t* wp;
 	int    i, iRet;
 
 	if (dwSize > m_dwBufferSize) return DEF_XSOCKEVENT_MSGSIZETOOLARGE;
@@ -496,8 +497,8 @@ int XSocket::iSendMsg(char* cData, DWORD dwSize, char cKey)
 
 	m_pSndBuffer[0] = cKey;
 
-	wp = (WORD*)(m_pSndBuffer + 1);
-	*wp = (WORD)(dwSize + 3);
+	wp = (uint16_t*)(m_pSndBuffer + 1);
+	*wp = (uint16_t)(dwSize + 3);
 
 	memcpy((char*)(m_pSndBuffer + 3), cData, dwSize);
 	if (cKey != 0) {
@@ -566,7 +567,7 @@ bool XSocket::bAccept(class XSocket* pXSock)
 	SOCKET			AcceptedSock;
 	sockaddr		Addr;
 	register int	iLength;
-	DWORD			dwOpt;
+	uint32_t dwOpt;
 
 	if (m_cType != DEF_XSOCK_LISTENSOCK) return false;
 	if (pXSock == 0) return false;
@@ -619,17 +620,17 @@ void XSocket::_CloseConn()
 	m_cType = DEF_XSOCK_SHUTDOWNEDSOCK;
 }
 
-char* XSocket::pGetRcvDataPointer(DWORD* pMsgSize, char* pKey)
+char* XSocket::pGetRcvDataPointer(uint32_t* pMsgSize, char* pKey)
 {
-	WORD* wp;
-	DWORD  dwSize;
+	uint16_t* wp;
+	uint32_t dwSize;
 	register int i;
 	char cKey;
 
 	cKey = m_pRcvBuffer[0];
 	if (pKey != 0) *pKey = cKey;
 
-	wp = (WORD*)(m_pRcvBuffer + 1);
+	wp = (uint16_t*)(m_pRcvBuffer + 1);
 	*pMsgSize = (*wp) - 3;
 	dwSize = (*wp) - 3;
 

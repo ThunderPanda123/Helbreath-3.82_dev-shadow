@@ -148,10 +148,10 @@
     <ClInclude Include="Benchmark.h" />
     <ClInclude Include="BuildItem.h" />
     <ClInclude Include="CharInfo.h" />
+    <ClInclude Include="CommonTypes.h" />
     <ClInclude Include="Curse.h" />
     <ClInclude Include="DXC_ddraw.h" />
     <ClInclude Include="DXC_dinput.h" />
-    <ClInclude Include="DXC_dsound.h" />
     <ClInclude Include="Effect.h" />
     <ClInclude Include="Game.h" />
     <ClInclude Include="GameMonitor.h" />
@@ -178,6 +178,7 @@
     <ClInclude Include="YWSound.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="CommonTypes.cpp" />
     <ClCompile Include="Curse.cpp" />
     <ClCompile Include="DXC_ddraw.cpp" />
     <ClCompile Include="DXC_dinput.cpp" />

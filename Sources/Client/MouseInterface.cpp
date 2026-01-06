@@ -3,6 +3,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "MouseInterface.h"
+#include "CommonTypes.h"
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
@@ -13,7 +14,7 @@ CMouseInterface::CMouseInterface()
 	m_cPrevPress = 0;
 	for (int i = 1; i < DEF_MAXRECTS; i++) 
 		m_pRect[i] = 0;
-	m_dwTime = timeGetTime();
+	m_dwTime = GameClock::GetTimeMS();
 }
 
 CMouseInterface::~CMouseInterface()

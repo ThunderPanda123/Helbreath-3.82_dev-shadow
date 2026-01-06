@@ -1,4 +1,8 @@
+#include "CommonTypes.h"
 #include "LoginServer.h"
+#ifdef _WIN32
+#include <direct.h>
+#endif
 #include <string>
 #include <vector>
 #include <iostream>
@@ -66,7 +70,7 @@ void LoginServer::RequestLogin(int h, char* pData)
 	if (!IsValidName(cName) || !IsValidName(cPassword) || !IsValidName(world_name))
 		return;
 
-	wsprintf(G_cTxt, "(!) Account Request Login: %s", cName);
+	std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) Account Request Login: %s", cName);
 	PutLogList(G_cTxt);
 
 	std::vector<string> chars;
@@ -98,17 +102,19 @@ void LoginServer::RequestLogin(int h, char* pData)
 
 void LoginServer::GetCharList(string acc, char*& cp2, std::vector<string> chars)
 {
-	for (int i = 0; i < chars.size(); i++)
+	for (size_t i = 0; i < chars.size(); i++)
 	{
 		char seps[] = "= \t\r\n";
 		char cFileName[112] = {};
 		char cDir[112] = {};
-		mkdir("Characters");
-		ZeroMemory(cFileName, sizeof(cFileName));
+#ifdef _WIN32
+		_mkdir("Characters");
+#endif
+		std::memset(cFileName, 0, sizeof(cFileName));
 		strcat(cFileName, "Characters");
 		strcat(cFileName, "\\");
 		strcat(cFileName, "\\");
-		wsprintf(cDir, "AscII%d", chars[i][0]);
+		std::snprintf(cDir, sizeof(cDir), "AscII%d", chars[i][0]);
 		strcat(cFileName, cDir);
 		strcat(cFileName, "\\");
 		strcat(cFileName, "\\");
@@ -124,17 +130,17 @@ void LoginServer::GetCharList(string acc, char*& cp2, std::vector<string> chars)
 		}
 		auto dwFileSize = GetFileSize(hFile, 0);
 		auto cp = new char[dwFileSize + 1];
-		ZeroMemory(cp, dwFileSize + 1);
+		std::memset(cp, 0, dwFileSize + 1);
 		ReadFile(hFile, cp, dwFileSize, &lpNumberOfBytesRead, 0);
 		CloseHandle(hFile);
 		int cReadModeA = 0;
 		char* token = strtok(cp, seps);
 
 		short sAppr1 = 0, sAppr2 = 0, sAppr3 = 0, sAppr4 = 0;
-		WORD cSex = 0, cSkin = 0;
-		WORD iLevel = 0;
-		DWORD iExp = 0;
-		DWORD iApprColor = 0; // Antes ten�as u64, pero el cliente espera DWORD (4 bytes)
+		uint16_t cSex = 0, cSkin = 0;
+		uint16_t iLevel = 0;
+		uint32_t iExp = 0;
+		uint32_t iApprColor = 0; // Antes ten�as u64, pero el cliente espera uint32_t (4 bytes)
 		char cMapName[11] = {}; // Siempre tama�o 11 para forzar terminador
 
 		while (token != 0)
@@ -151,8 +157,8 @@ void LoginServer::GetCharList(string acc, char*& cp2, std::vector<string> chars)
 				case 6: cSkin = atoi(token); cReadModeA = 0; break;
 				case 7: iLevel = atoi(token); cReadModeA = 0; break;
 				case 14: iExp = atoi(token); cReadModeA = 0; break;
-				case 15: iApprColor = (DWORD)strtoul(token, nullptr, 10); cReadModeA = 0; break;
-				case 17: ZeroMemory(cMapName, sizeof(cMapName)); strncpy(cMapName, token, 10); cMapName[10] = 0; cReadModeA = 0; break;
+				case 15: iApprColor = (uint32_t)strtoul(token, nullptr, 10); cReadModeA = 0; break;
+				case 17: std::memset(cMapName, 0, sizeof(cMapName)); strncpy(cMapName, token, 10); cMapName[10] = 0; cReadModeA = 0; break;
 				}
 			}
 			else {
@@ -174,7 +180,7 @@ void LoginServer::GetCharList(string acc, char*& cp2, std::vector<string> chars)
 
 		// Nombre
 		char cName[11] = {};
-		ZeroMemory(cName, sizeof(cName));
+		std::memset(cName, 0, sizeof(cName));
 		strncpy(cName, chars[i].c_str(), 10); // Solo 10 bytes
 		cName[10] = 0;
 
@@ -183,11 +189,11 @@ void LoginServer::GetCharList(string acc, char*& cp2, std::vector<string> chars)
 		Push(cp2, sAppr2);
 		Push(cp2, sAppr3);
 		Push(cp2, sAppr4);
-		Push(cp2, cSex);               // WORD
-		Push(cp2, cSkin);              // WORD
-		Push(cp2, iLevel);             // WORD
-		Push(cp2, iExp);               // DWORD
-		Push(cp2, iApprColor);         // DWORD
+		Push(cp2, cSex);               // uint16_t
+		Push(cp2, cSkin);              // uint16_t
+		Push(cp2, iLevel);             // uint16_t
+		Push(cp2, iExp);               // uint32_t
+		Push(cp2, iApprColor);         // uint32_t
 		Push(cp2, cMapName, 10);       // SOLO 10 BYTES del mapname, igual que nombre
 	}
 }
@@ -201,8 +207,8 @@ LogIn LoginServer::AccountLogIn(string acc, string pass, std::vector<string>& ch
 
 	cReadModeA = cReadModeB = 0;
 
-	ZeroMemory(cTxt, sizeof(cTxt));
-	wsprintf(cTxt, "account-character");
+	std::memset(cTxt, 0, sizeof(cTxt));
+	std::snprintf(cTxt, sizeof(cTxt), "account-character");
 
 	if (acc.size() == 0)
 		return LogIn::NoAcc;
@@ -210,12 +216,12 @@ LogIn LoginServer::AccountLogIn(string acc, string pass, std::vector<string>& ch
 	if (pass.size() == 0)
 		return LogIn::NoPass;
 
-	ZeroMemory(file_name, sizeof(file_name));
-	ZeroMemory(cDir, sizeof(cDir));
+	std::memset(file_name, 0, sizeof(file_name));
+	std::memset(cDir, 0, sizeof(cDir));
 	strcat(file_name, "Accounts");
 	strcat(file_name, "\\");
 	strcat(file_name, "\\");
-	wsprintf(cDir, "AscII%d", acc[0]);
+	std::snprintf(cDir, sizeof(cDir), "AscII%d", acc[0]);
 	strcat(file_name, cDir);
 	strcat(file_name, "\\");
 	strcat(file_name, "\\");
@@ -224,11 +230,11 @@ LogIn LoginServer::AccountLogIn(string acc, string pass, std::vector<string>& ch
 
 
 	HANDLE file_handle = CreateFile(file_name, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
-	DWORD file_sz = 0;
+	uint32_t file_sz = 0;
 	if (file_handle == INVALID_HANDLE_VALUE)
 	{
 		CloseHandle(file_handle);
-		wsprintf(G_cTxt, "(!) Account Does not Exist [invalid handle] (%s)", file_name);
+		std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) Account Does not Exist [invalid handle] (%s)", file_name);
 		PutLogList(G_cTxt);
 		return LogIn::NoAcc;
 	}
@@ -238,7 +244,7 @@ LogIn LoginServer::AccountLogIn(string acc, string pass, std::vector<string>& ch
 
 	if (file_sz == 0)
 	{
-		wsprintf(G_cTxt, "(!) Login File sz = 0 (%s)", file_name);
+		std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) Login File sz = 0 (%s)", file_name);
 		PutLogList(G_cTxt);
 		return LogIn::NoAcc;
 	}
@@ -246,7 +252,7 @@ LogIn LoginServer::AccountLogIn(string acc, string pass, std::vector<string>& ch
 	auto file = fopen(file_name, "rt");
 	if (file == 0)
 	{
-		wsprintf(G_cTxt, "(!) Account Does not Exist (%s)", file_name);
+		std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) Account Does not Exist (%s)", file_name);
 		PutLogList(G_cTxt);
 		return LogIn::NoAcc;
 	}
@@ -258,7 +264,7 @@ LogIn LoginServer::AccountLogIn(string acc, string pass, std::vector<string>& ch
 	} account;
 
 	cp = new char[file_sz + 1];
-	ZeroMemory(cp, file_sz + 1);
+	std::memset(cp, 0, file_sz + 1);
 	fread(cp, file_sz, 1, file);
 	token = strtok(cp, seps);
 	while (token != 0)
@@ -377,7 +383,7 @@ void LoginServer::ResponseCharacter(int h, char* pData)
 	if (string(world_name) != WORLDNAMELS)
 		return;
 
-	wsprintf(G_cTxt, "(!) Request create new Character: %s", cName);
+	std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) Request create new Character: %s", cName);
 	PutLogList(G_cTxt);
 
 	std::vector<string> chars;
@@ -395,17 +401,17 @@ void LoginServer::ResponseCharacter(int h, char* pData)
 	char cFileName[112] = {};
 	char cDir[112] = {};
 
-	ZeroMemory(cFileName, sizeof(cFileName));
+	std::memset(cFileName, 0, sizeof(cFileName));
 	strcat(cFileName, "Characters");
 	strcat(cFileName, "\\");
 	strcat(cFileName, "\\");
-	wsprintf(cDir, "AscII%d", cName[0]);
+	std::snprintf(cDir, sizeof(cDir), "AscII%d", cName[0]);
 	strcat(cFileName, cDir);
 	strcat(cFileName, "\\");
 	strcat(cFileName, "\\");
 	strcat(cFileName, cName);
 	strcat(cFileName, ".txt");
-	//wsprintf(G_cTxt, "(!) Getting character file %s", cFileName);
+	//std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) Getting character file %s", cFileName);
 	//PutLogList(G_cTxt);
 
 	HANDLE  hFile = CreateFile(cFileName, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
@@ -419,8 +425,10 @@ void LoginServer::ResponseCharacter(int h, char* pData)
 		return;
 	}
 
+#ifdef _WIN32
 	_mkdir("Characters");
 	_mkdir(string(string("Characters\\") + cDir).c_str());
+#endif
 	auto file = fopen(cFileName, "wt");
 	if (!file)
 	{
@@ -434,153 +442,153 @@ void LoginServer::ResponseCharacter(int h, char* pData)
 	char cBuffer[112] = {};
 	char cFile[2048] = {};
 
-	ZeroMemory(cFile, sizeof(cFile));
+	std::memset(cFile, 0, sizeof(cFile));
 
 	strcat(cFile, "[FILE-DATE]");
 	strcat(cFile, "\n\n");
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "file-saved-date: %d %d %d %d %d", SysTime.wYear, SysTime.wMonth, SysTime.wDay, SysTime.wHour, SysTime.wMinute);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "file-saved-date: %d %d %d %d %d", SysTime.wYear, SysTime.wMonth, SysTime.wDay, SysTime.wHour, SysTime.wMinute);
 	strcat(cFile, cBuffer);
 	strcat(cFile, "\n\n");
 
 	strcat(cFile, "[NAME-ACCOUNT]");
 	strcat(cFile, "\n\n");
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-name = %s\n", cName);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "character-name = %s\n", cName);
 	strcat(cFile, cBuffer);
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "account-name = %s\n", cAcc);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "account-name = %s\n", cAcc);
 	strcat(cFile, cBuffer);
 
 	strcat(cFile, "\n\n");
 	strcat(cFile, "[STATUS]\n\n");
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-location = NONE\n");
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "character-location = NONE\n");
 	strcat(cFile, cBuffer);
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-guild-name = NONE\n");
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "character-guild-name = NONE\n");
 	strcat(cFile, cBuffer);
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-guild-rank = -1\n");
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "character-guild-rank = -1\n");
 	strcat(cFile, cBuffer);
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-loc-map = default\n");
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "character-loc-map = default\n");
 	strcat(cFile, cBuffer);
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-loc-x = -1\n");
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "character-loc-x = -1\n");
 	strcat(cFile, cBuffer);
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-loc-y = -1\n");
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "character-loc-y = -1\n");
 	strcat(cFile, cBuffer);
 
 	int hp = vit * 3 + 1 * 2 + str / 2;
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-HP = %d\n", hp);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "character-HP = %d\n", hp);
 	strcat(cFile, cBuffer);
 
 	int mp = (mag) * 2 + 1 * 2 + (intl) / 2;
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-MP = %d\n", mp);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "character-MP = %d\n", mp);
 	strcat(cFile, cBuffer);
 
 	int sp = 1 * 2 + str * 2;
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-SP = %d\n", sp);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "character-SP = %d\n", sp);
 	strcat(cFile, cBuffer);
 
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-DefenseRatio = %d\n", 14);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "character-DefenseRatio = %d\n", 14);
 	strcat(cFile, cBuffer);
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-LEVEL = 1\n");
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "character-LEVEL = 1\n");
 	strcat(cFile, cBuffer);
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-STR = %d\n", str);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "character-STR = %d\n", str);
 	strcat(cFile, cBuffer);
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-INT = %d\n", intl);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "character-INT = %d\n", intl);
 	strcat(cFile, cBuffer);
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-VIT = %d\n", vit);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "character-VIT = %d\n", vit);
 	strcat(cFile, cBuffer);
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-DEX = %d\n", dex);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "character-DEX = %d\n", dex);
 	strcat(cFile, cBuffer);
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-MAG = %d\n", mag);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "character-MAG = %d\n", mag);
 	strcat(cFile, cBuffer);
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-CHARISMA = %d\n", chr);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "character-CHARISMA = %d\n", chr);
 	strcat(cFile, cBuffer);
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-LUCK = %d\n", 10);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "character-LUCK = %d\n", 10);
 	strcat(cFile, cBuffer);
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-EXP = %d\n", 0);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "character-EXP = %d\n", 0);
 	strcat(cFile, cBuffer);
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-Lu_Pool = %d\n", 0);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "character-Lu_Pool = %d\n", 0);
 	strcat(cFile, cBuffer);
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-EK-Count = %d\n", 0);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "character-EK-Count = %d\n", 0);
 	strcat(cFile, cBuffer);
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "character-PK-Count = %d\n", 0);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "character-PK-Count = %d\n", 0);
 	strcat(cFile, cBuffer);
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "sex-status = %d\n", gender);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "sex-status = %d\n", gender);
 	strcat(cFile, cBuffer);
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "skin-status = %d\n", skin);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "skin-status = %d\n", skin);
 	strcat(cFile, cBuffer);
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "hairstyle-status = %d\n", hairstyle);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "hairstyle-status = %d\n", hairstyle);
 	strcat(cFile, cBuffer);
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "haircolor-status = %d\n", haircolor);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "haircolor-status = %d\n", haircolor);
 	strcat(cFile, cBuffer);
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "underwear-status = %d\n", under);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "underwear-status = %d\n", under);
 	strcat(cFile, cBuffer);
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "appr1 = %d\n", 1187);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "appr1 = %d\n", 1187);
 	strcat(cFile, cBuffer);
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "appr2 = %d\n", 0);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "appr2 = %d\n", 0);
 	strcat(cFile, cBuffer);
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "appr3 = %d\n", 0);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "appr3 = %d\n", 0);
 	strcat(cFile, cBuffer);
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "appr4 = %d\n", 0);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "appr4 = %d\n", 0);
 	strcat(cFile, cBuffer);
 
 	strcat(cFile, "\n\n[ITEMLIST]\n\n");
@@ -607,10 +615,10 @@ void LoginServer::ResponseCharacter(int h, char* pData)
 
 	default:
 		if (gender == 1) {
-			wsprintf(cTxt, "character-item = KneeTrousers(M)     1 0 0 0 0 %d 0 0 0 300 0\n", iRand);
+			std::snprintf(cTxt, sizeof(cTxt), "character-item = KneeTrousers(M)     1 0 0 0 0 %d 0 0 0 300 0\n", iRand);
 		}
 		else {
-			wsprintf(cTxt, "character-item = Chemise(W)	         1 0 0 0 0 %d 0 0 0 300 0\n", iRand);
+			std::snprintf(cTxt, sizeof(cTxt), "character-item = Chemise(W)	         1 0 0 0 0 %d 0 0 0 300 0\n", iRand);
 		}
 		strcat(pData, cTxt);
 		strcat(pData, "\n");
@@ -623,8 +631,8 @@ void LoginServer::ResponseCharacter(int h, char* pData)
 
 	strcat(pData, "skill-mastery     = 0 0 0 3 20 24 0 24 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ");
 	//	for (i = 0; i < 60; i++) {
-			//ZeroMemory(cTxt, sizeof(cTxt));
-			//wsprintf(cTxt, "0 0 0 3 20 24 0 24 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ");
+			//std::memset(cTxt, 0, sizeof(cTxt));
+			//std::snprintf(cTxt, sizeof(cTxt), "0 0 0 3 20 24 0 24 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ");
 			//strcat(pData, cTxt);
 	//	}
 	strcat(pData, "\n");
@@ -672,7 +680,7 @@ void LoginServer::DeleteCharacter(int h, char* pData)
 	Pop(cp, cPassword, 10);
 	Pop(cp, world_name, 30);
 
-	wsprintf(G_cTxt, "(!) Request delete Character: %s", cName);
+	std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) Request delete Character: %s", cName);
 	PutLogList(G_cTxt);
 
 	std::vector<string> chars;
@@ -689,7 +697,7 @@ void LoginServer::DeleteCharacter(int h, char* pData)
 	strcat(cFileName, "Characters");
 	strcat(cFileName, "\\");
 	strcat(cFileName, "\\");
-	wsprintf(cTxt, "AscII%d", *cName);
+	std::snprintf(cTxt, sizeof(cTxt), "AscII%d", *cName);
 	strcat(cFileName, cTxt);
 	strcpy(cDir, cFileName);
 	strcat(cFileName, "\\");
@@ -700,11 +708,11 @@ void LoginServer::DeleteCharacter(int h, char* pData)
 	DeleteFile(cFileName);
 
 
-	ZeroMemory(cFileName, sizeof(cFileName));
-	ZeroMemory(cDir, sizeof(cDir));
+	std::memset(cFileName, 0, sizeof(cFileName));
+	std::memset(cDir, 0, sizeof(cDir));
 	strcat(cFileName, "Accounts");
 	strcat(cFileName, "\\");
-	wsprintf(cDir, "AscII%d", *cAcc);
+	std::snprintf(cDir, sizeof(cDir), "AscII%d", *cAcc);
 	strcat(cFileName, cDir);
 	strcat(cFileName, "\\");
 	strcat(cFileName, cAcc);
@@ -791,7 +799,7 @@ void LoginServer::ChangePassword(int h, char* pData)
 	Pop(cp, cNewPw, 10);
 	Pop(cp, cNewPwConf, 10);
 
-	wsprintf(G_cTxt, "(!) Request change password: %s", cAcc);
+	std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) Request change password: %s", cAcc);
 	PutLogList(G_cTxt);
 
 	std::vector<string> chars;
@@ -812,7 +820,7 @@ void LoginServer::ChangePassword(int h, char* pData)
 	char cTxt[1024] = {};
 	char cTxt2[1024] = {};
 	int iTest = -1;
-	wsprintf(cTmp, "Accounts\\AscII%d\\%s.txt", cAcc[0], cAcc);
+	std::snprintf(cTmp, sizeof(cTmp), "Accounts\\AscII%d\\%s.txt", cAcc[0], cAcc);
 	HANDLE  hFile = CreateFile(cTmp, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
 	if (hFile == INVALID_HANDLE_VALUE)
 	{
@@ -825,11 +833,11 @@ void LoginServer::ChangePassword(int h, char* pData)
 
 	char cFileName[512] = {};
 	char cDir[112] = {};
-	ZeroMemory(cFileName, sizeof(cFileName));
-	ZeroMemory(cDir, sizeof(cDir));
+	std::memset(cFileName, 0, sizeof(cFileName));
+	std::memset(cDir, 0, sizeof(cDir));
 	strcat(cFileName, "Accounts");
 	strcat(cFileName, "\\");
-	wsprintf(cDir, "AscII%d", *cAcc);
+	std::snprintf(cDir, sizeof(cDir), "AscII%d", *cAcc);
 	strcat(cFileName, cDir);
 	strcat(cFileName, "\\");
 	strcat(cFileName, cAcc);
@@ -879,7 +887,7 @@ void LoginServer::ChangePassword(int h, char* pData)
 		fgetpos(pFile, &pos);
 		iSize = fread(cBuffer, 1, iSize, pFile);
 
-		wsprintf(cTxt, "account-password = %s", cPassword);
+		std::snprintf(cTxt, sizeof(cTxt), "account-password = %s", cPassword);
 
 		for (int i = 0; i < iSize; i++)
 		{
@@ -893,7 +901,7 @@ void LoginServer::ChangePassword(int h, char* pData)
 		if (iTest != -1)
 		{
 			memcpy_secure(cBuffer2, cBuffer, iTest);
-			wsprintf(cTxt2, "account-password = %s", cNewPw);
+			std::snprintf(cTxt2, sizeof(cTxt2), "account-password = %s", cNewPw);
 			strcat(cBuffer2, cTxt2);
 			memcpy_secure(cBuffer2 + iTest + strlen(cTxt2), cBuffer + iTest + strlen(cTxt), iSize - strlen(cTxt) - iTest);
 			fsetpos(pFile, &pos);
@@ -917,7 +925,7 @@ void LoginServer::CreateNewAccount(int h, char* pData)
 	char* cp;
 	FILE* pFile;
 	HANDLE hFile;
-	DWORD  dwFileSize;
+	uint32_t  dwFileSize;
 	SYSTEMTIME SysTime;
 	char cFile[20000], cBuffer[1024], cFn[1024];
 	char cName[12] = {};
@@ -943,14 +951,14 @@ void LoginServer::CreateNewAccount(int h, char* pData)
 		(strlen(cAnswer) == 0))
 		return;
 
-	wsprintf(G_cTxt, "(!) Request create new Account: %s", cName);
+	std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) Request create new Account: %s", cName);
 	PutLogList(G_cTxt);
 
 	if (!IsValidName(cName) || !IsValidName(cPassword))
 		return;
 
-	ZeroMemory(cFn, sizeof(cFn));
-	wsprintf(cFn, "Accounts\\AscII%d\\%s.txt", cName[0], cName);
+	std::memset(cFn, 0, sizeof(cFn));
+	std::snprintf(cFn, sizeof(cFn), "Accounts\\AscII%d\\%s.txt", cName[0], cName);
 	hFile = CreateFile(cFn, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
 	dwFileSize = GetFileSize(hFile, 0);
 	if (hFile == INVALID_HANDLE_VALUE)
@@ -965,15 +973,19 @@ void LoginServer::CreateNewAccount(int h, char* pData)
 	}
 
 	//mkdir("DataBase");
-	mkdir("Accounts");
+#ifdef _WIN32
+	_mkdir("Accounts");
+#endif
 	char Aux = 0;
 	Aux = cName[0];
-	ZeroMemory(cFn, sizeof(cFn));
-	wsprintf(cFn, "Accounts\\AscII%d", Aux);
+	std::memset(cFn, 0, sizeof(cFn));
+	std::snprintf(cFn, sizeof(cFn), "Accounts\\AscII%d", Aux);
+#ifdef _WIN32
 	_mkdir(cFn);
+#endif
 
-	ZeroMemory(cFn, sizeof(cFn));
-	wsprintf(cFn, "Accounts\\AscII%d\\%s.txt", Aux, cName);
+	std::memset(cFn, 0, sizeof(cFn));
+	std::snprintf(cFn, sizeof(cFn), "Accounts\\AscII%d\\%s.txt", Aux, cName);
 	pFile = fopen(cFn, "wt");
 	if (pFile == 0)
 	{
@@ -983,10 +995,10 @@ void LoginServer::CreateNewAccount(int h, char* pData)
 
 	SendLoginMsg(DEF_LOGRESMSGTYPE_NEWACCOUNTCREATED, DEF_LOGRESMSGTYPE_NEWACCOUNTCREATED, 0, 0, h);
 
-	ZeroMemory(cFile, sizeof(cFile));
+	std::memset(cFile, 0, sizeof(cFile));
 	strcat(cFile, "Account-generated: ");
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "Time(%d:%d/%d/%d/%d) IP(%s)", SysTime.wYear, SysTime.wMonth, SysTime.wDay, SysTime.wHour, SysTime.wMinute, G_pGame->_lclients[h]->_ip);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "Time(%d:%d/%d/%d/%d) IP(%s)", SysTime.wYear, SysTime.wMonth, SysTime.wDay, SysTime.wHour, SysTime.wMinute, G_pGame->_lclients[h]->_ip);
 	strcat(cFile, cBuffer);
 	strcat(cFile, "\n");
 
@@ -994,38 +1006,38 @@ void LoginServer::CreateNewAccount(int h, char* pData)
 	strcat(cFile, "\n");
 
 	strcat(cFile, "account-name = ");
-	ZeroMemory(cBuffer, sizeof(cBuffer));
+	std::memset(cBuffer, 0, sizeof(cBuffer));
 	memcpy(cBuffer, cName, 10);
 	strcat(cFile, cBuffer);
 	strcat(cFile, "\n");
 
 	strcat(cFile, "account-password = ");
-	ZeroMemory(cBuffer, sizeof(cBuffer));
+	std::memset(cBuffer, 0, sizeof(cBuffer));
 	memcpy(cBuffer, cPassword, 10);
 	strcat(cFile, cBuffer);
 	strcat(cFile, "\n");
 
 	strcat(cFile, "account-Email = ");
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "%s", cEmailAddr);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "%s", cEmailAddr);
 	strcat(cFile, cBuffer);
 	strcat(cFile, "\n");
 
 	strcat(cFile, "account-Quiz = ");
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "%s", cQuiz);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "%s", cQuiz);
 	strcat(cFile, cBuffer);
 	strcat(cFile, "\n");
 
 	strcat(cFile, "account-Answer = ");
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "%s", cAnswer);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "%s", cAnswer);
 	strcat(cFile, cBuffer);
 	strcat(cFile, "\n");
 
 	strcat(cFile, "account-change-password = ");
-	ZeroMemory(cBuffer, sizeof(cBuffer));
-	wsprintf(cBuffer, "%d %d %d", SysTime.wYear, SysTime.wMonth, SysTime.wDay);
+	std::memset(cBuffer, 0, sizeof(cBuffer));
+	std::snprintf(cBuffer, sizeof(cBuffer), "%d %d %d", SysTime.wYear, SysTime.wMonth, SysTime.wDay);
 	strcat(cFile, cBuffer);
 	strcat(cFile, "\n");
 	strcat(cFile, "\n");
@@ -1051,8 +1063,8 @@ bool LoginServer::SaveAccountInfo(int iAccount, char* cAccountName, char* cTemp,
 	bool bDeleteLine;
 	HANDLE hFile;
 	fpos_t pos;
-	DWORD  dwSize = 0;
-	DWORD dwFileSize;
+	uint32_t  dwSize = 0;
+	uint32_t dwFileSize;
 	FILE* pFile;
 
 	memset(cData, 0, 2000);
@@ -1061,16 +1073,16 @@ bool LoginServer::SaveAccountInfo(int iAccount, char* cAccountName, char* cTemp,
 	iLine = 0;
 	bDeleteLine = false;
 	iMinus = 0;
-	ZeroMemory(cTxt, sizeof(cTxt));
-	ZeroMemory(cTxt2, sizeof(cTxt2));
-	ZeroMemory(cData, sizeof(cData));
+	std::memset(cTxt, 0, sizeof(cTxt));
+	std::memset(cTxt2, 0, sizeof(cTxt2));
+	std::memset(cData, 0, sizeof(cData));
 
-	ZeroMemory(cFileName, sizeof(cFileName));
-	ZeroMemory(cDir, sizeof(cDir));
+	std::memset(cFileName, 0, sizeof(cFileName));
+	std::memset(cDir, 0, sizeof(cDir));
 	strcat(cFileName, "Accounts");
 	strcat(cFileName, "\\");
 	strcat(cFileName, "\\");
-	wsprintf(cDir, "AscII%d", *cAccountName);
+	std::snprintf(cDir, sizeof(cDir), "AscII%d", *cAccountName);
 	strcat(cFileName, cDir);
 	strcat(cFileName, "\\");
 	strcat(cFileName, "\\");
@@ -1087,19 +1099,19 @@ bool LoginServer::SaveAccountInfo(int iAccount, char* cAccountName, char* cTemp,
 	case 1: //save new character
 		pFile = fopen(cFileName, "at");
 		if (pFile == 0) {
-			wsprintf(g_txt, "(X) Account none exist: Name(%s)", cAccountName);
+			std::snprintf(g_txt, sizeof(g_txt), "(X) Account none exist: Name(%s)", cAccountName);
 			PutLogList(g_txt);
 			return false;
 		}
-		wsprintf(cTxt, "\naccount-character = %s", cCharName);
+		std::snprintf(cTxt, sizeof(cTxt), "\naccount-character = %s", cCharName);
 		fwrite(cTxt, 1, strlen(cTxt), pFile);
 		fclose(pFile);
 		break;
 
 	case 2: //password change
-		wsprintf(g_txt, "(X) PasswordChange(%s)", cTemp);
+		std::snprintf(g_txt, sizeof(g_txt), "(X) PasswordChange(%s)", cTemp);
 		PutLogList(g_txt);
-		wsprintf(cTxt, "account-password = %s", cTemp);
+		std::snprintf(cTxt, sizeof(cTxt), "account-password = %s", cTemp);
 		pFile = fopen(cFileName, "rt");
 		if (pFile == 0) {
 			SendLoginMsg(DEF_LOGRESMSGTYPE_NOTEXISTINGACCOUNT, DEF_LOGRESMSGTYPE_NOTEXISTINGACCOUNT, 0, 0, h);
@@ -1134,10 +1146,10 @@ bool LoginServer::SaveAccountInfo(int iAccount, char* cAccountName, char* cTemp,
 		break;
 
 	case 3: //delete character
-		wsprintf(g_txt, "(X) Character Delete(%s)", cCharName);
+		std::snprintf(g_txt, sizeof(g_txt), "(X) Character Delete(%s)", cCharName);
 		PutLogList(g_txt);
-		wsprintf(cTxt, "account-character = %s", cCharName);
-		//wsprintf(cTxt3, "account-character = %s", cCharName);
+		std::snprintf(cTxt, sizeof(cTxt), "account-character = %s", cCharName);
+		//std::snprintf(cTxt3, sizeof(cTxt3), "account-character = %s", cCharName);
 		pFile = fopen(cFileName, "rt");
 		if (pFile == 0) {
 			SendLoginMsg(DEF_LOGRESMSGTYPE_NOTEXISTINGACCOUNT, DEF_LOGRESMSGTYPE_NOTEXISTINGACCOUNT, 0, 0, h);
@@ -1176,7 +1188,7 @@ bool LoginServer::SaveAccountInfo(int iAccount, char* cAccountName, char* cTemp,
 	}
 	return false;
 }
-void LoginServer::SaveInfo(char cFileName[255], char* pData, DWORD dwStartSize)
+void LoginServer::SaveInfo(char cFileName[255], char* pData, uint32_t dwStartSize)
 {
 	FILE* pFile;
 
@@ -1188,23 +1200,23 @@ void LoginServer::SaveInfo(char cFileName[255], char* pData, DWORD dwStartSize)
 	}
 }
 
-void LoginServer::SendLoginMsg(DWORD msg_id, WORD msg_type, char* data, int sz, int h)
+void LoginServer::SendLoginMsg(uint32_t msg_id, uint16_t msg_type, char* data, int sz, int h)
 {
 
 	int iRet;
-	DWORD* dwp;
+	uint32_t* dwp;
 	char* cp;
-	WORD* wp;
+	uint16_t* wp;
 	int index = h;
 
 	if (!G_pGame->_lclients[h])
 		return;
 
-	ZeroMemory(G_cData50000, sizeof(G_cData50000));
+	std::memset(G_cData50000, 0, sizeof(G_cData50000));
 
-	dwp = (DWORD*)(G_cData50000 + DEF_INDEX4_MSGID);
+	dwp = (uint32_t*)(G_cData50000 + DEF_INDEX4_MSGID);
 	*dwp = msg_id;
-	wp = (WORD*)(G_cData50000 + DEF_INDEX2_MSGTYPE);
+	wp = (uint16_t*)(G_cData50000 + DEF_INDEX2_MSGTYPE);
 	*wp = msg_type;
 
 	cp = (char*)(G_cData50000 + DEF_INDEX2_MSGTYPE + 2);
@@ -1214,11 +1226,7 @@ void LoginServer::SendLoginMsg(DWORD msg_id, WORD msg_type, char* data, int sz, 
 	//if is registered
 	if (true)
 	{
-		switch (msg_id) {
-		default:
-			iRet = G_pGame->_lclients[index]->_sock->iSendMsg(G_cData50000, sz + 6);
-			break;
-		}
+		iRet = G_pGame->_lclients[index]->_sock->iSendMsg(G_cData50000, sz + 6);
 
 		switch (iRet)
 		{
@@ -1226,7 +1234,7 @@ void LoginServer::SendLoginMsg(DWORD msg_id, WORD msg_type, char* data, int sz, 
 		case DEF_XSOCKEVENT_SOCKETERROR:
 		case DEF_XSOCKEVENT_CRITICALERROR:
 		case DEF_XSOCKEVENT_SOCKETCLOSED:
-			wsprintf(G_cTxt, "(!) Login Connection Lost on Send (%d)", index);
+			std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) Login Connection Lost on Send (%d)", index);
 			PutLogList(G_cTxt);
 			delete G_pGame->_lclients[index];
 			G_pGame->_lclients[index] = 0;
@@ -1264,7 +1272,7 @@ void LoginServer::RequestEnterGame(int h, char* pData)
 		return;
 	}
 
-	wsprintf(G_cTxt, "(!) Request enter Game: %s", cName);
+	std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) Request enter Game: %s", cName);
 	PutLogList(G_cTxt);
 
 	std::vector<string> chars;
@@ -1289,12 +1297,12 @@ void LoginServer::RequestEnterGame(int h, char* pData)
 	memcpy(cp2, (char*)G_pGame->m_cGameServerAddr, 16);
 	cp2 += 16;
 
-	auto wp = (WORD*)cp2;
-	*wp = (WORD)G_pGame->m_iLogServerPort;
+	auto wp = (uint16_t*)cp2;
+	*wp = (uint16_t)G_pGame->m_iLogServerPort;
 	cp2 += 2;
 
 	char sv_name[21] = {};
-	wsprintf(sv_name, "%s", WORLDNAMELS2);
+	std::snprintf(sv_name, sizeof(sv_name), "%s", WORLDNAMELS2);
 	memcpy(cp2, sv_name, 20);
 	cp2 += 20;
 
@@ -1314,20 +1322,20 @@ void LoginServer::LocalSavePlayerData(int h)
 	if (G_pGame->m_pClientList[h] == 0) return;
 
 	pData = new char[30000];
-	ZeroMemory(pData, 30000);
+	std::memset(pData, 0, 30000);
 
 	cp = (char*)(pData);
 	iSize = G_pGame->_iComposePlayerDataFileContents(h, cp);
 
 	GetLocalTime(&SysTime);
-	ZeroMemory(cCharDir, sizeof(cDir));
-	wsprintf(cCharDir, "Characters");
-	ZeroMemory(cDir, sizeof(cDir));
-	ZeroMemory(cFn, sizeof(cFn));
+	std::memset(cCharDir, 0, sizeof(cDir));
+	std::snprintf(cCharDir, sizeof(cCharDir), "Characters");
+	std::memset(cDir, 0, sizeof(cDir));
+	std::memset(cFn, 0, sizeof(cFn));
 	strcat(cFn, cCharDir);
 	strcat(cFn, "\\");
 	strcat(cFn, "\\");
-	wsprintf(cTxt, "AscII%d", (unsigned char)G_pGame->m_pClientList[h]->m_cCharName[0]);
+	std::snprintf(cTxt, sizeof(cTxt), "AscII%d", (unsigned char)G_pGame->m_pClientList[h]->m_cCharName[0]);
 	strcat(cFn, cTxt);
 	strcpy(cDir, cFn);
 	strcat(cFn, "\\");
@@ -1336,8 +1344,10 @@ void LoginServer::LocalSavePlayerData(int h)
 	strcat(cFn, ".txt");
 
 
+#ifdef _WIN32
 	_mkdir(cCharDir);
 	_mkdir(cDir);
+#endif
 
 
 	if (iSize == 0) {

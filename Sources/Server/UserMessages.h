@@ -1,4 +1,5 @@
 #pragma once
+#include "CommonTypes.h"
 
 #define WM_USER_STARTGAMESIGNAL	WM_USER + 10
 

@@ -8,6 +8,7 @@
 #define _WINSOCKAPI_
 
 #include <windows.h>
+#include "CommonTypes.h"
 #include "OccupyFlag.h"
 #include "Tile.h"
 #include "StrategicPoint.h"
@@ -39,6 +40,7 @@
 #define _WINSOCKAPI_
 
 #include <windows.h>
+#include "CommonTypes.h"
 #include "Game.h"
 #include "TeleportLoc.h"
 #include "GlobalDef.h"
@@ -76,13 +78,13 @@ public:
 	bool bGetIsMoveAllowedTile(short dX, short dY);
 	void SetNamingValueEmpty(int iValue);
 	int iGetEmptyNamingValue();
-	bool bGetDynamicObject(short sX, short sY, short * pType, DWORD * pRegisterTime, int * pIndex = 0);
-	void SetDynamicObject(WORD wID, short sType, short sX, short sY, DWORD dwRegisterTime);
+	bool bGetDynamicObject(short sX, short sY, short * pType, uint32_t * pRegisterTime, int * pIndex = 0);
+	void SetDynamicObject(uint16_t wID, short sType, short sX, short sY, uint32_t dwRegisterTime);
 	bool bGetIsTeleport(short dX, short dY);
 	bool bSearchTeleportDest(int sX, int sY, char * pMapName, int * pDx, int * pDy, char * pDir);
 	bool bInit(char * pName);
 	bool bIsValidLoc(short sX, short sY);
-	class CItem * pGetItem(short sX, short sY, short* pRemainItemID, char* pRemainItemColor, DWORD* pRemainItemAttr);
+	class CItem * pGetItem(short sX, short sY, short* pRemainItemID, char* pRemainItemColor, uint32_t* pRemainItemAttr);
 	bool bSetItem(short sX, short sY, class CItem * pItem);
 	void ClearDeadOwner(short sX, short sY);
 	void ClearOwner(int iDebugCode, short sOwnerH, char cOwnerType, short sX, short sY);
@@ -156,7 +158,7 @@ public:
 	int   m_iTotalMineralPoint, m_iMaxMineral, m_iCurMineral;
 
 	char  m_cWhetherStatus;		// ��� ����. 0�̸� ����. 1~3 �� 4~6 �� 7~9 ��ǳ 
-	DWORD m_dwWhetherLastTime, m_dwWhetherStartTime;  // ���� ����, ���� �ð� 
+	uint32_t m_dwWhetherLastTime, m_dwWhetherStartTime;  // ���� ����, ���� �ð� 
 
 	int   m_iLevelLimit;
 	int   m_iUpperLevelLimit;	// ���� �� ���� 

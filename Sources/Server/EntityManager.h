@@ -6,6 +6,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #pragma once
+#include "CommonTypes.h"
 
 #include "Npc.h"
 #include "Map.h"
@@ -128,19 +129,19 @@ public:
      * Get entity pointer by GUID.
      * @return CNpc pointer or NULL if not found
      */
-    CNpc* GetEntityByGUID(DWORD dwGUID) const;
+    CNpc* GetEntityByGUID(uint32_t dwGUID) const;
 
     /**
      * Get entity handle by GUID.
      * @return Entity handle (1-4999) or -1 if not found
      */
-    int GetEntityHandleByGUID(DWORD dwGUID) const;
+    int GetEntityHandleByGUID(uint32_t dwGUID) const;
 
     /**
      * Get entity GUID by handle.
      * @return GUID or 0 if invalid handle
      */
-    DWORD GetEntityGUID(int iEntityHandle) const;
+    uint32_t GetEntityGUID(int iEntityHandle) const;
 
     /**
      * Get total active entities across all maps.
@@ -253,7 +254,7 @@ private:
     /**
      * Generate next unique GUID for new entity.
      */
-    DWORD GenerateEntityGUID();
+    uint32_t GenerateEntityGUID();
 
     // ========================================================================
     // Data Members
@@ -261,7 +262,7 @@ private:
 
     // Entity Storage (OWNED by EntityManager)
     class CNpc** m_pNpcList;                // Entity array (indices 0-4999, index 0 unused)
-    DWORD m_dwEntityGUID[DEF_MAXENTITIES];  // GUID for each entity slot
+    uint32_t m_dwEntityGUID[DEF_MAXENTITIES];  // GUID for each entity slot
 
     // Performance: Active Entity Tracking
     // Instead of iterating 5,000 slots, iterate only active entities
@@ -275,7 +276,7 @@ private:
 
     // Entity Statistics
     int m_iTotalEntities;                   // Total active entities (same as m_iActiveEntityCount)
-    DWORD m_dwNextGUID;                     // Next GUID to assign (monotonically increasing)
+    uint32_t m_dwNextGUID;                     // Next GUID to assign (monotonically increasing)
 
     bool m_bInitialized;                    // Initialization flag
 

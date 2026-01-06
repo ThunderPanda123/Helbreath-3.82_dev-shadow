@@ -2,6 +2,7 @@
 //
 //////////////////////////////////////////////////////////////////////
 
+#include "CommonTypes.h"
 #include "XSocket.h"
 #include "Client.h"
 #include "winmain.h"
@@ -63,7 +64,7 @@ XSocket::~XSocket()
 	}
 }
 
-bool XSocket::bInitBufferSize(DWORD dwBufferSize)
+bool XSocket::bInitBufferSize(uint32_t dwBufferSize)
 {
 	if (m_pRcvBuffer != 0) delete m_pRcvBuffer;
 	if (m_pSndBuffer != 0) delete m_pSndBuffer;
@@ -83,7 +84,7 @@ bool XSocket::bInitBufferSize(DWORD dwBufferSize)
 int XSocket::Poll()
 {
 	WSANETWORKEVENTS networkEvents;
-	DWORD dwRet;
+	uint32_t dwRet;
 	int iResult = 0;
 
 	// �ʱ�ȭ ���� �ʾƼ� ó���� �� ����.
@@ -179,7 +180,7 @@ bool XSocket::bConnect(char * pAddr, int iPort)
  SOCKADDR_IN	 saTemp;
  u_long          arg;
  int             iRet;
- DWORD			 dwOpt;
+ uint32_t			 dwOpt;
 
 	// ������ �������� �ʱ�ȭ�� Ŭ������ �� �Լ��� ����� �� ����.
 	if (m_cType == DEF_XSOCK_LISTENSOCK) return false;
@@ -236,7 +237,7 @@ bool XSocket::bConnect(char * pAddr, int iPort)
 int XSocket::_iOnRead()
 {
  int iRet, WSAErr;
- WORD  * wp;	
+ uint16_t  * wp;	
 
 	if (m_cStatus == DEF_XSOCKSTATUS_READINGHEADER) {
 		
@@ -264,7 +265,7 @@ int XSocket::_iOnRead()
 			// ����� �� �о���. 
 			m_cStatus = DEF_XSOCKSTATUS_READINGBODY;
 			// �о�� �� ��ü ����� ����Ѵ�.
-			wp = (WORD *)(m_pRcvBuffer + 1);
+			wp = (uint16_t *)(m_pRcvBuffer + 1);
 			m_dwReadSize = (int)(*wp - 3); // ��� ������� �������� �ʴ´�. 
 			
 			if (m_dwReadSize == 0) {
@@ -478,10 +479,11 @@ int XSocket::_iSendUnsentData()
 }
 
 
-int XSocket::iSendMsg(char * cData, DWORD dwSize, char cKey)
+int XSocket::iSendMsg(char * cData, uint32_t dwSize, char cKey)
 {
- WORD * wp;
- int    i, iRet;
+ uint16_t * wp;
+ uint32_t  i;
+ int    iRet;
 
 	//m_pSndBuffer = cData;
 	// �޽��� ũ�Ⱑ ���ۺ��� ũ�� ���� �� ����.
@@ -495,15 +497,15 @@ int XSocket::iSendMsg(char * cData, DWORD dwSize, char cKey)
 	// Ű �Է� 
 	m_pSndBuffer[0] = cKey;
 
-	wp  = (WORD *)(m_pSndBuffer + 1);
-	*wp = dwSize + 3;
+	wp  = (uint16_t *)(m_pSndBuffer + 1);
+	*wp = static_cast<uint16_t>(dwSize + 3);
 
 	memcpy((char *)(m_pSndBuffer + 3), cData, dwSize);
 	// v.14 : m_pSndBuffer +3 ���� dwSize���� cKey�� 0�� �ƴ϶�� ��ȣȭ�Ѵ�.
 	if (cKey != 0) {//Encryption
 		for (i = 0; i < dwSize; i++) {
-			m_pSndBuffer[3+i] += (i ^ cKey);
-			m_pSndBuffer[3+i]  = m_pSndBuffer[3+i] ^ (cKey ^ (dwSize - i));
+			m_pSndBuffer[3 + i] += static_cast<char>(i ^ cKey);
+			m_pSndBuffer[3 + i] = static_cast<char>(m_pSndBuffer[3 + i] ^ (cKey ^ static_cast<char>(dwSize - i)));
 		}
 	}
 
@@ -568,7 +570,7 @@ bool XSocket::bAccept(class XSocket * pXSock)
  SOCKET			AcceptedSock;
  sockaddr		Addr;
  int	iLength;
- DWORD			dwOpt;
+ uint32_t			dwOpt;
 
 	if (m_cType != DEF_XSOCK_LISTENSOCK) return false;
 	if (pXSock == 0) return false;
@@ -630,17 +632,17 @@ SOCKET XSocket::iGetSocket()
 	return m_Sock;
 }
 
-char * XSocket::pGetRcvDataPointer(DWORD * pMsgSize, char * pKey)
+char * XSocket::pGetRcvDataPointer(uint32_t * pMsgSize, char * pKey)
 {
- WORD * wp;
- DWORD  dwSize;
- int i;
+ uint16_t * wp;
+ uint32_t  dwSize;
+ uint32_t  i;
  char cKey;
 	
 	cKey = m_pRcvBuffer[0];
 	if (pKey != 0) *pKey = cKey;		// v1.4
 
-	wp = (WORD *)(m_pRcvBuffer + 1);
+	wp = (uint16_t *)(m_pRcvBuffer + 1);
 	*pMsgSize = (*wp) - 3;				// ���ũ��� �����ؼ� ��ȯ�Ѵ�. 
 	dwSize    = (*wp) - 3;
 
@@ -649,8 +651,8 @@ char * XSocket::pGetRcvDataPointer(DWORD * pMsgSize, char * pKey)
 	// v.14 : m_pSndBuffer +3 ���� dwSize���� cKey�� 0�� �ƴ϶�� ��ȣȭ�� Ǭ��.
 	if (cKey != 0) {//Encryption
 		for (i = 0; i < dwSize; i++) {
-			m_pRcvBuffer[3+i]  = m_pRcvBuffer[3+i] ^ (cKey ^ (dwSize - i));
-			m_pRcvBuffer[3+i] -= (i ^ cKey);
+			m_pRcvBuffer[3 + i] = static_cast<char>(m_pRcvBuffer[3 + i] ^ (cKey ^ static_cast<char>(dwSize - i)));
+			m_pRcvBuffer[3 + i] -= static_cast<char>(i ^ cKey);
 		}
 	}
 	return (m_pRcvBuffer + 3);
@@ -659,7 +661,7 @@ char * XSocket::pGetRcvDataPointer(DWORD * pMsgSize, char * pKey)
 bool _InitWinsock()
 {
  int     iErrCode;
- WORD	 wVersionRequested;
+ uint16_t	 wVersionRequested;
  WSADATA wsaData;
 
 	// ������ ������ üũ�Ѵ�.

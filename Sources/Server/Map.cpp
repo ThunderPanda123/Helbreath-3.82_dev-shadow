@@ -2,6 +2,7 @@
 //
 //////////////////////////////////////////////////////////////////////
 
+#include "CommonTypes.h"
 #include "Map.h"
 
 extern void PutLogFileList(char* cStr);
@@ -144,7 +145,7 @@ CMap::CMap(class CGame* pGame)
 		m_stStrikePoint[i].dY = 0;
 		m_stStrikePoint[i].iHP = 0;
 		m_stStrikePoint[i].iMapIndex = -1;
-		ZeroMemory(m_stStrikePoint[i].cRelatedMapName, sizeof(m_stStrikePoint[i].cRelatedMapName));
+		std::memset(m_stStrikePoint[i].cRelatedMapName, 0, sizeof(m_stStrikePoint[i].cRelatedMapName));
 	}
 	m_iTotalStrikePoints = 0;
 	m_bIsDisabled = false;
@@ -169,7 +170,7 @@ CMap::CMap(class CGame* pGame)
 		m_stDynamicGateCoords[i].m_bIsGateMap = false;
 		m_stDynamicGateCoords[i].m_iDynamicGateX = 0;
 		m_stDynamicGateCoords[i].m_iDynamicGateY = 0;
-		ZeroMemory(m_stDynamicGateCoords[i].m_cDynamicGateMap, sizeof(m_stDynamicGateCoords[i].m_cDynamicGateMap));
+		std::memset(m_stDynamicGateCoords[i].m_cDynamicGateMap, 0, sizeof(m_stDynamicGateCoords[i].m_cDynamicGateMap));
 	}
 }
 
@@ -394,7 +395,7 @@ bool CMap::bSetItem(short sX, short sY, class CItem* pItem)
 }
 
 
-class CItem* CMap::pGetItem(short sX, short sY, short* pRemainItemID, char* pRemainItemColor, DWORD* pRemainItemAttr) //v1.4 color
+class CItem* CMap::pGetItem(short sX, short sY, short* pRemainItemID, char* pRemainItemColor, uint32_t* pRemainItemAttr) //v1.4 color
 {
 	class CTile* pTile;
 	class CItem* pItem;
@@ -452,10 +453,10 @@ bool CMap::bInit(char* pName)
 {
 	int i;
 	// �������� �ε��Ѵ�.
-	ZeroMemory(m_cName, sizeof(m_cName));
+	std::memset(m_cName, 0, sizeof(m_cName));
 	strcpy(m_cName, pName);
 
-	ZeroMemory(m_cLocationName, sizeof(m_cLocationName));
+	std::memset(m_cLocationName, 0, sizeof(m_cLocationName));
 
 	if (_bDecodeMapDataFileContents() == false)
 		return false;
@@ -477,7 +478,7 @@ bool CMap::_bDecodeMapDataFileContents()
 	class CTile* pTile;
 	short* sp;
 
-	ZeroMemory(cMapFileName, sizeof(cMapFileName));
+	std::memset(cMapFileName, 0, sizeof(cMapFileName));
 	strcat(cMapFileName, "mapdata\\");
 	strcat(cMapFileName, m_cName);
 	strcat(cMapFileName, ".amd");
@@ -486,7 +487,7 @@ bool CMap::_bDecodeMapDataFileContents()
 	if (hFile == INVALID_HANDLE_VALUE) return false;
 	dwFileSize = GetFileSize(hFile, 0);
 
-	ZeroMemory(cHeader, sizeof(cHeader));
+	std::memset(cHeader, 0, sizeof(cHeader));
 	ReadFile(hFile, (char*)cHeader, 256, &nRead, 0);
 
 	// ��������� �м��Ѵ�.
@@ -583,7 +584,7 @@ bool CMap::bSearchTeleportDest(int sX, int sY, char* pMapName, int* pDx, int* pD
 	return false;
 }
 
-void CMap::SetDynamicObject(WORD wID, short sType, short sX, short sY, DWORD dwRegisterTime)
+void CMap::SetDynamicObject(uint16_t wID, short sType, short sX, short sY, uint32_t dwRegisterTime)
 {
 	class CTile* pTile;
 
@@ -597,7 +598,7 @@ void CMap::SetDynamicObject(WORD wID, short sType, short sX, short sY, DWORD dwR
 	pTile->m_dwDynamicObjectRegisterTime = dwRegisterTime;
 }
 
-bool CMap::bGetDynamicObject(short sX, short sY, short* pType, DWORD* pRegisterTime, int* pIndex)
+bool CMap::bGetDynamicObject(short sX, short sY, short* pType, uint32_t* pRegisterTime, int* pIndex)
 {
 	class CTile* pTile;
 

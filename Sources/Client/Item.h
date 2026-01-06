@@ -5,6 +5,7 @@
 #pragma once
 
 #include <windows.h>
+#include "CommonTypes.h"
 
 #define DEF_MAXITEMEQUIPPOS		15
 #define DEF_EQUIPPOS_NONE		0
@@ -41,7 +42,7 @@ class CItem
 public:
 	inline CItem()
 	{
-		ZeroMemory(m_cName, sizeof(m_cName));
+		std::memset(m_cName, 0, sizeof(m_cName));
 		m_sSprite = 0;
 		m_sSpriteFrame = 0;
 		m_dwAttribute = 0;
@@ -62,7 +63,7 @@ public:
 	short m_sItemEffectType;
 	short m_sItemEffectValue1, m_sItemEffectValue2, m_sItemEffectValue3;
 	short m_sItemEffectValue4, m_sItemEffectValue5, m_sItemEffectValue6;
-	WORD  m_wMaxLifeSpan;
+	uint16_t  m_wMaxLifeSpan;
 	short m_sSpecialEffect;
 
 	//short m_sSM_HitRatio, m_sL_HitRatio;
@@ -77,8 +78,8 @@ public:
 	char  m_cApprValue;
 	char  m_cSpeed;
 
-	DWORD m_wPrice;
-	WORD  m_wWeight;
+	uint32_t m_wPrice;
+	uint16_t  m_wWeight;
 	short m_sLevelLimit;
 	char  m_cGenderLimit;
 
@@ -87,13 +88,13 @@ public:
 	char  m_cCategory;
 	bool  m_bIsForSale;
 
-	DWORD m_dwCount;
+	uint32_t m_dwCount;
 	short m_sTouchEffectType;
 	short m_sTouchEffectValue1, m_sTouchEffectValue2, m_sTouchEffectValue3;
 	char  m_cItemColor; // v1.4 ���� ������ ������ ����Ǿ���. 
 	short m_sItemSpecEffectValue1, m_sItemSpecEffectValue2, m_sItemSpecEffectValue3;
-	WORD  m_wCurLifeSpan;
-	DWORD m_dwAttribute;				// aaaa bbbb cccc dddd eeee ffff xxxx xxx1 
+	uint16_t  m_wCurLifeSpan;
+	uint32_t m_dwAttribute;				// aaaa bbbb cccc dddd eeee ffff xxxx xxx1 
 	// 1: Custom-Made Item flag 
 	// a: Item �Ӽ� ���� 
 	// b: Item �Ӽ� ����

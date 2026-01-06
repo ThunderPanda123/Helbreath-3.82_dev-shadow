@@ -1,4 +1,5 @@
 #pragma once
+#include "CommonTypes.h"
 
 #define DEF_UPPERVERSION		"2"
 #define DEF_LOWERVERSION 		"24b"

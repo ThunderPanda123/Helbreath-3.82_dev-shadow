@@ -2,6 +2,7 @@
 //#include <afx.h>
 //#include <AfxWin.h>
 #include <windows.h>
+#include "CommonTypes.h"
 #include <stdio.h>
 #include "mydib.h"
 
@@ -10,14 +11,14 @@ CMyDib::CMyDib(char *szFilename, unsigned long dwFilePointer)
 	BITMAPFILEHEADER fh; //bmp 
 	m_lpDib = 0;	
 	HANDLE hFileRead;
-	DWORD nCount;
+	uint32_t nCount;
 	char PathName[28];
 	wsprintf( PathName, "sprites\\%s.pak", szFilename );
 	hFileRead = CreateFile(PathName, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
 	SetFilePointer(hFileRead, dwFilePointer, 0, FILE_BEGIN);
-	ReadFile(hFileRead, (char *)&fh, 14, &nCount, 0);//sizeof(bmpHeader)==14
+	ReadFile(hFileRead, (char *)&fh, 14, (LPDWORD)&nCount, 0);//sizeof(bmpHeader)==14
 	m_lpDib = (LPSTR)new char[fh.bfSize-14];
-	ReadFile(hFileRead, (char *)m_lpDib, fh.bfSize-14, &nCount, 0);
+	ReadFile(hFileRead, (char *)m_lpDib, fh.bfSize-14, (LPDWORD)&nCount, 0);
 	CloseHandle(hFileRead);
 	LPBITMAPINFOHEADER bmpInfoHeader = (LPBITMAPINFOHEADER)m_lpDib;
 	m_bmpInfo = (LPBITMAPINFO)m_lpDib;

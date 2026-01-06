@@ -8,6 +8,7 @@
 #define _WINSOCKAPI_
 
 #include <windows.h>
+#include "CommonTypes.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,9 +39,9 @@ public:
 	struct {
 		int  m_iPartyID, m_iIndex;
 		char m_cName[12];
-		DWORD m_dwServerChangeTime;
+		uint32_t m_dwServerChangeTime;
 	} m_stMemberNameList[DEF_MAXPARTY];
 
 	class CGame* m_pGame;
-	DWORD m_dwCheckMemberActTime;
+	uint32_t m_dwCheckMemberActTime;
 };

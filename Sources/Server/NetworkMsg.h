@@ -4,7 +4,10 @@
 
 #pragma once
 
+// MODERNIZED: Prevent old winsock.h from loading (must be before windows.h)
+#define _WINSOCKAPI_
 #include <windows.h>
+#include "CommonTypes.h"
 
 #define DEF_MSGFROM_CLIENT		1
 #define DEF_MSGFROM_LOGSERVER	2
@@ -14,15 +17,15 @@
 class CMsg  								 
 {
 public:
-	void Get(char * pFrom, char * pData, DWORD * pSize, int * pIndex, char * pKey);
-	bool bPut(char cFrom, char * pData, DWORD dwSize, int iIndex, char cKey);
+	void Get(char * pFrom, char * pData, uint32_t * pSize, int * pIndex, char * pKey);
+	bool bPut(char cFrom, char * pData, uint32_t dwSize, int iIndex, char cKey);
 	CMsg();
 	virtual ~CMsg();
 
 	char   m_cFrom;
 
 	char * m_pData;
-	DWORD  m_dwSize;
+	uint32_t  m_dwSize;
 
 	int    m_iIndex;
 	char   m_cKey;   // v1.4

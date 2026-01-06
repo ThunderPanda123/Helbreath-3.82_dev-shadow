@@ -1,6 +1,6 @@
 [FILE-DATE]
 
-file-saved-date: 2026 1 5 23 38
+file-saved-date: 2026 1 6 9 20
 
 [NAME-ACCOUNT]
 
@@ -16,11 +16,11 @@ character-guild-GUID = -1
 character-guild-rank = -1
 character-loc-map = gshop_2
 character-loc-x   = 50
-character-loc-y   = 39
+character-loc-y   = 42
 
 character-HP       = 122
 character-MP       = 73
-character-SP       = 200
+character-SP       = 202
 character-LEVEL    = 24
 character-RATING   = 0
 character-STR      = 77
@@ -74,7 +74,7 @@ gizon-item-upgade-left = 0
 
 
 appr1 = 230
-appr2 = -4063
+appr2 = 33
 appr3 = 0
 appr4 = 0
 appr-color = 1879048192

@@ -16,6 +16,7 @@
 #include <memory.h>
 #include <malloc.h>
 #include <winbase.h>
+#include "CommonTypes.h"
 
 #define DEF_XSOCK_LISTENSOCK			1
 #define DEF_XSOCK_NORMALSOCK			2				
@@ -48,15 +49,15 @@ class XSocket
 public:
 	int iSendMsgBlockingMode(char *buf,int nbytes);
 	int iGetPeerAddress(char * pAddrString);
-	char * pGetRcvDataPointer(DWORD * pMsgSize, char * pKey = 0);
+	char * pGetRcvDataPointer(uint32_t * pMsgSize, char * pKey = 0);
 	bool bAccept(class XSocket * pXSock);
 	bool bListen(char * pAddr, int iPort);
 
-	int iSendMsg(char * cData, DWORD dwSize, char cKey = 0);
+	int iSendMsg(char * cData, uint32_t dwSize, char cKey = 0);
 	bool bConnect(char * pAddr, int iPort);
 	bool bBlockConnect(char * pAddr, int iPort);
 	int  Poll();  // MODERNIZED: Replaces iOnSocketEvent, polls for network events
-	bool bInitBufferSize(DWORD dwBufferSize);
+	bool bInitBufferSize(uint32_t dwBufferSize);
 	XSocket(int iBlockLimit);  // MODERNIZED: Removed HWND parameter
 	virtual ~XSocket();
 
@@ -75,12 +76,12 @@ public:
 	char   m_cType;
 	char * m_pRcvBuffer;
 	char * m_pSndBuffer;
-	DWORD  m_dwBufferSize;
-	
+	uint32_t  m_dwBufferSize;
+
 	SOCKET m_Sock;
 	char   m_cStatus;
-	DWORD  m_dwReadSize;
-	DWORD  m_dwTotalReadSize;
+	uint32_t  m_dwReadSize;
+	uint32_t  m_dwTotalReadSize;
 	char   m_pAddr[30];
 	int    m_iPortNum;
 

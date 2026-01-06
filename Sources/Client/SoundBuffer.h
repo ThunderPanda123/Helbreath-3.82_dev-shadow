@@ -5,6 +5,7 @@
 #pragma once
 
 #include "dsound.h"
+#include "CommonTypes.h"
 
 #define DEF_MAXSOUNDBUFFERS		2	
 
@@ -17,9 +18,9 @@ public:
 	void SetVolume(LONG Volume);
 	LPDIRECTSOUNDBUFFER GetIdleBuffer();
 	bool Play(bool bLoop = false, long lPan = 0, int iVol = 0);
-	bool _LoadWavContents(char cBufferIndex, FILE* pFile, DWORD dwSize, DWORD dwPos);
+	bool _LoadWavContents(char cBufferIndex, FILE* pFile, uint32_t dwSize, uint32_t dwPos);
 	bool bCreateBuffer_LoadWavFileContents(char cBufferIndex);
-	bool _bCreateSoundBuffer(char cBufferIndex, DWORD dwBufSize, DWORD dwFreq, DWORD dwBitsPerSample, DWORD dwBlkAlign, bool bStereo);
+	bool _bCreateSoundBuffer(char cBufferIndex, uint32_t dwBufSize, uint32_t dwFreq, DWORD dwBitsPerSample, DWORD dwBlkAlign, bool bStereo);
 	CSoundBuffer(LPDIRECTSOUND lpDS, DSCAPS DSCaps, char * pWavFileName, bool bIsSingleLoad = false);
 	virtual ~CSoundBuffer();
 

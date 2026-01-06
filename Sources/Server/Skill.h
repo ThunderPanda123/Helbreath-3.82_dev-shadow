@@ -8,6 +8,7 @@
 #define _WINSOCKAPI_
 
 #include <windows.h>
+#include "CommonTypes.h"
 
 
 
@@ -21,7 +22,7 @@ class CSkill
 public:
 	inline CSkill()
 	{
-		ZeroMemory(m_cName, sizeof(m_cName));
+		std::memset(m_cName, 0, sizeof(m_cName));
 	}
 
 	inline virtual ~CSkill()

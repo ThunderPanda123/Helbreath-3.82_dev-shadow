@@ -14,10 +14,12 @@
 // --------------------------------------------------------------
 
 
+#ifdef _WIN32
 // MODERNIZED: Prevent old winsock.h from loading (must be before windows.h)
 #define _WINSOCKAPI_
 
 #include <windows.h>
+#include "CommonTypes.h"
 #include <windowsx.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -148,7 +150,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	OSVERSIONINFOEX osvi;
 	bool bOsVersionInfoEx;
 
-	ZeroMemory(&osvi, sizeof(OSVERSIONINFOEX));
+	std::memset(&osvi, 0, sizeof(OSVERSIONINFOEX));
 	osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
 
 	if( !(bOsVersionInfoEx = GetVersionEx ((OSVERSIONINFO *) &osvi)) )
@@ -234,7 +236,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			#define BUFSIZE 80
 			HKEY hKey;
 			char szProductType[BUFSIZE];
-			DWORD dwBufLen=BUFSIZE;
+			uint32_t dwBufLen=BUFSIZE;
 			LONG lRet;
 
 			lRet = RegOpenKeyEx( HKEY_LOCAL_MACHINE,
@@ -257,7 +259,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			if ( lstrcmpi( "SERVERNT", szProductType) == 0 )
 				printf( "Advanced Server " );
 
-			wsprintf(&G_cCrashTxt[strlen(G_cCrashTxt)], "%d.%d ", osvi.dwMajorVersion, osvi.dwMinorVersion );
+			std::snprintf(&G_cCrashTxt[strlen(G_cCrashTxt)],
+				sizeof(G_cCrashTxt) - strlen(G_cCrashTxt), "%d.%d ", osvi.dwMajorVersion, osvi.dwMinorVersion);
 		}
 
 		// Display service pack (if any) and build number.
@@ -273,10 +276,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Hotfix\\Q246009",
 				0, KEY_QUERY_VALUE, &hKey );
 			if( lRet == ERROR_SUCCESS )
-				wsprintf(&G_cCrashTxt[strlen(G_cCrashTxt)], "Service Pack 6a (Build %d)\r\n", osvi.dwBuildNumber & 0xFFFF );
+				std::snprintf(&G_cCrashTxt[strlen(G_cCrashTxt)],
+					sizeof(G_cCrashTxt) - strlen(G_cCrashTxt),
+					"Service Pack 6a (Build %d)\r\n", osvi.dwBuildNumber & 0xFFFF);
 			else // Windows NT 4.0 prior to SP6a
 			{
-				wsprintf(&G_cCrashTxt[strlen(G_cCrashTxt)], "%s (Build %d)\r\n",
+				std::snprintf(&G_cCrashTxt[strlen(G_cCrashTxt)],
+					sizeof(G_cCrashTxt) - strlen(G_cCrashTxt), "%s (Build %d)\r\n",
 					osvi.szCSDVersion,
 					osvi.dwBuildNumber & 0xFFFF);
 			}
@@ -285,7 +291,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		else // Windows NT 3.51 and earlier or Windows 2000 and later
 		{
-			wsprintf(&G_cCrashTxt[strlen(G_cCrashTxt)], "%s (Build %d)\r\n",
+			std::snprintf(&G_cCrashTxt[strlen(G_cCrashTxt)],
+				sizeof(G_cCrashTxt) - strlen(G_cCrashTxt), "%s (Build %d)\r\n",
 				osvi.szCSDVersion,
 				osvi.dwBuildNumber & 0xFFFF);
 		}
@@ -329,7 +336,7 @@ char cCrashFileName[MAX_PATH];
 char cLF[]={0x0d,0x0a};
 char cDash ='-';
 SYSTEMTIME sysTime;
-DWORD written;
+uint32_t written;
 
 	switch(uMsg) {
 	case WM_CLOSE:
@@ -348,7 +355,7 @@ DWORD written;
 		//Show Crash Data
 		SetWindowText(GetDlgItem(hDlg, IDC_EDIT1), G_cCrashTxt);
 		GetLocalTime(&sysTime);
-		wsprintf(cCrashFileName,"CrashData - %d-%d-%d.txt", sysTime.wDay, sysTime.wMonth, sysTime.wYear);
+		std::snprintf(cCrashFileName, sizeof(cCrashFileName),"CrashData - %d-%d-%d.txt", sysTime.wDay, sysTime.wMonth, sysTime.wYear);
 		SetWindowText(GetDlgItem(hDlg, IDC_EDITPATH), cCrashFileName);
 		//Open File For Writing
 		outHand = CreateFile(cCrashFileName,GENERIC_READ+GENERIC_WRITE,FILE_SHARE_READ+FILE_SHARE_WRITE,0,OPEN_ALWAYS,FILE_ATTRIBUTE_NORMAL,0);
@@ -379,20 +386,24 @@ DWORD written;
 	catch (...) {
 	}
 
-	ZeroMemory(G_cCrashTxt, sizeof(G_cCrashTxt));
+	std::memset(G_cCrashTxt, 0, sizeof(G_cCrashTxt));
 
 	//Format a nice output
 
 	//Reason for crash
 	strcpy(G_cCrashTxt, "HGServer Exception Information\r\n");
 	strcat(G_cCrashTxt, "Code : ");
-	wsprintf(&G_cCrashTxt[strlen(G_cCrashTxt)], "0x%.8X\r\n", ExceptionInfo->ExceptionRecord->ExceptionCode);
+	std::snprintf(&G_cCrashTxt[strlen(G_cCrashTxt)],
+		sizeof(G_cCrashTxt) - strlen(G_cCrashTxt), "0x%.8X\r\n", ExceptionInfo->ExceptionRecord->ExceptionCode);
 	strcat(G_cCrashTxt, "Flags : ");
-	wsprintf(&G_cCrashTxt[strlen(G_cCrashTxt)], "0x%.8X\r\n", ExceptionInfo->ExceptionRecord->ExceptionFlags);
+	std::snprintf(&G_cCrashTxt[strlen(G_cCrashTxt)],
+		sizeof(G_cCrashTxt) - strlen(G_cCrashTxt), "0x%.8X\r\n", ExceptionInfo->ExceptionRecord->ExceptionFlags);
 	strcat(G_cCrashTxt, "Address : ");
-	wsprintf(&G_cCrashTxt[strlen(G_cCrashTxt)], "0x%.8X\r\n", ExceptionInfo->ExceptionRecord->ExceptionAddress);
+	std::snprintf(&G_cCrashTxt[strlen(G_cCrashTxt)],
+		sizeof(G_cCrashTxt) - strlen(G_cCrashTxt), "0x%.8X\r\n", ExceptionInfo->ExceptionRecord->ExceptionAddress);
 	strcat(G_cCrashTxt, "Parameters : ");
-	wsprintf(&G_cCrashTxt[strlen(G_cCrashTxt)], "0x%.8X\r\n\r\n", ExceptionInfo->ExceptionRecord->NumberParameters);
+	std::snprintf(&G_cCrashTxt[strlen(G_cCrashTxt)],
+		sizeof(G_cCrashTxt) - strlen(G_cCrashTxt), "0x%.8X\r\n\r\n", ExceptionInfo->ExceptionRecord->NumberParameters);
 
 	//Retrieve OS version
 	GetOSName();
@@ -400,16 +411,24 @@ DWORD written;
 
 	//Crash Details
 	strcat(G_cCrashTxt, "Context :\r\n");
-	wsprintf(&G_cCrashTxt[strlen(G_cCrashTxt)], "EDI: 0x%.8X\t\tESI: 0x%.8X\t\tEAX: 0x%.8X\r\n",ExceptionInfo->ContextRecord->Edi,
+	std::snprintf(&G_cCrashTxt[strlen(G_cCrashTxt)],
+		sizeof(G_cCrashTxt) - strlen(G_cCrashTxt),
+		"EDI: 0x%.8X\t\tESI: 0x%.8X\t\tEAX: 0x%.8X\r\n",ExceptionInfo->ContextRecord->Edi,
 																						ExceptionInfo->ContextRecord->Esi,
 																						ExceptionInfo->ContextRecord->Eax);
-	wsprintf(&G_cCrashTxt[strlen(G_cCrashTxt)], "EBX: 0x%.8X\t\tECX: 0x%.8X\t\tEDX: 0x%.8X\r\n",ExceptionInfo->ContextRecord->Ebx,
+	std::snprintf(&G_cCrashTxt[strlen(G_cCrashTxt)],
+		sizeof(G_cCrashTxt) - strlen(G_cCrashTxt),
+		"EBX: 0x%.8X\t\tECX: 0x%.8X\t\tEDX: 0x%.8X\r\n",ExceptionInfo->ContextRecord->Ebx,
 																						ExceptionInfo->ContextRecord->Ecx,
 																						ExceptionInfo->ContextRecord->Edx);
-	wsprintf(&G_cCrashTxt[strlen(G_cCrashTxt)], "EIP: 0x%.8X\t\tEBP: 0x%.8X\t\tSegCs: 0x%.8X\r\n",ExceptionInfo->ContextRecord->Eip,
+	std::snprintf(&G_cCrashTxt[strlen(G_cCrashTxt)],
+		sizeof(G_cCrashTxt) - strlen(G_cCrashTxt),
+		"EIP: 0x%.8X\t\tEBP: 0x%.8X\t\tSegCs: 0x%.8X\r\n",ExceptionInfo->ContextRecord->Eip,
 																						ExceptionInfo->ContextRecord->Ebp,
 																						ExceptionInfo->ContextRecord->SegCs);
-	wsprintf(&G_cCrashTxt[strlen(G_cCrashTxt)], "EFlags: 0x%.8X\tESP: 0x%.8X\t\tSegSs: 0x%.8X\r\n",ExceptionInfo->ContextRecord->EFlags,
+	std::snprintf(&G_cCrashTxt[strlen(G_cCrashTxt)],
+		sizeof(G_cCrashTxt) - strlen(G_cCrashTxt),
+		"EFlags: 0x%.8X\tESP: 0x%.8X\t\tSegSs: 0x%.8X\r\n",ExceptionInfo->ContextRecord->EFlags,
 																						ExceptionInfo->ContextRecord->Esp,
 																						ExceptionInfo->ContextRecord->SegSs);
 	// Show Dialog
@@ -424,7 +443,7 @@ int main()
 	int nCmdShow = SW_SHOW;
 	// Install SEH
 	// SetUnhandledExceptionFilter((LPTOP_LEVEL_EXCEPTION_FILTER)lpTopLevelExceptionFilter);
-	sprintf(szAppClass, "GameServer%d", hInstance);
+	sprintf(szAppClass, "GameServer%p", static_cast<void*>(hInstance));
 	if (!InitApplication(hInstance))		return (false);
 	if (!InitInstance(hInstance, nCmdShow)) return (false);
 
@@ -440,7 +459,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
 
 
-BOOL InitApplication(HINSTANCE hInstance)
+bool InitApplication(HINSTANCE hInstance)
 {
 	WNDCLASS  wc;
 
@@ -465,7 +484,7 @@ bool InitInstance(HINSTANCE hInstance, int nCmdShow)
 	SYSTEMTIME SysTime;
 
 	GetLocalTime(&SysTime);
-	wsprintf(cTitle, "Helbreath GameServer V%s.%s %d (Executed at: %d %d %d)", DEF_UPPERVERSION, DEF_LOWERVERSION, DEF_BUILDDATE, SysTime.wMonth, SysTime.wDay, SysTime.wHour);
+	std::snprintf(cTitle, sizeof(cTitle), "Helbreath GameServer V%s.%s %d (Executed at: %d %d %d)", DEF_UPPERVERSION, DEF_LOWERVERSION, DEF_BUILDDATE, SysTime.wMonth, SysTime.wDay, SysTime.wHour);
 
 	// Create message-only window (hidden) for socket events
 	G_hWnd = CreateWindowEx(
@@ -518,7 +537,7 @@ void PollAllSockets()
 		}
 		else if (iRet < 0 && iRet != DEF_XSOCKEVENT_QUENEFULL) {
 			// Log errors only (negative values except queue full)
-			wsprintf(G_cTxt, "[ERROR] ListenSock Poll() error: %d", iRet);
+			std::snprintf(G_cTxt, sizeof(G_cTxt), "[ERROR] ListenSock Poll() error: %d", iRet);
 			PutLogList(G_cTxt);
 		}
 	}
@@ -530,7 +549,7 @@ void PollAllSockets()
 		}
 		else if (iRet < 0 && iRet != DEF_XSOCKEVENT_QUENEFULL) {
 			// Log errors only (negative values except queue full)
-			wsprintf(G_cTxt, "[ERROR] LoginSock Poll() error: %d", iRet);
+			std::snprintf(G_cTxt, sizeof(G_cTxt), "[ERROR] LoginSock Poll() error: %d", iRet);
 			PutLogList(G_cTxt);
 		}
 	}
@@ -553,8 +572,8 @@ void PollAllSockets()
 int EventLoop()
 {
 	static unsigned short _usCnt = 0;
-	static DWORD dwLastDebug = 0;
-	static DWORD dwLastGameProcess = 0;
+	static uint32_t dwLastDebug = 0;
+	static uint32_t dwLastGameProcess = 0;
 	MSG msg;
 
 	while (true) {
@@ -568,7 +587,7 @@ int EventLoop()
 		else {
 			// MODERNIZED: Poll sockets and run game logic continuously without blocking
 			if (G_pGame != nullptr) {
-				DWORD dwNow = timeGetTime();
+				uint32_t dwNow = GameClock::GetTimeMS();
 
 				// Run game logic every 300ms (same as old timer)
 				// GameProcess calls NpcProcess which now polls sockets during entity processing
@@ -590,7 +609,7 @@ int EventLoop()
 					for (int i = 0; i < DEF_MAXCLIENTLOGINSOCK; i++) {
 						if (G_pGame->_lclients[i] != nullptr) activeLoginClients++;
 					}
-					wsprintf(G_cTxt, "[DEBUG] EventLoop - Active clients: %d, Login clients: %d", activeClients, activeLoginClients);
+					std::snprintf(G_cTxt, sizeof(G_cTxt), "[DEBUG] EventLoop - Active clients: %d, Login clients: %d", activeClients, activeLoginClients);
 					PutLogList(G_cTxt);
 					dwLastDebug = dwNow;
 				}
@@ -607,7 +626,11 @@ void Initialize()
 {
 
 	if (_InitWinsock() == false) {
+#ifdef _WIN32
 		MessageBox(G_hWnd, "Socket 1.1 not found! Cannot execute program.", "ERROR", MB_ICONEXCLAMATION | MB_OK);
+#else
+		fprintf(stderr, "Socket 1.1 not found! Cannot execute program.\n");
+#endif
 		PostQuitMessage(0);
 		return;
 	}
@@ -681,7 +704,7 @@ void PutXSocketLogList(char* cMsg)
 	// char cTemp[120*50];
 
 		//G_cMsgUpdated = true;
-		//ZeroMemory(cTemp, sizeof(cTemp));
+		//std::memset(cTemp, 0, sizeof(cTemp));
 		//memcpy((cTemp + 120), G_cMsgList, 120*49);
 		//memcpy(cTemp, cMsg, strlen(cMsg));
 		//memcpy(G_cMsgList, cTemp, 120*50);
@@ -705,14 +728,14 @@ void OnAccept()
 	G_pGame->bAccept(G_pListenSock);
 }
 
-void CALLBACK _TimerFunc(UINT wID, UINT wUser, DWORD dwUSer, DWORD dw1, DWORD dw2)
+void CALLBACK _TimerFunc(UINT wID, UINT wUser, DWORD_PTR dwUser, DWORD_PTR dw1, DWORD_PTR dw2)
 {
 	PostMessage(G_hWnd, WM_USER_TIMERSIGNAL, wID, 0);
 }
 
 
 
-MMRESULT _StartTimer(DWORD dwTime)
+MMRESULT _StartTimer(uint32_t dwTime)
 {
 	TIMECAPS caps;
 	MMRESULT timerid;
@@ -754,9 +777,9 @@ void PutLogFileList(char* cStr)
 	// pFile = fopen("Events.log", "at");
 	pFile = fopen("GameLogs\\Events.log", "at");
 	if (pFile == 0) return;
-	ZeroMemory(cBuffer, sizeof(cBuffer));
+	std::memset(cBuffer, 0, sizeof(cBuffer));
 	GetLocalTime(&SysTime);
-	wsprintf(cBuffer, "(%4d:%2d:%2d:%2d:%2d) - ", SysTime.wYear, SysTime.wMonth, SysTime.wDay, SysTime.wHour, SysTime.wMinute);
+	std::snprintf(cBuffer, sizeof(cBuffer), "(%4d:%2d:%2d:%2d:%2d) - ", SysTime.wYear, SysTime.wMonth, SysTime.wDay, SysTime.wHour, SysTime.wMinute);
 	strcat(cBuffer, cStr);
 	strcat(cBuffer, "\n");
 	fwrite(cBuffer, 1, strlen(cBuffer), pFile);
@@ -772,10 +795,10 @@ void PutAdminLogFileList(char* cStr)
 	pFile = fopen("GameLogs\\AdminEvents.log", "at");
 	if (pFile == 0) return;
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
+	std::memset(cBuffer, 0, sizeof(cBuffer));
 
 	GetLocalTime(&SysTime);
-	wsprintf(cBuffer, "(%4d:%2d:%2d:%2d:%2d) - ", SysTime.wYear, SysTime.wMonth, SysTime.wDay, SysTime.wHour, SysTime.wMinute);
+	std::snprintf(cBuffer, sizeof(cBuffer), "(%4d:%2d:%2d:%2d:%2d) - ", SysTime.wYear, SysTime.wMonth, SysTime.wDay, SysTime.wHour, SysTime.wMinute);
 	strcat(cBuffer, cStr);
 	strcat(cBuffer, "\n");
 
@@ -792,10 +815,10 @@ void PutHackLogFileList(char* cStr)
 	pFile = fopen("GameLogs\\HackEvents.log", "at");
 	if (pFile == 0) return;
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
+	std::memset(cBuffer, 0, sizeof(cBuffer));
 
 	GetLocalTime(&SysTime);
-	wsprintf(cBuffer, "(%4d:%2d:%2d:%2d:%2d) - ", SysTime.wYear, SysTime.wMonth, SysTime.wDay, SysTime.wHour, SysTime.wMinute);
+	std::snprintf(cBuffer, sizeof(cBuffer), "(%4d:%2d:%2d:%2d:%2d) - ", SysTime.wYear, SysTime.wMonth, SysTime.wDay, SysTime.wHour, SysTime.wMinute);
 	strcat(cBuffer, cStr);
 	strcat(cBuffer, "\n");
 
@@ -812,10 +835,10 @@ void PutPvPLogFileList(char* cStr)
 	pFile = fopen("GameLogs\\PvPEvents.log", "at");
 	if (pFile == 0) return;
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
+	std::memset(cBuffer, 0, sizeof(cBuffer));
 
 	GetLocalTime(&SysTime);
-	wsprintf(cBuffer, "(%4d:%2d:%2d:%2d:%2d) - ", SysTime.wYear, SysTime.wMonth, SysTime.wDay, SysTime.wHour, SysTime.wMinute);
+	std::snprintf(cBuffer, sizeof(cBuffer), "(%4d:%2d:%2d:%2d:%2d) - ", SysTime.wYear, SysTime.wMonth, SysTime.wDay, SysTime.wHour, SysTime.wMinute);
 	strcat(cBuffer, cStr);
 	strcat(cBuffer, "\n");
 
@@ -832,10 +855,10 @@ void PutXSocketLogFileList(char* cStr)
 	pFile = fopen("GameLogs\\XSocket.log", "at");
 	if (pFile == 0) return;
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
+	std::memset(cBuffer, 0, sizeof(cBuffer));
 
 	GetLocalTime(&SysTime);
-	wsprintf(cBuffer, "(%4d:%2d:%2d:%2d:%2d) - ", SysTime.wYear, SysTime.wMonth, SysTime.wDay, SysTime.wHour, SysTime.wMinute);
+	std::snprintf(cBuffer, sizeof(cBuffer), "(%4d:%2d:%2d:%2d:%2d) - ", SysTime.wYear, SysTime.wMonth, SysTime.wDay, SysTime.wHour, SysTime.wMinute);
 	strcat(cBuffer, cStr);
 	strcat(cBuffer, "\n");
 
@@ -852,10 +875,10 @@ void PutItemLogFileList(char* cStr)
 	pFile = fopen("GameLogs\\ItemEvents.log", "at");
 	if (pFile == 0) return;
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
+	std::memset(cBuffer, 0, sizeof(cBuffer));
 
 	GetLocalTime(&SysTime);
-	wsprintf(cBuffer, "(%4d:%2d:%2d:%2d:%2d) - ", SysTime.wYear, SysTime.wMonth, SysTime.wDay, SysTime.wHour, SysTime.wMinute);
+	std::snprintf(cBuffer, sizeof(cBuffer), "(%4d:%2d:%2d:%2d:%2d) - ", SysTime.wYear, SysTime.wMonth, SysTime.wDay, SysTime.wHour, SysTime.wMinute);
 	strcat(cBuffer, cStr);
 	strcat(cBuffer, "\n");
 
@@ -872,13 +895,19 @@ void PutLogEventFileList(char* cStr)
 	pFile = fopen("GameLogs\\LogEvents.log", "at");
 	if (pFile == 0) return;
 
-	ZeroMemory(cBuffer, sizeof(cBuffer));
+	std::memset(cBuffer, 0, sizeof(cBuffer));
 
 	GetLocalTime(&SysTime);
-	wsprintf(cBuffer, "(%4d:%2d:%2d:%2d:%2d) - ", SysTime.wYear, SysTime.wMonth, SysTime.wDay, SysTime.wHour, SysTime.wMinute);
+	std::snprintf(cBuffer, sizeof(cBuffer), "(%4d:%2d:%2d:%2d:%2d) - ", SysTime.wYear, SysTime.wMonth, SysTime.wDay, SysTime.wHour, SysTime.wMinute);
 	strcat(cBuffer, cStr);
 	strcat(cBuffer, "\n");
 
 	fwrite(cBuffer, 1, strlen(cBuffer), pFile);
 	fclose(pFile);
 }
+#else
+int main()
+{
+	return 0;
+}
+#endif

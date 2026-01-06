@@ -1,4 +1,5 @@
 #pragma once
+#include "CommonTypes.h"
 
 #include "ActionID.h"  // Include shared definitions
 

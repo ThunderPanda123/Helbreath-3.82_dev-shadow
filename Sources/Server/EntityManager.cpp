@@ -2,6 +2,7 @@
 //
 //////////////////////////////////////////////////////////////////////
 
+#include "CommonTypes.h"
 #include "EntityManager.h"
 #include "Game.h"
 #include <cstdio>
@@ -83,8 +84,8 @@ void CEntityManager::ProcessSpawns()
         return;
 
 #ifdef _DEBUG
-    static DWORD dwLastDebugTime = 0;
-    DWORD dwNow = timeGetTime();
+    static uint32_t dwLastDebugTime = 0;
+    uint32_t dwNow = GameClock::GetTimeMS();
     if (dwNow - dwLastDebugTime > 60000) { // Log every 60 seconds
         // printf("[DEBUG] EntityManager::ProcessSpawns: Processing spawns, total entities: %d\n", m_iTotalEntities);
         dwLastDebugTime = dwNow;
@@ -124,7 +125,7 @@ int CEntityManager::CreateEntity(
     SYSTEMTIME SysTime;
 
     GetLocalTime(&SysTime);
-    ZeroMemory(cTmpName, sizeof(cTmpName));
+    std::memset(cTmpName, 0, sizeof(cTmpName));
     strcpy(cTmpName, pMapName);
     iMapIndex = -1;
 
@@ -144,7 +145,7 @@ int CEntityManager::CreateEntity(
 
             // Initialize NPC attributes - call Game's _bInitNpcAttr for now
             if (m_pGame->_bInitNpcAttr(m_pNpcList[i], pNpcName, sClass, cSA) == false) {
-                wsprintf(cTxt, "(!) Not existing NPC creation request! (%s) Ignored.", pNpcName);
+                std::snprintf(cTxt, sizeof(cTxt), "(!) Not existing NPC creation request! (%s) Ignored.", pNpcName);
                 printf("%s\n", cTxt); // Use printf instead of PutLogList
 #ifdef _DEBUG
                 // printf("[DEBUG] CreateEntity: FAILED - Invalid NPC type '%s'\n", pNpcName);
@@ -330,11 +331,11 @@ int CEntityManager::CreateEntity(
                 case 24: // Tom
                 case 25: // William
                 case 26: // Kennedy
-                    m_pNpcList[i]->m_cDir = 4 + m_pGame->iDice(1, 3) - 1;
+                    m_pNpcList[i]->m_cDir = static_cast<char>(4 + m_pGame->iDice(1, 3) - 1);
                     break;
 
                 default:
-                    m_pNpcList[i]->m_cDir = m_pGame->iDice(1, 8);
+                    m_pNpcList[i]->m_cDir = static_cast<char>(m_pGame->iDice(1, 8));
                     break;
                 }
                 break;
@@ -357,7 +358,7 @@ int CEntityManager::CreateEntity(
             case 4:
             case 5:
             case 6:
-                m_pNpcList[i]->m_sAppr2 = 0xF000;
+                m_pNpcList[i]->m_sAppr2 = static_cast<short>(0xF000);
                 m_pNpcList[i]->m_sAppr2 = m_pNpcList[i]->m_sAppr2 | ((rand() % 13) << 4);
                 m_pNpcList[i]->m_sAppr2 = m_pNpcList[i]->m_sAppr2 | (rand() % 9);
                 break;
@@ -380,15 +381,15 @@ int CEntityManager::CreateEntity(
 
             // Set entity properties
             m_pNpcList[i]->m_cMapIndex = (char)iMapIndex;
-            m_pNpcList[i]->m_dwTime = timeGetTime() + (rand() % 10000);
+            m_pNpcList[i]->m_dwTime = GameClock::GetTimeMS() + (rand() % 10000);
             m_pNpcList[i]->m_dwActionTime += (rand() % 300);
-            m_pNpcList[i]->m_dwMPupTime = timeGetTime();
+            m_pNpcList[i]->m_dwMPupTime = GameClock::GetTimeMS();
             m_pNpcList[i]->m_dwHPupTime = m_pNpcList[i]->m_dwMPupTime;
             m_pNpcList[i]->m_sBehaviorTurnCount = 0;
             m_pNpcList[i]->m_bIsSummoned = bIsSummoned;
             m_pNpcList[i]->m_bIsMaster = bIsMaster;
             if (bIsSummoned)
-                m_pNpcList[i]->m_dwSummonedTime = timeGetTime();
+                m_pNpcList[i]->m_dwSummonedTime = GameClock::GetTimeMS();
 
             if (bFirmBerserk) {
                 m_pNpcList[i]->m_cMagicEffectStatus[DEF_MAGICTYPE_BERSERK] = 1;
@@ -422,7 +423,7 @@ int CEntityManager::CreateEntity(
             case 38: // MS
             case 39: // DT
             case 42: // ManaStone
-                m_pMapList[iMapIndex]->bAddCrusadeStructureInfo(m_pNpcList[i]->m_sType, sX, sY, m_pNpcList[i]->m_cSide);
+                m_pMapList[iMapIndex]->bAddCrusadeStructureInfo(static_cast<char>(m_pNpcList[i]->m_sType), sX, sY, m_pNpcList[i]->m_cSide);
                 break;
 
             case 64: // Crop
@@ -480,7 +481,7 @@ void CEntityManager::DeleteEntity(int iEntityHandle)
     // ========================================================================
     // 2. Free naming value and decrement active objects
     // ========================================================================
-    ZeroMemory(cTmp, sizeof(cTmp));
+    std::memset(cTmp, 0, sizeof(cTmp));
     strcpy(cTmp, (char*)(pNpc->m_cName + 2));
     iNamingValue = atoi(cTmp);
 
@@ -539,7 +540,7 @@ void CEntityManager::DeleteEntity(int iEntityHandle)
     // ========================================================================
     // 5. Handle crusade structures (guild buildings)
     // ========================================================================
-    DWORD dwTime = timeGetTime();
+    uint32_t dwTime = GameClock::GetTimeMS();
     switch (pNpc->m_sType) {
     case 36:
     case 37:
@@ -687,7 +688,7 @@ void CEntityManager::OnEntityKilled(int iEntityHandle, short sAttackerH, char cA
     // ========================================================================
     pEntity->m_cBehavior = DEF_BEHAVIOR_DEAD;
     pEntity->m_sBehaviorTurnCount = 0;
-    pEntity->m_dwDeadTime = timeGetTime();
+    pEntity->m_dwDeadTime = GameClock::GetTimeMS();
 
     // ========================================================================
     // 6. Check for no-penalty/no-reward maps
@@ -711,7 +712,7 @@ void CEntityManager::OnEntityKilled(int iEntityHandle, short sAttackerH, char cA
     if ((pEntity->m_bIsSummoned != true) && (cAttackerType == DEF_OWNERTYPE_PLAYER) &&
         (m_pGame->m_pClientList[sAttackerH] != NULL)) {
         double dTmp1, dTmp2, dTmp3;
-        DWORD iExp = (pEntity->m_iExp / 3);
+        uint32_t iExp = (pEntity->m_iExp / 3);
 
         if (pEntity->m_iNoDieRemainExp > 0) {
             iExp += pEntity->m_iNoDieRemainExp;
@@ -721,7 +722,7 @@ void CEntityManager::OnEntityKilled(int iEntityHandle, short sAttackerH, char cA
             dTmp1 = (double)m_pGame->m_pClientList[sAttackerH]->m_iAddExp;
             dTmp2 = (double)iExp;
             dTmp3 = (dTmp1 / 100.0f) * dTmp2;
-            iExp += (DWORD)dTmp3;
+            iExp += (uint32_t)dTmp3;
         }
 
         if (sType == 81) {
@@ -827,7 +828,7 @@ void CEntityManager::OnEntityKilled(int iEntityHandle, short sAttackerH, char cA
                 if (m_pGame->m_pClientList[sAttackerH]->m_iWarContribution > DEF_MAXWARCONTRIBUTION)
                     m_pGame->m_pClientList[sAttackerH]->m_iWarContribution = DEF_MAXWARCONTRIBUTION;
 
-                wsprintf(G_cTxt, "Enemy Npc Killed by player! Construction: +%d WarContribution: +%d",
+                std::snprintf(G_cTxt, sizeof(G_cTxt), "Enemy Npc Killed by player! Construction: +%d WarContribution: +%d",
                     iConstructionPoint, iWarContribution);
                 PutLogList(G_cTxt);
 
@@ -840,7 +841,7 @@ void CEntityManager::OnEntityKilled(int iEntityHandle, short sAttackerH, char cA
                 if (m_pGame->m_pClientList[sAttackerH]->m_iWarContribution < 0)
                     m_pGame->m_pClientList[sAttackerH]->m_iWarContribution = 0;
 
-                wsprintf(G_cTxt, "Friendly Npc Killed by player! WarContribution: -%d", iWarContribution);
+                std::snprintf(G_cTxt, sizeof(G_cTxt), "Friendly Npc Killed by player! WarContribution: -%d", iWarContribution);
                 PutLogList(G_cTxt);
 
                 m_pGame->SendNotifyMsg(0, sAttackerH, DEF_NOTIFY_CONSTRUCTIONPOINT,
@@ -860,7 +861,7 @@ void CEntityManager::OnEntityKilled(int iEntityHandle, short sAttackerH, char cA
                             if (m_pGame->m_pClientList[i]->m_iConstructionPoint > DEF_MAXCONSTRUCTIONPOINT)
                                 m_pGame->m_pClientList[i]->m_iConstructionPoint = DEF_MAXCONSTRUCTIONPOINT;
 
-                            wsprintf(G_cTxt, "Enemy Npc Killed by Npc! Construct point +%d", iConstructionPoint);
+                            std::snprintf(G_cTxt, sizeof(G_cTxt), "Enemy Npc Killed by Npc! Construct point +%d", iConstructionPoint);
                             PutLogList(G_cTxt);
                             m_pGame->SendNotifyMsg(0, i, DEF_NOTIFY_CONSTRUCTIONPOINT,
                                 m_pGame->m_pClientList[i]->m_iConstructionPoint,
@@ -906,11 +907,11 @@ void CEntityManager::OnEntityKilled(int iEntityHandle, short sAttackerH, char cA
         if (sType == 87 || sType == 89) {
             if (pEntity->m_cSide == 1) {
                 m_pGame->m_iHeldenianAresdenLeftTower--;
-                wsprintf(G_cTxt, "Aresden Tower Broken, Left TOWER %d", m_pGame->m_iHeldenianAresdenLeftTower);
+                std::snprintf(G_cTxt, sizeof(G_cTxt), "Aresden Tower Broken, Left TOWER %d", m_pGame->m_iHeldenianAresdenLeftTower);
             }
             else if (pEntity->m_cSide == 2) {
                 m_pGame->m_iHeldenianElvineLeftTower--;
-                wsprintf(G_cTxt, "Elvine Tower Broken, Left TOWER %d", m_pGame->m_iHeldenianElvineLeftTower);
+                std::snprintf(G_cTxt, sizeof(G_cTxt), "Elvine Tower Broken, Left TOWER %d", m_pGame->m_iHeldenianElvineLeftTower);
             }
             PutLogList(G_cTxt);
             m_pGame->UpdateHeldenianStatus();
@@ -979,7 +980,7 @@ CNpc* CEntityManager::GetEntity(int iEntityHandle) const
     return m_pNpcList[iEntityHandle];
 }
 
-CNpc* CEntityManager::GetEntityByGUID(DWORD dwGUID) const
+CNpc* CEntityManager::GetEntityByGUID(uint32_t dwGUID) const
 {
     if (dwGUID == 0)
         return NULL;
@@ -992,7 +993,7 @@ CNpc* CEntityManager::GetEntityByGUID(DWORD dwGUID) const
     return NULL;
 }
 
-int CEntityManager::GetEntityHandleByGUID(DWORD dwGUID) const
+int CEntityManager::GetEntityHandleByGUID(uint32_t dwGUID) const
 {
     if (dwGUID == 0)
         return -1;
@@ -1005,7 +1006,7 @@ int CEntityManager::GetEntityHandleByGUID(DWORD dwGUID) const
     return -1;
 }
 
-DWORD CEntityManager::GetEntityGUID(int iEntityHandle) const
+uint32_t CEntityManager::GetEntityGUID(int iEntityHandle) const
 {
     if (iEntityHandle < 1 || iEntityHandle >= DEF_MAXENTITIES)
         return 0;
@@ -1210,7 +1211,7 @@ void CEntityManager::ProcessSpotSpawns(int iMapIndex)
             }
 
             // Determine NPC type and special ability probabilities
-            ZeroMemory(cNpcName, sizeof(cNpcName));
+            std::memset(cNpcName, 0, sizeof(cNpcName));
             switch (m_pMapList[iMapIndex]->m_stSpotMobGenerator[j].iMobType) {
                 case 10:  strcpy(cNpcName, "Slime");               iProbSA = 5;  iKindSA = 1;  break;
                 case 16:  strcpy(cNpcName, "Giant-Ant");           iProbSA = 10; iKindSA = 2;  break;
@@ -1276,15 +1277,15 @@ void CEntityManager::ProcessSpotSpawns(int iMapIndex)
             bFirmBerserk = false;
 
             // Generate entity name
-            ZeroMemory(cName_Master, sizeof(cName_Master));
-            wsprintf(cName_Master, "XX%d", iNamingValue);
+            std::memset(cName_Master, 0, sizeof(cName_Master));
+            std::snprintf(cName_Master, sizeof(cName_Master), "XX%d", iNamingValue);
             cName_Master[0] = '_';
             cName_Master[1] = iMapIndex + 65;
 
             // Determine special ability
             cSA = 0;
             if ((m_pMapList[iMapIndex]->m_stSpotMobGenerator[j].iMobType != 34) &&
-                (m_pGame->iDice(1, 100) <= iProbSA)) {
+                (m_pGame->iDice(1, 100) <= static_cast<uint32_t>(iProbSA))) {
                 cSA = m_pGame->_cGetSpecialAbility(iKindSA);
             }
 
@@ -1292,7 +1293,7 @@ void CEntityManager::ProcessSpotSpawns(int iMapIndex)
             int iResult = -1;
             pX = 0;
             pY = 0;
-            ZeroMemory(cWaypoint, sizeof(cWaypoint));
+            std::memset(cWaypoint, 0, sizeof(cWaypoint));
 
             switch (m_pMapList[iMapIndex]->m_stSpotMobGenerator[j].cType) {
                 case 1: // RECT-based spawn (RANDOMAREA)
@@ -1349,9 +1350,9 @@ bool CEntityManager::CanSpawnAtSpot(int iMapIndex, int iSpotIndex) const
     return false;
 }
 
-DWORD CEntityManager::GenerateEntityGUID()
+uint32_t CEntityManager::GenerateEntityGUID()
 {
-    DWORD dwGUID = m_dwNextGUID++;
+    uint32_t dwGUID = m_dwNextGUID++;
 
     // Handle wraparound (extremely unlikely, but safe)
     if (m_dwNextGUID == 0)

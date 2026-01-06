@@ -32,15 +32,15 @@ public:
 	void _GetBackBufferDC();
 	void TextOut(int x, int y, char * cStr, COLORREF rgb);
 	void _TestPixelFormat();
-	DWORD _dwColorMatch(IDirectDrawSurface7 * pdds4, WORD wColorKey);
-	DWORD _dwColorMatch(IDirectDrawSurface7 * pdds4, COLORREF rgb);
+	uint32_t _dwColorMatch(IDirectDrawSurface7 * pdds4, uint16_t wColorKey);
+	uint32_t _dwColorMatch(IDirectDrawSurface7 * pdds4, COLORREF rgb);
 	long _CalcMinValue(int iS, int iD, char cMode);
 	long _CalcMaxValue(int iS, int iD, char cMode, char cMethod, double dAlpha);
-	HRESULT iSetColorKey(IDirectDrawSurface7 * pdds4, WORD wColorKey);
-	void PutPixel(short sX, short sY, WORD wR, WORD wG, WORD wB);
+	HRESULT iSetColorKey(IDirectDrawSurface7 * pdds4, uint16_t wColorKey);
+	void PutPixel(short sX, short sY, uint16_t wR, uint16_t wG, uint16_t wB);
 	void DrawShadowBox(short sX, short sY, short dX, short dY, int iType = 0);
 	void ClearBackB4();
-	IDirectDrawSurface7 * pCreateOffScreenSurface(WORD iSzX, WORD iSzY);
+	IDirectDrawSurface7 * pCreateOffScreenSurface(uint16_t iSzX, uint16_t iSzY);
 	HRESULT iSetColorKey(IDirectDrawSurface7 * pdds4, COLORREF rgb);
 	HRESULT iFlip();
 	bool Screenshot(LPCTSTR FileName, LPDIRECTDRAWSURFACE7 lpDDS);
@@ -57,7 +57,7 @@ public:
 	LPDIRECTDRAW7		 m_lpDD4;
 	LPDIRECTDRAWSURFACE7 m_lpFrontB4, m_lpBackB4, m_lpBackB4flip;
 	LPDIRECTDRAWSURFACE7 m_lpPDBGS;// Pre-Draw Background Surface
-	WORD * m_pBackB4Addr;
+	uint16_t * m_pBackB4Addr;
 	RECT  m_rcClipArea, m_rcFlipping;
 	short  m_sBackB4Pitch;
 	char   m_cPixelFormat;

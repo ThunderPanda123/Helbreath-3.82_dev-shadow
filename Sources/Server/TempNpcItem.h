@@ -4,14 +4,17 @@
 
 #pragma once
 
+// MODERNIZED: Prevent old winsock.h from loading (must be before windows.h)
+#define _WINSOCKAPI_
 #include <windows.h>
+#include "CommonTypes.h"
 
 class CNpcItem
 {
 public:
 	inline CNpcItem()
 	{
-		ZeroMemory(m_cName, sizeof(m_cName));
+		std::memset(m_cName, 0, sizeof(m_cName));
 
 		m_sItemID = 0;
 		m_sFirstProbability = 0;

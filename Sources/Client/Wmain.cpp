@@ -10,6 +10,7 @@
 #define _WINSOCKAPI_
 
 #include <windows.h>
+#include "CommonTypes.h"
 #include <windowsx.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,7 +44,7 @@ char G_cSpriteAlphaDegree;
 class CGame* G_pGame;
 class XSocket* G_pCalcSocket = 0;
 bool G_bIsCalcSocketConnected = true;
-DWORD G_dwCalcSocketTime = 0, G_dwCalcSocketSendTime = 0;
+	uint32_t G_dwCalcSocketTime = 0, G_dwCalcSocketSendTime = 0;
 
 char G_cCmdLine[256], G_cCmdLineTokenA[120], G_cCmdLineTokenA_Lowercase[120], G_cCmdLineTokenB[120], G_cCmdLineTokenC[120], G_cCmdLineTokenD[120], G_cCmdLineTokenE[120];
 
@@ -262,7 +263,7 @@ void Initialize(char* pCmdLine)
 {
 	int iX, iY, iSum;
 	int     iErrCode;
-	WORD	 wVersionRequested;
+	uint16_t wVersionRequested;
 	WSADATA wsaData;
 	wVersionRequested = MAKEWORD(2, 2);
 	iErrCode = WSAStartup(wVersionRequested, &wsaData);

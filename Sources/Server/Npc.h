@@ -8,6 +8,7 @@
 #define _WINSOCKAPI_
 
 #include <windows.h>
+#include "CommonTypes.h"
 #include "Magic.h"
 
 #define DEF_MAXWAYPOINTS			10
@@ -55,23 +56,23 @@ public:
 	short m_sAppr2;
 	int	  m_iStatus;
 
-	DWORD m_dwTime;
-	DWORD m_dwActionTime;
-	DWORD m_dwHPupTime, m_dwMPupTime;
-	DWORD m_dwDeadTime, m_dwRegenTime;
+	uint32_t m_dwTime;
+	uint32_t m_dwActionTime;
+	uint32_t m_dwHPupTime, m_dwMPupTime;
+	uint32_t m_dwDeadTime, m_dwRegenTime;
 
 	int  m_iHP, m_iMaxHP;						// Hit Point 
-	DWORD  m_iExp;                    // �׿��� ���? ���? ����ġ. ExpDice�� ���� �����ȴ�.
+	uint32_t  m_iExp;                    // �׿��� ���? ���? ����ġ. ExpDice�� ���� �����ȴ�.
 
 	int  m_iHitDice;				// ������ Hit Dice. �̰Ϳ� ���� HP�� �����ȴ�.
 	int  m_iDefenseRatio;			// Defense Ratio
 	int  m_iHitRatio;				// HitRatio
 	int  m_iMagicHitRatio;			// v1.4 ���� ���� Ratio
 	int  m_iMinBravery;			    // �ּ� �밨ġ 
-	DWORD  m_iExpDiceMin;
-	DWORD	 m_iExpDiceMax;
-	DWORD  m_iGoldDiceMin;
-	DWORD  m_iGoldDiceMax;
+	uint32_t  m_iExpDiceMin;
+	uint32_t	 m_iExpDiceMax;
+	uint32_t  m_iGoldDiceMin;
+	uint32_t  m_iGoldDiceMax;
 
 	char m_cSide;					// NPC�� ���� �� 
 	char m_cActionLimit;            // �� ���� 1�̸� Move�� �����ϸ� ������ �ʴ´�.  �� ���� 2�� ���������� ������ ������ �ʴ´�. 3�̸� Dummy��. �´� ����, 
@@ -97,7 +98,7 @@ public:
 	int   m_iFollowOwnerIndex;		// NPC�� ���󰡰� �ִ� ��ü �ε��� 
 	char  m_cFollowOwnerType;		// ���󰡴� ��ü�� ���� (NPC or Player)
 	bool  m_bIsSummoned;            // ��ȯ�� NPC���? HP�� ������ �ʴ´�. 
-	DWORD m_dwSummonedTime;			// ��ȯ���� �����ð� 
+	uint32_t m_dwSummonedTime;			// ��ȯ���� �����ð� 
 
 	int   m_iTargetIndex;			// NPC�� ���ݸ�ǥ �ε���
 	char  m_cTargetType;			// ���ݸ�ǥ�� ���� (NPC or Player)
@@ -109,7 +110,7 @@ public:
 	char  m_cMagicEffectStatus[DEF_MAXMAGICEFFECTS];
 
 	bool  m_bIsPermAttackMode;		// �� �÷��װ� Ȱ��ȭ �Ǿ� ������ ���ݵ��� ��ǥ�� �ٲ��� �ʴ´�.
-   	DWORD   m_iNoDieRemainExp;		// ���� �ʰ� ���߽ÿ� ���� �� �ִ� ����ġ 
+   	uint32_t   m_iNoDieRemainExp;		// ���� �ʰ� ���߽ÿ� ���� �� �ִ� ����ġ 
 	int   m_iAttackStrategy; 		// ���� ���� �ΰ����� Ÿ��  
 	int   m_iAILevel;				// ���� ���� 
 

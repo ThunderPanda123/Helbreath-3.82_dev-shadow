@@ -4,7 +4,10 @@
 
 #pragma once
 
+// MODERNIZED: Prevent old winsock.h from loading (must be before windows.h)
+#define _WINSOCKAPI_
 #include <windows.h>
+#include "CommonTypes.h"
 
 class CTeleportLoc  
 {
@@ -12,8 +15,8 @@ public:
 	inline CTeleportLoc()
 	{
 
-		ZeroMemory(m_cDestMapName, sizeof(m_cDestMapName));
-		//ZeroMemory(m_cDestMapName2, sizeof(m_cDestMapName2));
+		std::memset(m_cDestMapName, 0, sizeof(m_cDestMapName));
+		//std::memset(m_cDestMapName2, 0, sizeof(m_cDestMapName2));
 		m_sSrcX   = -1;
 		m_sSrcY	  = -1;
 		m_sDestX  = -1;
@@ -41,6 +44,6 @@ public:
 	short m_sDestX2, m_sDestY2;
 
 	int   m_iV1, m_iV2;
-	DWORD m_dwTime, m_dwTime2;
+	uint32_t m_dwTime, m_dwTime2;
 
 };

@@ -4,6 +4,7 @@
 
 
 #include "Game.h"
+#include "CommonTypes.h"
 #include "Benchmark.h"
 #include "lan_eng.h"
 
@@ -12,7 +13,7 @@ extern char G_cSpriteAlphaDegree;
 extern char G_cCmdLine[256], G_cCmdLineTokenA[120], G_cCmdLineTokenA_Lowercase[120], G_cCmdLineTokenB[120], G_cCmdLineTokenC[120], G_cCmdLineTokenD[120], G_cCmdLineTokenE[120];
 extern class XSocket* G_pCalcSocket;
 extern bool G_bIsCalcSocketConnected;
-extern DWORD G_dwCalcSocketTime, G_dwCalcSocketSendTime;
+extern uint32_t G_dwCalcSocketTime, G_dwCalcSocketSendTime;
 extern HWND	G_hWnd, G_hEditWnd;
 extern HINSTANCE G_hInstance;
 
@@ -26,9 +27,9 @@ short _tmp_sOwnerType, _tmp_sAppr1, _tmp_sAppr2, _tmp_sAppr3, _tmp_sAppr4;//, _t
 int _tmp_iStatus;
 char  _tmp_cAction, _tmp_cDir, _tmp_cFrame, _tmp_cName[12];
 int   _tmp_iChatIndex, _tmp_dx, _tmp_dy, _tmp_iApprColor, _tmp_iEffectType, _tmp_iEffectFrame, _tmp_dX, _tmp_dY; // 21.171 2002-6-14
-WORD  _tmp_wObjectID;
+	uint16_t _tmp_wObjectID;
 char cDynamicObjectData1, cDynamicObjectData2, cDynamicObjectData3, cDynamicObjectData4;
-WORD  wFocusObjectID;
+	uint16_t wFocusObjectID;
 short sFocus_dX, sFocus_dY;
 char  cFocusAction, cFocusFrame, cFocusDir, cFocusName[12];
 short sFocusX, sFocusY, sFocusOwnerType, sFocusAppr1, sFocusAppr2, sFocusAppr3, sFocusAppr4;
@@ -46,12 +47,12 @@ void CGame::ReadSettings()
 	for (int i = 0; i < 6; i++) m_sShortCut[i] = -1;
 
 	HKEY key;
-	DWORD dwDisp;
+	uint32_t dwDisp;
 	UINT Result;
-	DWORD Size = sizeof(LONG);
-	if (RegCreateKeyEx(HKEY_CURRENT_USER, "Software\\Siementech\\Helbreath\\Settings", 0, 0, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, 0, &key, &dwDisp) != ERROR_SUCCESS) return;
+	uint32_t Size = sizeof(LONG);
+	if (RegCreateKeyEx(HKEY_CURRENT_USER, "Software\\Siementech\\Helbreath\\Settings", 0, 0, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, 0, &key, (LPDWORD)&dwDisp) != ERROR_SUCCESS) return;
 
-	if (RegQueryValueEx(key, "Magic", 0, 0, (LPBYTE)&Result, &Size) != ERROR_SUCCESS)
+	if (RegQueryValueEx(key, "Magic", 0, 0, (LPBYTE)&Result, (LPDWORD)&Size) != ERROR_SUCCESS)
 	{
 		RegCloseKey(key);
 		return;
@@ -59,7 +60,7 @@ void CGame::ReadSettings()
 	if (Result > 0 && Result < 101) m_sMagicShortCut = Result - 1;
 	else m_sMagicShortCut = -1;
 
-	if (RegQueryValueEx(key, "ShortCut0", 0, 0, (LPBYTE)&Result, &Size) != ERROR_SUCCESS)
+	if (RegQueryValueEx(key, "ShortCut0", 0, 0, (LPBYTE)&Result, (LPDWORD)&Size) != ERROR_SUCCESS)
 	{
 		RegCloseKey(key);
 		return;
@@ -67,7 +68,7 @@ void CGame::ReadSettings()
 	if (Result > 0 && Result < 201) m_sShortCut[0] = Result - 1;
 	else m_sShortCut[0] = -1;
 
-	if (RegQueryValueEx(key, "ShortCut1", 0, 0, (LPBYTE)&Result, &Size) != ERROR_SUCCESS)
+	if (RegQueryValueEx(key, "ShortCut1", 0, 0, (LPBYTE)&Result, (LPDWORD)&Size) != ERROR_SUCCESS)
 	{
 		RegCloseKey(key);
 		return;
@@ -75,7 +76,7 @@ void CGame::ReadSettings()
 	if (Result > 0 && Result < 201) m_sShortCut[1] = Result - 1;
 	else m_sShortCut[1] = -1;
 
-	if (RegQueryValueEx(key, "ShortCut2", 0, 0, (LPBYTE)&Result, &Size) != ERROR_SUCCESS)
+	if (RegQueryValueEx(key, "ShortCut2", 0, 0, (LPBYTE)&Result, (LPDWORD)&Size) != ERROR_SUCCESS)
 	{
 		RegCloseKey(key);
 		return;
@@ -83,7 +84,7 @@ void CGame::ReadSettings()
 	if (Result > 0 && Result < 201) m_sShortCut[2] = Result - 1;
 	else m_sShortCut[2] = -1;
 
-	if (RegQueryValueEx(key, "ShortCut3", 0, 0, (LPBYTE)&Result, &Size) != ERROR_SUCCESS)
+	if (RegQueryValueEx(key, "ShortCut3", 0, 0, (LPBYTE)&Result, (LPDWORD)&Size) != ERROR_SUCCESS)
 	{
 		RegCloseKey(key);
 		return;
@@ -91,7 +92,7 @@ void CGame::ReadSettings()
 	if (Result > 0 && Result < 201) m_sShortCut[3] = Result - 1;
 	else m_sShortCut[3] = -1;
 
-	if (RegQueryValueEx(key, "ShortCut4", 0, 0, (LPBYTE)&Result, &Size) != ERROR_SUCCESS)
+	if (RegQueryValueEx(key, "ShortCut4", 0, 0, (LPBYTE)&Result, (LPDWORD)&Size) != ERROR_SUCCESS)
 	{
 		RegCloseKey(key);
 		return;
@@ -105,9 +106,9 @@ void CGame::ReadSettings()
 void CGame::WriteSettings()
 {
 	HKEY key;
-	DWORD dwDisp;
+	uint32_t dwDisp;
 	UINT nData;
-	if (RegCreateKeyEx(HKEY_CURRENT_USER, "Software\\Siementech\\Helbreath\\Settings", 0, 0, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, 0, &key, &dwDisp) != ERROR_SUCCESS) return;
+	if (RegCreateKeyEx(HKEY_CURRENT_USER, "Software\\Siementech\\Helbreath\\Settings", 0, 0, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, 0, &key, (LPDWORD)&dwDisp) != ERROR_SUCCESS) return;
 
 	if (m_sMagicShortCut >= 0 && m_sMagicShortCut < 100) nData = m_sMagicShortCut + 1;
 	else nData = 0;
@@ -183,7 +184,7 @@ CGame::CGame()
 	m_cGameMode = DEF_GAMEMODE_ONLOADING;
 	m_cWhisperIndex = DEF_MAXWHISPERMSG;
 	m_cGameModeCount = 0;
-	ZeroMemory(m_cMapName, sizeof(m_cMapName));
+	std::memset(m_cMapName, 0, sizeof(m_cMapName));
 	m_pGSock = 0;
 	m_pLSock = 0;
 	m_pMapData = 0;
@@ -262,7 +263,7 @@ CGame::CGame()
 	m_stMCursor.cPrevStatus = DEF_CURSORSTATUS_NULL;
 	m_stMCursor.dwSelectClickTime = 0;
 
-	ZeroMemory(m_cLogServerAddr, sizeof(m_cLogServerAddr));
+	std::memset(m_cLogServerAddr, 0, sizeof(m_cLogServerAddr));
 	m_iGameServerMode = 2; // Snoopy: Default is INTERNET
 
 	for (i = 0; i < DEF_MAXMENUITEMS; i++)
@@ -573,24 +574,24 @@ CGame::CGame()
 	m_bShout = true;
 
 	// Initialize char arrays that were previously zero-initialized by HEAP_ZERO_MEMORY
-	ZeroMemory(m_cEdit, sizeof(m_cEdit));
-	ZeroMemory(m_cMsg, sizeof(m_cMsg));
-	ZeroMemory(m_cChatMsg, sizeof(m_cChatMsg));
-	ZeroMemory(m_cBackupChatMsg, sizeof(m_cBackupChatMsg));
-	ZeroMemory(m_cAmountString, sizeof(m_cAmountString));
-	ZeroMemory(m_cCurLocation, sizeof(m_cCurLocation));
-	ZeroMemory(m_cMapMessage, sizeof(m_cMapMessage));
-	ZeroMemory(m_cGameServerName, sizeof(m_cGameServerName));
-	ZeroMemory(m_cAccountAge, sizeof(m_cAccountAge));
-	ZeroMemory(m_cNewPassword, sizeof(m_cNewPassword));
-	ZeroMemory(m_cNewPassConfirm, sizeof(m_cNewPassConfirm));
-	ZeroMemory(m_cAccountCountry, sizeof(m_cAccountCountry));
-	ZeroMemory(m_cAccountSSN, sizeof(m_cAccountSSN));
-	ZeroMemory(m_cEmailAddr, sizeof(m_cEmailAddr));
-	ZeroMemory(m_cAccountQuiz, sizeof(m_cAccountQuiz));
-	ZeroMemory(m_cAccountAnswer, sizeof(m_cAccountAnswer));
-	ZeroMemory(m_cName_IE, sizeof(m_cName_IE));
-	ZeroMemory(m_cTakeHeroItemName, sizeof(m_cTakeHeroItemName));
+	std::memset(m_cEdit, 0, sizeof(m_cEdit));
+	std::memset(m_cMsg, 0, sizeof(m_cMsg));
+	std::memset(m_cChatMsg, 0, sizeof(m_cChatMsg));
+	std::memset(m_cBackupChatMsg, 0, sizeof(m_cBackupChatMsg));
+	std::memset(m_cAmountString, 0, sizeof(m_cAmountString));
+	std::memset(m_cCurLocation, 0, sizeof(m_cCurLocation));
+	std::memset(m_cMapMessage, 0, sizeof(m_cMapMessage));
+	std::memset(m_cGameServerName, 0, sizeof(m_cGameServerName));
+	std::memset(m_cAccountAge, 0, sizeof(m_cAccountAge));
+	std::memset(m_cNewPassword, 0, sizeof(m_cNewPassword));
+	std::memset(m_cNewPassConfirm, 0, sizeof(m_cNewPassConfirm));
+	std::memset(m_cAccountCountry, 0, sizeof(m_cAccountCountry));
+	std::memset(m_cAccountSSN, 0, sizeof(m_cAccountSSN));
+	std::memset(m_cEmailAddr, 0, sizeof(m_cEmailAddr));
+	std::memset(m_cAccountQuiz, 0, sizeof(m_cAccountQuiz));
+	std::memset(m_cAccountAnswer, 0, sizeof(m_cAccountAnswer));
+	std::memset(m_cName_IE, 0, sizeof(m_cName_IE));
+	std::memset(m_cTakeHeroItemName, 0, sizeof(m_cTakeHeroItemName));
 }
 
 CGame::~CGame()
@@ -608,12 +609,12 @@ bool CGame::bInit(HWND hWnd, HINSTANCE hInst, char* pCmdLine)
 		m_pSprite[i] = 0;
 	if (pCmdLine != 0)
 	{
-		ZeroMemory(G_cCmdLine, sizeof(G_cCmdLine));
-		ZeroMemory(G_cCmdLineTokenA, sizeof(G_cCmdLineTokenA));
-		ZeroMemory(G_cCmdLineTokenB, sizeof(G_cCmdLineTokenB));
-		ZeroMemory(G_cCmdLineTokenC, sizeof(G_cCmdLineTokenC));
-		ZeroMemory(G_cCmdLineTokenD, sizeof(G_cCmdLineTokenD));
-		ZeroMemory(G_cCmdLineTokenE, sizeof(G_cCmdLineTokenE));
+		std::memset(G_cCmdLine, 0, sizeof(G_cCmdLine));
+		std::memset(G_cCmdLineTokenA, 0, sizeof(G_cCmdLineTokenA));
+		std::memset(G_cCmdLineTokenB, 0, sizeof(G_cCmdLineTokenB));
+		std::memset(G_cCmdLineTokenC, 0, sizeof(G_cCmdLineTokenC));
+		std::memset(G_cCmdLineTokenD, 0, sizeof(G_cCmdLineTokenD));
+		std::memset(G_cCmdLineTokenE, 0, sizeof(G_cCmdLineTokenE));
 
 		strcpy(G_cCmdLine, pCmdLine);
 
@@ -633,13 +634,13 @@ bool CGame::bInit(HWND hWnd, HINSTANCE hInst, char* pCmdLine)
 		}
 	}
 
-	ZeroMemory(G_cCmdLineTokenA_Lowercase, sizeof(G_cCmdLineTokenA_Lowercase));
+	std::memset(G_cCmdLineTokenA_Lowercase, 0, sizeof(G_cCmdLineTokenA_Lowercase));
 	strcpy(G_cCmdLineTokenA_Lowercase, G_cCmdLineTokenA);
 	_strlwr(G_cCmdLineTokenA_Lowercase);
 
 	if (memcmp(G_cCmdLineTokenA_Lowercase, "/egparam", 8) == 0)
 	{
-		ZeroMemory(G_cCmdLineTokenA, sizeof(G_cCmdLineTokenA));
+		std::memset(G_cCmdLineTokenA, 0, sizeof(G_cCmdLineTokenA));
 		memcpy(G_cCmdLineTokenA, "dataq", 5);
 	}
 	m_hWnd = hWnd;
@@ -722,9 +723,9 @@ bool CGame::bInit(HWND hWnd, HINSTANCE hInst, char* pCmdLine)
 	m_stMCursor.sX = 0;
 	m_stMCursor.sY = 0;
 	m_pMapData = new class CMapData(this);
-	ZeroMemory(m_cPlayerName, sizeof(m_cPlayerName));
-	ZeroMemory(m_cAccountName, sizeof(m_cAccountName));
-	ZeroMemory(m_cAccountPassword, sizeof(m_cAccountPassword));
+	std::memset(m_cPlayerName, 0, sizeof(m_cPlayerName));
+	std::memset(m_cAccountName, 0, sizeof(m_cAccountName));
+	std::memset(m_cAccountPassword, 0, sizeof(m_cAccountPassword));
 
 	m_sPlayerType = 2;
 	m_cPlayerTurn = 0;
@@ -793,7 +794,7 @@ bool CGame::bInit(HWND hWnd, HINSTANCE hInst, char* pCmdLine)
 #endif
 
 	_LoadGameMsgTextContents();
-	ZeroMemory(m_cWorldServerName, sizeof(m_cWorldServerName));
+	std::memset(m_cWorldServerName, 0, sizeof(m_cWorldServerName));
 
 	return true;
 }
@@ -890,7 +891,7 @@ void CGame::Quit()
 
 void CGame::UpdateScreen()
 {
-	G_dwGlobalTime = timeGetTime();
+	G_dwGlobalTime = GameClock::GetTimeMS();
 	OnGameSocketEvent();
 	OnLogSocketEvent();
 	switch (m_cGameMode) {
@@ -1024,7 +1025,7 @@ void CGame::OnGameSocketEvent()
 {
 	int iRet;
 	char* pData;
-	DWORD  dwMsgSize;
+	uint32_t dwMsgSize;
 
 	if (m_pGSock == 0) return;
 
@@ -1168,7 +1169,7 @@ bool CGame::_bCheckMoveable(short sx, short sy)
 	return true;
 }
 
-bool CGame::bSendCommand(DWORD dwMsgID, WORD wCommand, char cDir, int iV1, int iV2, int iV3, char* pString, int iV4)
+bool CGame::bSendCommand(uint32_t dwMsgID, uint16_t wCommand, char cDir, int iV1, int iV2, int iV3, char* pString, int iV4)
 {
 	char* cp, cMsg[300], cTxt[256], cKey;
 	WORD* wp;
@@ -1177,8 +1178,8 @@ bool CGame::bSendCommand(DWORD dwMsgID, WORD wCommand, char cDir, int iV1, int i
 	int* ip, iRet, i, * fightzonenum;
 
 	if ((m_pGSock == 0) && (m_pLSock == 0)) return false;
-	dwTime = timeGetTime();
-	ZeroMemory(cMsg, sizeof(cMsg));
+	dwTime = GameClock::GetTimeMS();
+	std::memset(cMsg, 0, sizeof(cMsg));
 	cKey = (char)(rand() % 255) + 1;
 
 	switch (dwMsgID) {
@@ -1301,22 +1302,22 @@ bool CGame::bSendCommand(DWORD dwMsgID, WORD wCommand, char cDir, int iV1, int i
 
 		cp = (char*)(cMsg + DEF_INDEX2_MSGTYPE + 2);
 
-		ZeroMemory(cTxt, sizeof(cTxt)); // v1.4
+		std::memset(cTxt, 0, sizeof(cTxt)); // v1.4
 		memcpy(cTxt, m_cAccountName, 10);
 		memcpy(cp, cTxt, 10);
 		cp += 10;
 
-		ZeroMemory(cTxt, sizeof(cTxt)); // v1.4
+		std::memset(cTxt, 0, sizeof(cTxt)); // v1.4
 		memcpy(cTxt, m_cAccountPassword, 10);
 		memcpy(cp, cTxt, 10);
 		cp += 10;
 
-		ZeroMemory(cTxt, sizeof(cTxt)); // v1.4
+		std::memset(cTxt, 0, sizeof(cTxt)); // v1.4
 		memcpy(cTxt, m_cNewPassword, 10);
 		memcpy(cp, cTxt, 10);
 		cp += 10;
 
-		ZeroMemory(cTxt, sizeof(cTxt)); // v1.4
+		std::memset(cTxt, 0, sizeof(cTxt)); // v1.4
 		memcpy(cTxt, m_cNewPassConfirm, 10);
 		memcpy(cp, cTxt, 10);
 		cp += 10;
@@ -1333,12 +1334,12 @@ bool CGame::bSendCommand(DWORD dwMsgID, WORD wCommand, char cDir, int iV1, int i
 
 		cp = (char*)(cMsg + DEF_INDEX2_MSGTYPE + 2);
 
-		ZeroMemory(cTxt, sizeof(cTxt));
+		std::memset(cTxt, 0, sizeof(cTxt));
 		memcpy(cTxt, m_cAccountName, 10);
 		memcpy(cp, cTxt, 10);
 		cp += 10;
 
-		ZeroMemory(cTxt, sizeof(cTxt));
+		std::memset(cTxt, 0, sizeof(cTxt));
 		memcpy(cTxt, m_cAccountPassword, 10);
 		memcpy(cp, cTxt, 10);
 		cp += 10;
@@ -1346,7 +1347,7 @@ bool CGame::bSendCommand(DWORD dwMsgID, WORD wCommand, char cDir, int iV1, int i
 		memcpy(cp, m_cEmailAddr, 50);
 		cp += 50;
 
-		ZeroMemory(cTxt, sizeof(cTxt));
+		std::memset(cTxt, 0, sizeof(cTxt));
 		strcpy(cTxt, " "); // gender
 		memcpy(cp, cTxt, 10);
 		cp += 10;
@@ -1388,11 +1389,11 @@ bool CGame::bSendCommand(DWORD dwMsgID, WORD wCommand, char cDir, int iV1, int i
 		wp = (WORD*)(cMsg + DEF_INDEX2_MSGTYPE);
 		*wp = 0;
 		cp = (char*)(cMsg + DEF_INDEX2_MSGTYPE + 2);
-		ZeroMemory(cTxt, sizeof(cTxt)); // v1.4
+		std::memset(cTxt, 0, sizeof(cTxt)); // v1.4
 		memcpy(cTxt, m_cAccountName, 10);
 		memcpy(cp, cTxt, 10);
 		cp += 10;
-		ZeroMemory(cTxt, sizeof(cTxt)); // v1.4
+		std::memset(cTxt, 0, sizeof(cTxt)); // v1.4
 		memcpy(cTxt, m_cAccountPassword, 10);
 		memcpy(cp, cTxt, 10);
 		cp += 10;
@@ -1468,22 +1469,22 @@ bool CGame::bSendCommand(DWORD dwMsgID, WORD wCommand, char cDir, int iV1, int i
 
 		cp = (char*)(cMsg + DEF_INDEX2_MSGTYPE + 2);
 
-		ZeroMemory(cTxt, sizeof(cTxt)); // v1.4
+		std::memset(cTxt, 0, sizeof(cTxt)); // v1.4
 		memcpy(cTxt, m_cPlayerName, 10);
 		memcpy(cp, cTxt, 10);
 		cp += 10;
 
-		ZeroMemory(cTxt, sizeof(cTxt)); // v1.43
+		std::memset(cTxt, 0, sizeof(cTxt)); // v1.43
 		memcpy(cTxt, m_cMapName, 10);
 		memcpy(cp, cTxt, 10);
 		cp += 10;
 
-		ZeroMemory(cTxt, sizeof(cTxt)); // v1.4
+		std::memset(cTxt, 0, sizeof(cTxt)); // v1.4
 		memcpy(cTxt, m_cAccountName, 10);
 		memcpy(cp, cTxt, 10);
 		cp += 10;
 
-		ZeroMemory(cTxt, sizeof(cTxt)); // v1.4
+		std::memset(cTxt, 0, sizeof(cTxt)); // v1.4
 		memcpy(cTxt, m_cAccountPassword, 10);
 		memcpy(cp, cTxt, 10);
 		cp += 10;
@@ -1572,17 +1573,17 @@ bool CGame::bSendCommand(DWORD dwMsgID, WORD wCommand, char cDir, int iV1, int i
 
 		cp = (char*)(cMsg + DEF_INDEX2_MSGTYPE + 2);
 
-		ZeroMemory(cTxt, sizeof(cTxt));
+		std::memset(cTxt, 0, sizeof(cTxt));
 		memcpy(cTxt, m_cPlayerName, 10);
 		memcpy(cp, cTxt, 10);
 		cp += 10;
 
-		ZeroMemory(cTxt, sizeof(cTxt));
+		std::memset(cTxt, 0, sizeof(cTxt));
 		memcpy(cTxt, m_cAccountName, 10);
 		memcpy(cp, cTxt, 10);
 		cp += 10;
 
-		ZeroMemory(cTxt, sizeof(cTxt));
+		std::memset(cTxt, 0, sizeof(cTxt));
 		memcpy(cTxt, m_cAccountPassword, 10);
 		memcpy(cp, cTxt, 10);
 		cp += 10;
@@ -1803,22 +1804,22 @@ bool CGame::bSendCommand(DWORD dwMsgID, WORD wCommand, char cDir, int iV1, int i
 
 		cp = (char*)(cMsg + DEF_INDEX2_MSGTYPE + 2);
 
-		ZeroMemory(cTxt, sizeof(cTxt)); // v1.4
+		std::memset(cTxt, 0, sizeof(cTxt)); // v1.4
 		memcpy(cTxt, m_cPlayerName, 10);
 		memcpy(cp, cTxt, 10);
 		cp += 10;
 
-		ZeroMemory(cTxt, sizeof(cTxt)); // v1.4
+		std::memset(cTxt, 0, sizeof(cTxt)); // v1.4
 		memcpy(cTxt, m_cAccountName, 10);
 		memcpy(cp, cTxt, 10);
 		cp += 10;
 
-		ZeroMemory(cTxt, sizeof(cTxt)); // v1.4
+		std::memset(cTxt, 0, sizeof(cTxt)); // v1.4
 		memcpy(cTxt, m_cAccountPassword, 10);
 		memcpy(cp, cTxt, 10);
 		cp += 10;
 		char cTemp[21];
-		ZeroMemory(cTemp, sizeof(cTemp));
+		std::memset(cTemp, 0, sizeof(cTemp));
 		memcpy(cTemp, m_cGuildName, 20);
 		CMisc::ReplaceString(cTemp, ' ', '_');
 		memcpy(cp, cTemp, 20);
@@ -2007,7 +2008,7 @@ void CGame::DrawObjects(short sPivotX, short sPivotY, short sDivX, short sDivY, 
 	bool frame_omit = false;
 
 	// Item's desc on floor
-	DWORD dwItemAttr, dwItemSelectedAttr;
+	uint32_t dwItemAttr, dwItemSelectedAttr;
 	int iItemSelectedx, iItemSelectedy;
 	short sItemID, sItemSelectedID = -1;
 
@@ -2018,10 +2019,10 @@ void CGame::DrawObjects(short sPivotX, short sPivotY, short sDivX, short sDivY, 
 	if (sDivY < 0 || sDivX < 0) return;
 	m_sMCX = 0;
 	m_sMCY = 0;
-	ZeroMemory(m_cMCName, sizeof(m_cMCName));
+	std::memset(m_cMCName, 0, sizeof(m_cMCName));
 
 	//dwTime = G_dwGlobalTime;
-	DWORD dwTime = m_dwCurTime;
+	uint32_t dwTime = m_dwCurTime;
 	m_stMCursor.sCursorFrame = 0;
 
 	indexY = sDivY + sPivotY - 7;
@@ -2037,7 +2038,7 @@ void CGame::DrawObjects(short sPivotX, short sPivotY, short sDivX, short sDivY, 
 				_tmp_wObjectID = _tmp_sOwnerType = _tmp_sAppr1 = _tmp_sAppr2 = _tmp_sAppr3 = _tmp_sAppr4 = _tmp_iStatus = 0;
 				_tmp_cDir = _tmp_cFrame = 0;
 				_tmp_iEffectType = _tmp_iEffectFrame = _tmp_iChatIndex = 0;
-				ZeroMemory(_tmp_cName, sizeof(_tmp_cName));
+				std::memset(_tmp_cName, 0, sizeof(_tmp_cName));
 				if ((indexX < m_pMapData->m_sPivotX) || (indexX > m_pMapData->m_sPivotX + MAPDATASIZEX) ||
 					(indexY < m_pMapData->m_sPivotY) || (indexY > m_pMapData->m_sPivotY + MAPDATASIZEY))
 				{
@@ -2138,9 +2139,9 @@ void CGame::DrawObjects(short sPivotX, short sPivotY, short sDivX, short sDivY, 
 					sFocusAppr4 = _tmp_sAppr4;
 					iFocusApprColor = _tmp_iApprColor;
 					iFocuiStatus = _tmp_iStatus;
-					ZeroMemory(cFocusName, sizeof(cFocusName));
+					std::memset(cFocusName, 0, sizeof(cFocusName));
 					strcpy(cFocusName, _tmp_cName);
-					ZeroMemory(m_cMCName, sizeof(m_cMCName));
+					std::memset(m_cMCName, 0, sizeof(m_cMCName));
 					strcpy(m_cMCName, _tmp_cName);
 					sFocus_dX = _tmp_dX;
 					sFocus_dY = _tmp_dY;
@@ -2151,7 +2152,7 @@ void CGame::DrawObjects(short sPivotX, short sPivotY, short sDivX, short sDivY, 
 				_tmp_wObjectID = _tmp_sOwnerType = _tmp_sAppr1 = _tmp_sAppr2 = _tmp_sAppr3 = _tmp_sAppr4 = _tmp_iStatus = 0;
 				_tmp_cFrame = _tmp_cDir = 0;
 				_tmp_iEffectType = _tmp_iEffectFrame = _tmp_iApprColor = _tmp_iChatIndex = 0;
-				ZeroMemory(_tmp_cName, sizeof(_tmp_cName));
+				std::memset(_tmp_cName, 0, sizeof(_tmp_cName));
 
 				if ((indexX < m_pMapData->m_sPivotX) || (indexX > m_pMapData->m_sPivotX + MAPDATASIZEX) ||
 					(indexY < m_pMapData->m_sPivotY) || (indexY > m_pMapData->m_sPivotY + MAPDATASIZEY))
@@ -2259,9 +2260,9 @@ void CGame::DrawObjects(short sPivotX, short sPivotY, short sDivX, short sDivY, 
 						sFocusAppr4 = _tmp_sAppr4;
 						iFocusApprColor = _tmp_iApprColor; // v1.4
 						iFocuiStatus = _tmp_iStatus;
-						ZeroMemory(cFocusName, sizeof(cFocusName));
+						std::memset(cFocusName, 0, sizeof(cFocusName));
 						strcpy(cFocusName, _tmp_cName);
-						ZeroMemory(m_cMCName, sizeof(m_cMCName));
+						std::memset(m_cMCName, 0, sizeof(m_cMCName));
 						strcpy(m_cMCName, _tmp_cName);
 						sFocus_dX = _tmp_dX; // v2.171
 						sFocus_dY = _tmp_dY; // v2.171
@@ -2486,8 +2487,8 @@ void CGame::DrawObjects(short sPivotX, short sPivotY, short sDivX, short sDivY, 
 						m_sMCX = indexX;
 						m_sMCY = indexY;
 						iFocuiStatus = 0;
-						ZeroMemory(cFocusName, sizeof(cFocusName));
-						ZeroMemory(m_cMCName, sizeof(m_cMCName));
+						std::memset(cFocusName, 0, sizeof(cFocusName));
+						std::memset(m_cMCName, 0, sizeof(m_cMCName));
 					}
 					break;
 
@@ -2503,8 +2504,8 @@ void CGame::DrawObjects(short sPivotX, short sPivotY, short sDivX, short sDivY, 
 						m_sMCX = indexX;
 						m_sMCY = indexY;
 						iFocuiStatus = 0;
-						ZeroMemory(cFocusName, sizeof(cFocusName));
-						ZeroMemory(m_cMCName, sizeof(m_cMCName));
+						std::memset(cFocusName, 0, sizeof(cFocusName));
+						std::memset(m_cMCName, 0, sizeof(m_cMCName));
 					}
 					break;
 
@@ -2716,7 +2717,7 @@ void CGame::DrawObjects(short sPivotX, short sPivotY, short sDivX, short sDivY, 
 	}
 }
 
-bool CGame::_bDecodeItemConfigFileContents(char* pData, DWORD dwMsgSize)
+bool CGame::_bDecodeItemConfigFileContents(char* pData, uint32_t dwMsgSize)
 {
 	char* pContents, * token, cTxt[120];
 	char seps[] = "= \t\n";
@@ -2725,7 +2726,7 @@ bool CGame::_bDecodeItemConfigFileContents(char* pData, DWORD dwMsgSize)
 	int  iItemConfigListIndex, iTemp;
 
 	pContents = new char[dwMsgSize + 1];
-	ZeroMemory(pContents, dwMsgSize + 1);
+	std::memset(pContents, 0, dwMsgSize + 1);
 	memcpy(pContents, pData, dwMsgSize);
 
 	token = strtok(pContents, seps);   
@@ -2758,7 +2759,7 @@ bool CGame::_bDecodeItemConfigFileContents(char* pData, DWORD dwMsgSize)
 					break;
 				case 2:
 					// m_cName 
-					ZeroMemory(m_pItemConfigList[iItemConfigListIndex]->m_cName, sizeof(m_pItemConfigList[iItemConfigListIndex]->m_cName));
+					std::memset(m_pItemConfigList[iItemConfigListIndex]->m_cName, 0, sizeof(m_pItemConfigList[iItemConfigListIndex]->m_cName));
 					memcpy(m_pItemConfigList[iItemConfigListIndex]->m_cName, token, strlen(token));
 					cReadModeB = 3;
 					break;
@@ -3144,13 +3145,13 @@ void CGame::DrawDialogBox_MobKills(short msX, short msY, short msZ, char cLB)
 		{
 			if (((i + m_stDialogBoxInfo[48].sView) < 100) && (m_pMobKillCount[i + m_stDialogBoxInfo[48].sView] != 0))
 			{
-				ZeroMemory(cTemp, sizeof(cTemp));
+				std::memset(cTemp, 0, sizeof(cTemp));
 				wsprintf(cTemp, "%s", m_pMobKillCount[i + m_stDialogBoxInfo[48].sView]->cNpcName);
 
-				ZeroMemory(cTemp3, sizeof(cTemp3));
+				std::memset(cTemp3, 0, sizeof(cTemp3));
 				wsprintf(cTemp3, "%d/%d", m_pMobKillCount[i + m_stDialogBoxInfo[48].sView]->iKillCount, m_pMobKillCount[i + m_stDialogBoxInfo[48].sView]->iNextCount);
 
-				ZeroMemory(cTemp2, sizeof(cTemp2));
+				std::memset(cTemp2, 0, sizeof(cTemp2));
 				wsprintf(cTemp2, "%d", m_pMobKillCount[i + m_stDialogBoxInfo[48].sView]->iLevel);
 
 				PutString2(sX + 30, sY + 30 + (i * 15) + 15, cTemp, 255, 255, 255);
@@ -3163,7 +3164,7 @@ void CGame::DrawDialogBox_MobKills(short msX, short msY, short msZ, char cLB)
 }
 
 
-void CGame::GameRecvMsgHandler(DWORD dwMsgSize, char* pData)
+void CGame::GameRecvMsgHandler(uint32_t dwMsgSize, char* pData)
 {
 	DWORD* dwpMsgID;
 	dwpMsgID = (DWORD*)(pData + DEF_INDEX4_MSGID);
@@ -3310,7 +3311,7 @@ void CGame::InitPlayerResponseHandler(char* pData)
 
 	case DEF_MSGTYPE_REJECT:
 		ChangeGameMode(DEF_GAMEMODE_ONLOGRESMSG);
-		ZeroMemory(m_cMsg, sizeof(m_cMsg));
+		std::memset(m_cMsg, 0, sizeof(m_cMsg));
 		strcpy(m_cMsg, "3J");
 		break;
 	}
@@ -3322,7 +3323,7 @@ void CGame::UpdateScreen_OnMainMenu()
 	char cLB, cRB, cMIresult;
 	int  iMIbuttonNum;
 	static class CMouseInterface* pMI;
-	DWORD dwTime = G_dwGlobalTime;
+	uint32_t dwTime = G_dwGlobalTime;
 
 	m_iItemDropCnt = 0;
 	m_bItemDrop = false;
@@ -4292,7 +4293,7 @@ void CGame::UpdateScreen_OnLoading_Progress()
 void CGame::OnTimer()
 {
 	if (m_cGameMode < 0) return;
-	DWORD dwTime = timeGetTime();
+	uint32_t dwTime = GameClock::GetTimeMS();
 
 	if (m_cGameMode != DEF_GAMEMODE_ONLOADING) {
 		if ((dwTime - m_dwCheckSprTime) > 8000)
@@ -4355,7 +4356,7 @@ void CGame::OnTimer()
 					char cPacket[120];
 					int  iSended;
 					WORD* wp;
-					ZeroMemory(cPacket, sizeof(cPacket));
+					std::memset(cPacket, 0, sizeof(cPacket));
 					cPacket[0] = 0;					// Key
 					wp = (WORD*)(cPacket + 1);
 					*wp = 5;
@@ -4698,7 +4699,7 @@ void CGame::bItemDrop_ExternalScreen(char cItemID, short msX, short msY)
 
 	if ((m_sMCX != 0) && (m_sMCY != 0) && (abs(m_sPlayerX - m_sMCX) <= 8) && (abs(m_sPlayerY - m_sMCY) <= 8))
 	{
-		ZeroMemory(cName, sizeof(cName));
+		std::memset(cName, 0, sizeof(cName));
 		m_pMapData->bGetOwner(m_sMCX, m_sMCY, cName, &sType, &iStatus, &m_wCommObjectID);
 		if (memcmp(m_cPlayerName, cName, 10) == 0)
 		{
@@ -4715,7 +4716,7 @@ void CGame::bItemDrop_ExternalScreen(char cItemID, short msX, short msY)
 				m_stDialogBoxInfo[17].sV2 = m_sMCY;
 				m_stDialogBoxInfo[17].sV3 = sType;
 				m_stDialogBoxInfo[17].sV4 = m_wCommObjectID;
-				ZeroMemory(m_stDialogBoxInfo[17].cStr, sizeof(m_stDialogBoxInfo[17].cStr));
+				std::memset(m_stDialogBoxInfo[17].cStr, 0, sizeof(m_stDialogBoxInfo[17].cStr));
 				if (sType < 10)
 					memcpy(m_stDialogBoxInfo[17].cStr, cName, 10);
 				else
@@ -4748,7 +4749,7 @@ void CGame::bItemDrop_ExternalScreen(char cItemID, short msX, short msY)
 					m_stDialogBoxInfo[20].sX = tX;
 					m_stDialogBoxInfo[20].sY = tY;
 
-					ZeroMemory(m_stDialogBoxInfo[20].cStr, sizeof(m_stDialogBoxInfo[20].cStr));
+					std::memset(m_stDialogBoxInfo[20].cStr, 0, sizeof(m_stDialogBoxInfo[20].cStr));
 					strcpy(m_stDialogBoxInfo[20].cStr, cName);
 					//bSendCommand(MSGID_COMMAND_COMMON, DEF_COMMONTYPE_GIVEITEMTOCHAR, cItemID, 1, m_sMCX, m_sMCY, m_pItemList[cItemID]->m_cName); //v1.4
 					break;
@@ -4769,7 +4770,7 @@ void CGame::bItemDrop_ExternalScreen(char cItemID, short msX, short msY)
 					m_stDialogBoxInfo[20].sX = tX;
 					m_stDialogBoxInfo[20].sY = tY;
 
-					ZeroMemory(m_stDialogBoxInfo[20].cStr, sizeof(m_stDialogBoxInfo[20].cStr));
+					std::memset(m_stDialogBoxInfo[20].cStr, 0, sizeof(m_stDialogBoxInfo[20].cStr));
 					GetNpcName(sType, m_stDialogBoxInfo[20].cStr);
 					//bSendCommand(MSGID_COMMAND_COMMON, DEF_COMMONTYPE_GIVEITEMTOCHAR, cItemID, 1, m_sMCX, m_sMCY, m_pItemList[cItemID]->m_cName);
 					break;
@@ -4791,7 +4792,7 @@ void CGame::bItemDrop_ExternalScreen(char cItemID, short msX, short msY)
 					m_stDialogBoxInfo[20].sX = tX;
 					m_stDialogBoxInfo[20].sY = tY;
 
-					ZeroMemory(m_stDialogBoxInfo[20].cStr, sizeof(m_stDialogBoxInfo[20].cStr));
+					std::memset(m_stDialogBoxInfo[20].cStr, 0, sizeof(m_stDialogBoxInfo[20].cStr));
 					GetNpcName(sType, m_stDialogBoxInfo[20].cStr);
 					break;
 
@@ -4816,7 +4817,7 @@ void CGame::bItemDrop_ExternalScreen(char cItemID, short msX, short msY)
 			m_stDialogBoxInfo[17].sV2 = 0;
 			m_stDialogBoxInfo[17].sV3 = 0;
 			m_stDialogBoxInfo[17].sV4 = 0;
-			ZeroMemory(m_stDialogBoxInfo[17].cStr, sizeof(m_stDialogBoxInfo[17].cStr));
+			std::memset(m_stDialogBoxInfo[17].cStr, 0, sizeof(m_stDialogBoxInfo[17].cStr));
 			EnableDialogBox(17, cItemID, m_pItemList[cItemID]->m_dwCount, 0);
 		}
 		else
@@ -4831,7 +4832,7 @@ void CGame::bItemDrop_ExternalScreen(char cItemID, short msX, short msY)
 				m_stDialogBoxInfo[4].sV3 = 1;
 				m_stDialogBoxInfo[4].sV4 = 0;
 				m_stDialogBoxInfo[4].sV5 = cItemID;
-				ZeroMemory(m_stDialogBoxInfo[4].cStr, sizeof(m_stDialogBoxInfo[4].cStr));
+				std::memset(m_stDialogBoxInfo[4].cStr, 0, sizeof(m_stDialogBoxInfo[4].cStr));
 				EnableDialogBox(4, cItemID, m_pItemList[cItemID]->m_dwCount, 0);
 			}
 			else
@@ -4912,8 +4913,8 @@ void CGame::ClearGuildNameList()
 	for (int i = 0; i < DEF_MAXGUILDNAMES; i++) {
 		m_stGuildName[i].dwRefTime = 0;
 		m_stGuildName[i].iGuildRank = -1;
-		ZeroMemory(m_stGuildName[i].cCharName, sizeof(m_stGuildName[i].cCharName));
-		ZeroMemory(m_stGuildName[i].cGuildName, sizeof(m_stGuildName[i].cGuildName));
+		std::memset(m_stGuildName[i].cCharName, 0, sizeof(m_stGuildName[i].cCharName));
+		std::memset(m_stGuildName[i].cGuildName, 0, sizeof(m_stGuildName[i].cGuildName));
 	}
 }
 
@@ -4969,13 +4970,13 @@ void CGame::InitGameSettings()
 
 	m_iNetLagCount = 0;
 
-	m_dwEnvEffectTime = timeGetTime();
+	m_dwEnvEffectTime = GameClock::GetTimeMS();
 
 	for (i = 0; i < DEF_MAXGUILDNAMES; i++) {
 		m_stGuildName[i].dwRefTime = 0;
 		m_stGuildName[i].iGuildRank = -1;
-		ZeroMemory(m_stGuildName[i].cCharName, sizeof(m_stGuildName[i].cCharName));
-		ZeroMemory(m_stGuildName[i].cGuildName, sizeof(m_stGuildName[i].cGuildName));
+		std::memset(m_stGuildName[i].cCharName, 0, sizeof(m_stGuildName[i].cCharName));
+		std::memset(m_stGuildName[i].cGuildName, 0, sizeof(m_stGuildName[i].cGuildName));
 	}
 	//Snoopy: 61
 	for (i = 0; i < 61; i++)
@@ -5009,22 +5010,22 @@ void CGame::InitGameSettings()
 		m_pWhisperMsg[i] = 0;
 	}
 
-	ZeroMemory(m_cLocation, sizeof(m_cLocation));
+	std::memset(m_cLocation, 0, sizeof(m_cLocation));
 
-	ZeroMemory(m_cGuildName, sizeof(m_cGuildName));
+	std::memset(m_cGuildName, 0, sizeof(m_cGuildName));
 	m_iGuildRank = -1;
 	m_iTotalGuildsMan = 0;
 
 	for (i = 0; i < 100; i++) {
 		m_stGuildOpList[i].cOpMode = 0;
-		ZeroMemory(m_stGuildOpList[i].cName, sizeof(m_stGuildOpList[i].cName));
+		std::memset(m_stGuildOpList[i].cName, 0, sizeof(m_stGuildOpList[i].cName));
 	}
 
 	for (i = 0; i < 6; i++) {
-		ZeroMemory(m_stEventHistory[i].cTxt, sizeof(m_stEventHistory[i].cTxt));
+		std::memset(m_stEventHistory[i].cTxt, 0, sizeof(m_stEventHistory[i].cTxt));
 		m_stEventHistory[i].dwTime = G_dwGlobalTime;
 
-		ZeroMemory(m_stEventHistory2[i].cTxt, sizeof(m_stEventHistory2[i].cTxt));
+		std::memset(m_stEventHistory2[i].cTxt, 0, sizeof(m_stEventHistory2[i].cTxt));
 		m_stEventHistory2[i].dwTime = G_dwGlobalTime;
 	}
 
@@ -5078,7 +5079,7 @@ void CGame::InitGameSettings()
 
 	for (i = 0; i < DEF_MAXPARTYMEMBERS; i++) {
 		m_stPartyMember[i].cStatus = 0;
-		ZeroMemory(m_stPartyMember[i].cName, sizeof(m_stPartyMember[i].cName));
+		std::memset(m_stPartyMember[i].cName, 0, sizeof(m_stPartyMember[i].cName));
 	}
 
 	for (i = 0; i < 100;i++)
@@ -5095,7 +5096,7 @@ void CGame::InitGameSettings()
 	m_iSuperAttackLeft = 0;
 	m_bSuperAttackMode = false;
 	m_iFightzoneNumber = 0;
-	ZeroMemory(m_cBGMmapName, sizeof(m_cBGMmapName));
+	std::memset(m_cBGMmapName, 0, sizeof(m_cBGMmapName));
 	m_dwWOFtime = 0;
 	m_stQuest.sWho = 0;
 	m_stQuest.sQuestType = 0;
@@ -5107,7 +5108,7 @@ void CGame::InitGameSettings()
 	m_stQuest.sY = 0;
 	m_stQuest.sRange = 0;
 	m_stQuest.bIsQuestCompleted = false;
-	ZeroMemory(m_stQuest.cTargetName, sizeof(m_stQuest.cTargetName));
+	std::memset(m_stQuest.cTargetName, 0, sizeof(m_stQuest.cTargetName));
 	m_bIsObserverMode = false;
 	m_bIsObserverCommanded = false;
 	m_bIsPoisoned = false;
@@ -5130,20 +5131,20 @@ void CGame::InitGameSettings()
 		m_stCrusadeStructureInfo[i].sX = 0;
 		m_stCrusadeStructureInfo[i].sY = 0;
 	}
-	ZeroMemory(m_cStatusMapName, sizeof(m_cStatusMapName));
+	std::memset(m_cStatusMapName, 0, sizeof(m_cStatusMapName));
 	m_dwCommanderCommandRequestedTime = 0;
-	ZeroMemory(m_cTopMsg, sizeof(m_cTopMsg));
+	std::memset(m_cTopMsg, 0, sizeof(m_cTopMsg));
 	m_iTopMsgLastSec = 0;
 	m_dwTopMsgTime = 0;
 	m_iConstructionPoint = 0;
 	m_iWarContribution = 0;
-	ZeroMemory(m_cTeleportMapName, sizeof(m_cTeleportMapName));
+	std::memset(m_cTeleportMapName, 0, sizeof(m_cTeleportMapName));
 	m_iTeleportLocX = m_iTeleportLocY = -1;
-	ZeroMemory(m_cConstructMapName, sizeof(m_cConstructMapName));
+	std::memset(m_cConstructMapName, 0, sizeof(m_cConstructMapName));
 	m_iConstructLocX = m_iConstructLocY = -1;
 
 	//Snoopy: Apocalypse Gate
-	ZeroMemory(m_cGateMapName, sizeof(m_cGateMapName));
+	std::memset(m_cGateMapName, 0, sizeof(m_cGateMapName));
 	m_iGatePositX = m_iGatePositY = -1;
 	m_iHeldenianAresdenLeftTower = -1;
 	m_iHeldenianElvineLeftTower = -1;
@@ -5152,7 +5153,7 @@ void CGame::InitGameSettings()
 	m_bIsXmas = false;
 	m_iTotalPartyMember = 0;
 	m_iPartyStatus = 0;
-	for (i = 0; i < DEF_MAXPARTYMEMBERS; i++) ZeroMemory(m_stPartyMemberNameList[i].cName, sizeof(m_stPartyMemberNameList[i].cName));
+	for (i = 0; i < DEF_MAXPARTYMEMBERS; i++) std::memset(m_stPartyMemberNameList[i].cName, 0, sizeof(m_stPartyMemberNameList[i].cName));
 	m_iGizonItemUpgradeLeft = 0;
 	cStateChange1 = 0;
 	cStateChange2 = 0;
@@ -5281,7 +5282,7 @@ void CGame::DlgBoxClick_GuildMenu(short msX, short msY)
 	case 9:
 		if ((msX >= sX + 30) && (msX <= sX + 30 + DEF_BTNSZX) && (msY >= sY + DEF_BTNPOSY) && (msY <= sY + DEF_BTNPOSY + DEF_BTNSZY))
 		{	// Purchase�
-			ZeroMemory(cTemp, sizeof(cTemp));
+			std::memset(cTemp, 0, sizeof(cTemp));
 			strcpy(cTemp, "GuildAdmissionTicket");
 			bSendCommand(MSGID_COMMAND_COMMON, DEF_COMMONTYPE_REQ_PURCHASEITEM, 0, 1, 0, 0, cTemp);
 			m_stDialogBoxInfo[7].cMode = 0;
@@ -5297,7 +5298,7 @@ void CGame::DlgBoxClick_GuildMenu(short msX, short msY)
 	case 11:
 		if ((msX >= sX + 30) && (msX <= sX + 30 + DEF_BTNSZX) && (msY >= sY + DEF_BTNPOSY) && (msY <= sY + DEF_BTNPOSY + DEF_BTNSZY))
 		{	// Purchase
-			ZeroMemory(cTemp, sizeof(cTemp));
+			std::memset(cTemp, 0, sizeof(cTemp));
 			strcpy(cTemp, "GuildSecessionTicket");
 			bSendCommand(MSGID_COMMAND_COMMON, DEF_COMMONTYPE_REQ_PURCHASEITEM, 0, 1, 0, 0, cTemp);
 			m_stDialogBoxInfo[7].cMode = 0;
@@ -5547,7 +5548,7 @@ void CGame::InitPlayerCharacteristics(char* pData)
 	cp += 20;
 
 	if (strcmp(m_cGuildName, "NONE") == 0)
-		ZeroMemory(m_cGuildName, sizeof(m_cGuildName));
+		std::memset(m_cGuildName, 0, sizeof(m_cGuildName));
 
 	CMisc::ReplaceString(m_cGuildName, '_', ' ');
 	ip = (int*)cp;
@@ -5575,7 +5576,7 @@ void CGame::DisbandGuildResponseHandler(char* pData)
 	wpResult = (WORD*)(pData + DEF_INDEX2_MSGTYPE);
 	switch (*wpResult) {
 	case DEF_MSGTYPE_CONFIRM:
-		ZeroMemory(m_cGuildName, sizeof(m_cGuildName));
+		std::memset(m_cGuildName, 0, sizeof(m_cGuildName));
 		m_iGuildRank = -1;
 		m_stDialogBoxInfo[7].cMode = 7;
 		break;
@@ -5588,17 +5589,17 @@ void CGame::DisbandGuildResponseHandler(char* pData)
 void CGame::NotifyMsg_BanGuildMan(char* pData)
 {
 	char* cp, cName[24], cLocation[12];
-	ZeroMemory(cName, sizeof(cName));
-	ZeroMemory(cLocation, sizeof(cLocation));
+	std::memset(cName, 0, sizeof(cName));
+	std::memset(cLocation, 0, sizeof(cLocation));
 	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
 	memcpy(cName, cp, 20);
 	cp += 20;
 	cp += 2;
 	memcpy(cLocation, cp, 10);
 	cp += 10;
-	ZeroMemory(m_cGuildName, sizeof(m_cGuildName));
+	std::memset(m_cGuildName, 0, sizeof(m_cGuildName));
 	m_iGuildRank = -1;
-	ZeroMemory(m_cLocation, sizeof(m_cLocation));
+	std::memset(m_cLocation, 0, sizeof(m_cLocation));
 	memcpy(m_cLocation, cLocation, 10);
 	if (memcmp(m_cLocation, "aresden", 7) == 0)
 	{
@@ -5641,7 +5642,7 @@ void CGame::_PutGuildOperationList(char* pName, char cOpMode)
 		if (m_stGuildOpList[i].cOpMode == 0)
 		{
 			m_stGuildOpList[i].cOpMode = cOpMode;
-			ZeroMemory(m_stGuildOpList[i].cName, sizeof(m_stGuildOpList[i].cName));
+			std::memset(m_stGuildOpList[i].cName, 0, sizeof(m_stGuildOpList[i].cName));
 			memcpy(m_stGuildOpList[i].cName, pName, 20);
 			return;
 		}
@@ -5650,16 +5651,16 @@ void CGame::_PutGuildOperationList(char* pName, char cOpMode)
 void CGame::_ShiftGuildOperationList()
 {
 	int i;
-	ZeroMemory(m_stGuildOpList[0].cName, sizeof(m_stGuildOpList[0].cName));
+	std::memset(m_stGuildOpList[0].cName, 0, sizeof(m_stGuildOpList[0].cName));
 	m_stGuildOpList[0].cOpMode = 0;
 
 	for (i = 1; i < 100; i++)
 		if ((m_stGuildOpList[i - 1].cOpMode == 0) && (m_stGuildOpList[i].cOpMode != 0)) {
 			m_stGuildOpList[i - 1].cOpMode = m_stGuildOpList[i].cOpMode;
-			ZeroMemory(m_stGuildOpList[i - 1].cName, sizeof(m_stGuildOpList[i - 1].cName));
+			std::memset(m_stGuildOpList[i - 1].cName, 0, sizeof(m_stGuildOpList[i - 1].cName));
 			memcpy(m_stGuildOpList[i - 1].cName, m_stGuildOpList[i].cName, 20);
 
-			ZeroMemory(m_stGuildOpList[i].cName, sizeof(m_stGuildOpList[i].cName));
+			std::memset(m_stGuildOpList[i].cName, 0, sizeof(m_stGuildOpList[i].cName));
 			m_stGuildOpList[i].cOpMode = 0;
 		}
 }
@@ -5671,8 +5672,8 @@ void CGame::DlgBoxClick_GuildOp(short msX, short msY)
 	short sX, sY;
 	char cName[12], cName20[24];
 
-	ZeroMemory(cName, sizeof(cName));
-	ZeroMemory(cName20, sizeof(cName20));
+	std::memset(cName, 0, sizeof(cName));
+	std::memset(cName20, 0, sizeof(cName20));
 	sX = m_stDialogBoxInfo[8].sX;
 	sY = m_stDialogBoxInfo[8].sY;
 
@@ -5729,11 +5730,11 @@ void CGame::DlgBoxClick_GuildOp(short msX, short msY)
 	}
 }
 
-void CGame::SetItemCount(char* pItemName, DWORD dwCount)
+void CGame::SetItemCount(char* pItemName, uint32_t dwCount)
 {
 	int i;
 	char cTmpName[21];
-	ZeroMemory(cTmpName, sizeof(cTmpName));
+	std::memset(cTmpName, 0, sizeof(cTmpName));
 	strcpy(cTmpName, pItemName);
 	for (i = 0; i < DEF_MAXITEMS; i++)
 		if ((m_pItemList[i] != 0) && (memcmp(m_pItemList[i]->m_cName, cTmpName, 20) == 0))
@@ -5756,7 +5757,7 @@ void CGame::AddEventList(char* pTxt, char cColor, bool bDupAllow)
 			m_stEventHistory2[i - 1].cColor = m_stEventHistory2[i].cColor;
 			m_stEventHistory2[i - 1].dwTime = m_stEventHistory2[i].dwTime;
 		}
-		ZeroMemory(m_stEventHistory2[5].cTxt, sizeof(m_stEventHistory2[5].cTxt));
+		std::memset(m_stEventHistory2[5].cTxt, 0, sizeof(m_stEventHistory2[5].cTxt));
 		strcpy(m_stEventHistory2[5].cTxt, pTxt);
 		m_stEventHistory2[5].cColor = cColor;
 		m_stEventHistory2[5].dwTime = m_dwCurTime;
@@ -5769,7 +5770,7 @@ void CGame::AddEventList(char* pTxt, char cColor, bool bDupAllow)
 			m_stEventHistory[i - 1].cColor = m_stEventHistory[i].cColor;
 			m_stEventHistory[i - 1].dwTime = m_stEventHistory[i].dwTime;
 		}
-		ZeroMemory(m_stEventHistory[5].cTxt, sizeof(m_stEventHistory[5].cTxt));
+		std::memset(m_stEventHistory[5].cTxt, 0, sizeof(m_stEventHistory[5].cTxt));
 		strcpy(m_stEventHistory[5].cTxt, pTxt);
 		m_stEventHistory[5].cColor = cColor;
 		m_stEventHistory[5].dwTime = m_dwCurTime;
@@ -6914,7 +6915,7 @@ void CGame::DrawEffects()
 {
 	int i, dX, dY, iDvalue, tX, tY, rX, rY, rX2, rY2, rX3, rY3, rX4, rY4, rX5, rY5, iErr;
 	char  cTempFrame;
-	DWORD dwTime = m_dwCurTime;
+	uint32_t dwTime = m_dwCurTime;
 	short sObjectType;
 	char  cName[21];
 	int iStatus;
@@ -7782,7 +7783,7 @@ void CGame::bItemDrop_IconPannel(short msX, short msY)
 void CGame::DrawEffectLights()
 {
 	int i, dX, dY, iDvalue;
-	DWORD dwTime = m_dwCurTime;
+	uint32_t dwTime = m_dwCurTime;
 	char  cTempFrame;
 	for (i = 0; i < DEF_MAXEFFECTS; i++)
 		if (m_pEffectList[i] != 0) {
@@ -7967,11 +7968,11 @@ void CGame::_LoadShopMenuContents(char cType)
 	char cFileName[255], cTemp[255];
 	HANDLE hFile;
 	FILE* pFile;
-	DWORD  dwFileSize;
+	uint32_t dwFileSize;
 	char* pBuffer;
 
-	ZeroMemory(cTemp, sizeof(cTemp));
-	ZeroMemory(cFileName, sizeof(cFileName));
+	std::memset(cTemp, 0, sizeof(cTemp));
+	std::memset(cFileName, 0, sizeof(cFileName));
 	wsprintf(cTemp, "contents%d", cType);
 	strcat(cFileName, "contents");
 	strcat(cFileName, "\\");
@@ -7987,7 +7988,7 @@ void CGame::_LoadShopMenuContents(char cType)
 	if (pFile == 0) return;
 	else {
 		pBuffer = new char[dwFileSize + 1];
-		ZeroMemory(pBuffer, dwFileSize + 1);
+		std::memset(pBuffer, 0, dwFileSize + 1);
 		fread(pBuffer, dwFileSize, 1, pFile);
 
 		__bDecodeContentsAndBuildItemForSaleList(pBuffer);
@@ -8014,7 +8015,7 @@ bool CGame::__bDecodeContentsAndBuildItemForSaleList(char* pBuffer)
 			case 1:
 				switch (cReadModeB) {
 				case 1:
-					ZeroMemory(m_pItemForSaleList[iItemForSaleListIndex]->m_cName, sizeof(m_pItemForSaleList[iItemForSaleListIndex]->m_cName));
+					std::memset(m_pItemForSaleList[iItemForSaleListIndex]->m_cName, 0, sizeof(m_pItemForSaleList[iItemForSaleListIndex]->m_cName));
 					memcpy(m_pItemForSaleList[iItemForSaleListIndex]->m_cName, token, strlen(token));
 					cReadModeB = 2;
 					break;
@@ -8127,11 +8128,11 @@ static char __cSpace[] = { 8,8,8,8,8,8,8,8,8,8, 8,8,8,8,8, 8,6,8,7,8,8,9,10,9,7,
 void CGame::PutString_SprFont(int iX, int iY, char* pStr, short sR, short sG, short sB)
 {
 	int iXpos;
-	DWORD iCnt;
-	DWORD dwTime = G_dwGlobalTime;
+	uint32_t iCnt;
+	uint32_t dwTime = G_dwGlobalTime;
 	char  cTmpStr[100];
 
-	ZeroMemory(cTmpStr, sizeof(cTmpStr));
+	std::memset(cTmpStr, 0, sizeof(cTmpStr));
 	strcpy(cTmpStr, pStr);
 	iXpos = iX;
 	for (iCnt = 0; iCnt < strlen(cTmpStr); iCnt++) {
@@ -8149,13 +8150,13 @@ void CGame::PutString_SprFont(int iX, int iY, char* pStr, short sR, short sG, sh
 void CGame::PutString_SprFont2(int iX, int iY, char* pStr, short sR, short sG, short sB)
 {
 	int iXpos, iR, iG, iB;
-	DWORD iCnt;
-	DWORD dwTime = G_dwGlobalTime;
+	uint32_t iCnt;
+	uint32_t dwTime = G_dwGlobalTime;
 	char  cTmpStr[200];
 
 	m_DDraw.ColorTransferRGB(RGB(sR, sG, sB), &iR, &iG, &iB);
 
-	ZeroMemory(cTmpStr, sizeof(cTmpStr));
+	std::memset(cTmpStr, 0, sizeof(cTmpStr));
 	strcpy(cTmpStr, pStr);
 
 	iXpos = iX;
@@ -8175,11 +8176,11 @@ void CGame::PutString_SprFont2(int iX, int iY, char* pStr, short sR, short sG, s
 void CGame::PutString_SprFont3(int iX, int iY, char* pStr, short sR, short sG, short sB, bool bTrans, int iType)
 {
 	int iXpos, iAdd;
-	DWORD iCnt;
-	DWORD dwTime = G_dwGlobalTime;
+	uint32_t iCnt;
+	uint32_t dwTime = G_dwGlobalTime;
 	char  cTmpStr[128];
 
-	ZeroMemory(cTmpStr, sizeof(cTmpStr));
+	std::memset(cTmpStr, 0, sizeof(cTmpStr));
 	strcpy(cTmpStr, pStr);
 
 	if (iType != -1) {
@@ -8231,10 +8232,10 @@ void CGame::PutString_SprNum(int iX, int iY, char* pStr, short sR, short sG, sho
 {
 	int iXpos;
 	unsigned char iCnt;
-	DWORD dwTime = G_dwGlobalTime;
+	uint32_t dwTime = G_dwGlobalTime;
 	char  cTmpStr[200];
-	WORD  wR, wG, wB;
-	ZeroMemory(cTmpStr, sizeof(cTmpStr));
+	uint16_t wR, wG, wB;
+	std::memset(cTmpStr, 0, sizeof(cTmpStr));
 	strcpy(cTmpStr, pStr);
 	CMisc::ColorTransfer(m_DDraw.m_cPixelFormat, RGB(sR, sG, sB), &wR, &wG, &wB);
 	iXpos = iX;
@@ -8275,7 +8276,7 @@ void CGame::PutString(int iX, int iY, char* pString, COLORREF color, bool bHide,
 	else
 	{
 		pTmp = new char[strlen(pString) + 2];
-		ZeroMemory(pTmp, strlen(pString) + 2);
+		std::memset(pTmp, 0, strlen(pString) + 2);
 		strcpy(pTmp, pString);
 		for (i = 0; i < (int)strlen(pString); i++)
 			if (pTmp[i] != 0) pTmp[i] = '*';
@@ -8333,10 +8334,10 @@ bool CGame::bInitMagicCfgList()
 	int  iMagicCfgListIndex = 0;
 	HANDLE hFile;
 	FILE* pFile;
-	DWORD  dwFileSize;
+	uint32_t dwFileSize;
 
-	ZeroMemory(cTemp, sizeof(cTemp));
-	ZeroMemory(cFn, sizeof(cFn));
+	std::memset(cTemp, 0, sizeof(cTemp));
+	std::memset(cFn, 0, sizeof(cFn));
 
 	// CLEROTH - MAGIC CFG
 	strcpy(cTemp, "magiccfg.txt");
@@ -8354,7 +8355,7 @@ bool CGame::bInitMagicCfgList()
 	if (pFile == 0) return false;
 	else {
 		pContents = new char[dwFileSize + 1];
-		ZeroMemory(pContents, dwFileSize + 1);
+		std::memset(pContents, 0, dwFileSize + 1);
 		fread(pContents, dwFileSize, 1, pFile);
 		fclose(pFile);
 	}
@@ -8383,7 +8384,7 @@ bool CGame::bInitMagicCfgList()
 					break;
 
 				case 2:
-					ZeroMemory(m_pMagicCfgList[iMagicCfgListIndex]->m_cName, sizeof(m_pMagicCfgList[iMagicCfgListIndex]->m_cName));
+					std::memset(m_pMagicCfgList[iMagicCfgListIndex]->m_cName, 0, sizeof(m_pMagicCfgList[iMagicCfgListIndex]->m_cName));
 					memcpy(m_pMagicCfgList[iMagicCfgListIndex]->m_cName, token, strlen(token));
 					cReadModeB = 3;
 					break;
@@ -8503,10 +8504,10 @@ bool CGame::bInitSkillCfgList()
 	int  iSkillCfgListIndex = 0;
 	HANDLE hFile;
 	FILE* pFile;
-	DWORD  dwFileSize;
+	uint32_t dwFileSize;
 
-	ZeroMemory(cTemp, sizeof(cTemp));
-	ZeroMemory(cFn, sizeof(cFn));
+	std::memset(cTemp, 0, sizeof(cTemp));
+	std::memset(cFn, 0, sizeof(cFn));
 
 	strcpy(cTemp, "Skillcfg.txt");
 	strcat(cFn, "contents");
@@ -8522,7 +8523,7 @@ bool CGame::bInitSkillCfgList()
 	if (pFile == 0) return false;
 	else {
 		pContents = new char[dwFileSize + 1];
-		ZeroMemory(pContents, dwFileSize + 1);
+		std::memset(pContents, 0, dwFileSize + 1);
 		fread(pContents, dwFileSize, 1, pFile);
 		fclose(pFile);
 	}
@@ -8550,7 +8551,7 @@ bool CGame::bInitSkillCfgList()
 					break;
 
 				case 2:
-					ZeroMemory(m_pSkillCfgList[iSkillCfgListIndex]->m_cName, sizeof(m_pSkillCfgList[iSkillCfgListIndex]->m_cName));
+					std::memset(m_pSkillCfgList[iSkillCfgListIndex]->m_cName, 0, sizeof(m_pSkillCfgList[iSkillCfgListIndex]->m_cName));
 					memcpy(m_pSkillCfgList[iSkillCfgListIndex]->m_cName, token, strlen(token));
 					cReadModeB = 3;
 					break;
@@ -8609,14 +8610,14 @@ bool CGame::_bGetIsStringIsNumber(char* pStr)
 }
 
 
-void CGame::RequestFullObjectData(WORD wObjectID)
+void CGame::RequestFullObjectData(uint16_t wObjectID)
 {
 	char    cMsg[256];
 	int     iRet;
 	DWORD* dwp;
 	WORD* wp;
 
-	ZeroMemory(cMsg, sizeof(cMsg));
+	std::memset(cMsg, 0, sizeof(cMsg));
 
 	dwp = (DWORD*)(cMsg + DEF_INDEX4_MSGID);
 	*dwp = MSGID_REQUEST_FULLOBJECTDATA;
@@ -8649,7 +8650,7 @@ void CGame::RequestFullObjectData(WORD wObjectID)
 }
 
 
-bool   CGame::DrawObject_OnAttack(int indexX, int indexY, int sX, int sY, bool bTrans, DWORD dwTime, int msX, int msY)
+bool   CGame::DrawObject_OnAttack(int indexX, int indexY, int sX, int sY, bool bTrans, uint32_t dwTime, int msX, int msY)
 {
 	int iBodyIndex, iUndiesIndex, iHairIndex, iArmArmorIndex, iBodyArmorIndex, iPantsIndex, iBootsIndex, iHelmIndex, iR, iG, iB;
 	int iWeaponIndex, iWeapon, iAdd, iShieldIndex, iMantleIndex;
@@ -9241,7 +9242,7 @@ bool   CGame::DrawObject_OnAttack(int indexX, int indexY, int sX, int sY, bool b
 }
 
 
-bool   CGame::DrawObject_OnAttackMove(int indexX, int indexY, int sX, int sY, bool bTrans, DWORD dwTime, int msX, int msY)
+bool   CGame::DrawObject_OnAttackMove(int indexX, int indexY, int sX, int sY, bool bTrans, uint32_t dwTime, int msX, int msY)
 {
 	int iBodyIndex, iUndiesIndex, iHairIndex, iArmArmorIndex, iBodyArmorIndex, iPantsIndex, iBootsIndex, iHelmIndex, iR, iG, iB;
 	int iWeaponIndex, iWeapon, iAdd, iShieldIndex, iMantleIndex, dx, dy, dsx, dsy;
@@ -9818,7 +9819,7 @@ bool   CGame::DrawObject_OnAttackMove(int indexX, int indexY, int sX, int sY, bo
 }
 
 
-bool   CGame::DrawObject_OnMagic(int indexX, int indexY, int sX, int sY, bool bTrans, DWORD dwTime, int msX, int msY)
+bool   CGame::DrawObject_OnMagic(int indexX, int indexY, int sX, int sY, bool bTrans, uint32_t dwTime, int msX, int msY)
 {
 	int iBodyIndex, iUndiesIndex, iHairIndex, iArmArmorIndex, iBodyArmorIndex, iPantsIndex, iBootsIndex, iR, iG, iB, iHelmIndex, iMantleIndex;
 	bool bInv = false;
@@ -10096,7 +10097,7 @@ bool   CGame::DrawObject_OnMagic(int indexX, int indexY, int sX, int sY, bool bT
 	return false;
 }
 
-bool   CGame::DrawObject_OnGetItem(int indexX, int indexY, int sX, int sY, bool bTrans, DWORD dwTime, int msX, int msY)
+bool   CGame::DrawObject_OnGetItem(int indexX, int indexY, int sX, int sY, bool bTrans, uint32_t dwTime, int msX, int msY)
 {
 	int iBodyIndex, iUndiesIndex, iHairIndex, iArmArmorIndex, iBodyArmorIndex, iPantsIndex, iBootsIndex, iR, iG, iB, iHelmIndex, iMantleIndex;
 	bool bInv = false;
@@ -10369,7 +10370,7 @@ bool   CGame::DrawObject_OnGetItem(int indexX, int indexY, int sX, int sY, bool 
 	return false;
 }
 
-bool CGame::DrawObject_OnDamage(int indexX, int indexY, int sX, int sY, bool bTrans, DWORD dwTime, int msX, int msY)
+bool CGame::DrawObject_OnDamage(int indexX, int indexY, int sX, int sY, bool bTrans, uint32_t dwTime, int msX, int msY)
 {
 	int iBodyIndex, iUndiesIndex, iHairIndex, iArmArmorIndex, iBodyArmorIndex, iPantsIndex, iBootsIndex, iWeaponIndex, iShieldIndex, iHelmIndex, iR, iG, iB;
 	int iAdd, iDrawMode, iMantleIndex;
@@ -11272,7 +11273,7 @@ bool CGame::DrawObject_OnDamage(int indexX, int indexY, int sX, int sY, bool bTr
 	return false;
 }
 
-bool CGame::DrawObject_OnDying(int indexX, int indexY, int sX, int sY, bool bTrans, DWORD dwTime, int msX, int msY)
+bool CGame::DrawObject_OnDying(int indexX, int indexY, int sX, int sY, bool bTrans, uint32_t dwTime, int msX, int msY)
 {
 	int iBodyIndex, iUndiesIndex, iHairIndex, iArmArmorIndex, iBodyArmorIndex, iPantsIndex, iBootsIndex, iR, iG, iB, iHelmIndex, iMantleIndex;
 	int iWeaponColor, iShieldColor, iArmorColor, iMantleColor, iArmColor, iPantsColor, iBootsColor, iHelmColor;
@@ -11664,7 +11665,7 @@ bool CGame::DrawObject_OnDying(int indexX, int indexY, int sX, int sY, bool bTra
 	return false;
 }
 
-bool   CGame::DrawObject_OnDead(int indexX, int indexY, int sX, int sY, bool bTrans, DWORD dwTime, int msX, int msY)
+bool   CGame::DrawObject_OnDead(int indexX, int indexY, int sX, int sY, bool bTrans, uint32_t dwTime, int msX, int msY)
 {
 	int iBodyIndex, iUndiesIndex, iHairIndex, iArmArmorIndex, iBodyArmorIndex, iPantsIndex, iBootsIndex, iR, iG, iB, iFrame, iMantleIndex, iHelmIndex;
 	int iWeaponColor, iShieldColor, iArmorColor, iMantleColor, iArmColor, iPantsColor, iBootsColor, iHelmColor;
@@ -11973,7 +11974,7 @@ bool   CGame::DrawObject_OnDead(int indexX, int indexY, int sX, int sY, bool bTr
 
 
 
-bool   CGame::DrawObject_OnMove(int indexX, int indexY, int sX, int sY, bool bTrans, DWORD dwTime, int msX, int msY, bool frame_omision)
+bool   CGame::DrawObject_OnMove(int indexX, int indexY, int sX, int sY, bool bTrans, uint32_t dwTime, int msX, int msY, bool frame_omision)
 {
 	int dx, dy;
 	int iBodyIndex, iHairIndex, iUndiesIndex, iArmArmorIndex, iBodyArmorIndex, iPantsIndex, iBootsIndex, iHelmIndex, iR, iG, iB;
@@ -12752,7 +12753,7 @@ bool   CGame::DrawObject_OnMove(int indexX, int indexY, int sX, int sY, bool bTr
 	return false;
 }
 
-bool CGame::DrawObject_OnDamageMove(int indexX, int indexY, int sX, int sY, bool bTrans, DWORD dwTime, int msX, int msY, bool frame_omision)
+bool CGame::DrawObject_OnDamageMove(int indexX, int indexY, int sX, int sY, bool bTrans, uint32_t dwTime, int msX, int msY, bool frame_omision)
 {
 	int cFrame, cDir;
 	int dx, dy;
@@ -13248,7 +13249,7 @@ bool CGame::DrawObject_OnDamageMove(int indexX, int indexY, int sX, int sY, bool
 	return false;
 }
 
-bool CGame::DrawObject_OnMove_ForMenu(int indexX, int indexY, int sX, int sY, bool bTrans, DWORD dwTime, int msX, int msY)
+bool CGame::DrawObject_OnMove_ForMenu(int indexX, int indexY, int sX, int sY, bool bTrans, uint32_t dwTime, int msX, int msY)
 {
 	short dx, dy;
 	int iBodyIndex, iHairIndex, iUndiesIndex, iArmArmorIndex, iBodyArmorIndex, iPantsIndex, iBootsIndex, iHelmIndex, iR, iG, iB;
@@ -13666,7 +13667,7 @@ bool CGame::DrawObject_OnMove_ForMenu(int indexX, int indexY, int sX, int sY, bo
 }
 
 
-bool   CGame::DrawObject_OnStop(int indexX, int indexY, int sX, int sY, bool bTrans, DWORD dwTime, int msX, int msY)
+bool   CGame::DrawObject_OnStop(int indexX, int indexY, int sX, int sY, bool bTrans, uint32_t dwTime, int msX, int msY)
 {
 	int iBodyIndex, iUndiesIndex, iHairIndex, iBodyArmorIndex, iArmArmorIndex, iPantsIndex, iBootsIndex, iHelmIndex, iR, iG, iB;
 	int iWeaponIndex, iShieldIndex, iMantleIndex;
@@ -14386,7 +14387,7 @@ void CGame::_ReadMapData(short sPivotX, short sPivotY, char* pData)
 	short* sp, sTotal, sX, sY, sType, sAppr1, sAppr2, sAppr3, sAppr4, sItemSpr, sItemSprFrame, sDynamicObjectType;
 	int iStatus;
 	int* ip, iApprColor;
-	WORD    wObjectID;
+	uint16_t wObjectID;
 	WORD* wp, wDynamicObjectID;
 	short sItemID;
 	DWORD* dwp, dwItemAttr;
@@ -14440,7 +14441,7 @@ void CGame::_ReadMapData(short sPivotX, short sPivotY, char* pData)
 				iStatus = *ip;
 				cp += 4;
 				// Name
-				ZeroMemory(cName, sizeof(cName));
+				std::memset(cName, 0, sizeof(cName));
 				memcpy(cName, cp, 10);
 				cp += 10;
 			}
@@ -14456,7 +14457,7 @@ void CGame::_ReadMapData(short sPivotX, short sPivotY, char* pData)
 				iStatus = *ip;
 				cp += 4;
 				// Name
-				ZeroMemory(cName, sizeof(cName));
+				std::memset(cName, 0, sizeof(cName));
 				memcpy(cName, cp, 5);
 				cp += 5;
 			}
@@ -14495,7 +14496,7 @@ void CGame::_ReadMapData(short sPivotX, short sPivotY, char* pData)
 				iStatus = *ip;
 				cp += 4;
 				// Name
-				ZeroMemory(cName, sizeof(cName));
+				std::memset(cName, 0, sizeof(cName));
 				memcpy(cName, cp, 10);
 				cp += 10;
 			}
@@ -14508,7 +14509,7 @@ void CGame::_ReadMapData(short sPivotX, short sPivotY, char* pData)
 				ip = (int*)cp;
 				iStatus = *ip;// Status
 				cp += 4;
-				ZeroMemory(cName, sizeof(cName));	// Name
+				std::memset(cName, 0, sizeof(cName));	// Name
 				memcpy(cName, cp, 5);
 				cp += 5;
 			}
@@ -14563,7 +14564,7 @@ void CGame::LogEventHandler(char* pData)
 	cp += 2;
 	cDir = *cp;
 	cp++;
-	ZeroMemory(cName, sizeof(cName));
+	std::memset(cName, 0, sizeof(cName));
 	if (wObjectID < 10000)
 	{
 		memcpy(cName, cp, 10);
@@ -14628,7 +14629,7 @@ void CGame::OnLogSocketEvent()
 {
 	int iRet;
 	char* pData;
-	DWORD  dwMsgSize;
+	uint32_t dwMsgSize;
 	if (m_pLSock == 0) return;
 
 	// MODERNIZED: Poll() instead of iOnSocketEvent()
@@ -14670,7 +14671,7 @@ void CGame::OnLogSocketEvent()
 void CGame::LogResponseHandler(char* pData)
 {
 	WORD* wp, wResponse;
-	WORD wServerUpperVersion, wServerLowerVersion;
+	uint16_t wServerUpperVersion, wServerLowerVersion;
 	DWORD* dwp;
 	char* cp, cCharName[12];
 	int* ip, i;
@@ -14765,12 +14766,12 @@ void CGame::LogResponseHandler(char* pData)
 			//m_pCharList[i]->m_iMinute = (int)*wp;
 			//cp += 2;
 			Pop(cp, m_pCharList[i]->m_iApprColor);
-			ZeroMemory(m_pCharList[i]->m_cMapName, sizeof(m_pCharList[i]->m_cMapName));
+			std::memset(m_pCharList[i]->m_cMapName, 0, sizeof(m_pCharList[i]->m_cMapName));
 			memcpy(m_pCharList[i]->m_cMapName, cp, 10);
 			cp += 10;
 		}	//}
 		ChangeGameMode(DEF_GAMEMODE_ONLOGRESMSG);
-		ZeroMemory(m_cMsg, sizeof(m_cMsg));
+		std::memset(m_cMsg, 0, sizeof(m_cMsg));
 		strcpy(m_cMsg, "3A");
 		break;
 
@@ -14889,7 +14890,7 @@ void CGame::LogResponseHandler(char* pData)
 			//m_pCharList[i]->m_iMinute = (int)*wp;
 			//cp += 2;
 			Pop(cp, m_pCharList[i]->m_iApprColor);
-			ZeroMemory(m_pCharList[i]->m_cMapName, sizeof(m_pCharList[i]->m_cMapName));
+			std::memset(m_pCharList[i]->m_cMapName, 0, sizeof(m_pCharList[i]->m_cMapName));
 			memcpy(m_pCharList[i]->m_cMapName, cp, 10);
 			cp += 10;
 		}	//}
@@ -14918,78 +14919,78 @@ void CGame::LogResponseHandler(char* pData)
 		cp += 4;
 
 		ChangeGameMode(DEF_GAMEMODE_ONLOGRESMSG);
-		ZeroMemory(m_cMsg, sizeof(m_cMsg));
+		std::memset(m_cMsg, 0, sizeof(m_cMsg));
 		strcpy(m_cMsg, "7H");
 		break;
 
 	case DEF_LOGRESMSGTYPE_NOTENOUGHPOINT:
 		ChangeGameMode(DEF_GAMEMODE_ONLOGRESMSG);
-		ZeroMemory(m_cMsg, sizeof(m_cMsg));
+		std::memset(m_cMsg, 0, sizeof(m_cMsg));
 		strcpy(m_cMsg, "7I");
 		break;
 
 	case DEF_LOGRESMSGTYPE_ACCOUNTLOCKED:
 		ChangeGameMode(DEF_GAMEMODE_ONLOGRESMSG);
-		ZeroMemory(m_cMsg, sizeof(m_cMsg));
+		std::memset(m_cMsg, 0, sizeof(m_cMsg));
 		strcpy(m_cMsg, "7K");
 		break;
 
 	case DEF_LOGRESMSGTYPE_SERVICENOTAVAILABLE:
 		ChangeGameMode(DEF_GAMEMODE_ONLOGRESMSG);
-		ZeroMemory(m_cMsg, sizeof(m_cMsg));
+		std::memset(m_cMsg, 0, sizeof(m_cMsg));
 		strcpy(m_cMsg, "7L");
 		break;
 
 	case DEF_LOGRESMSGTYPE_PASSWORDCHANGESUCCESS:
 		ChangeGameMode(DEF_GAMEMODE_ONLOGRESMSG);
-		ZeroMemory(m_cMsg, sizeof(m_cMsg));
+		std::memset(m_cMsg, 0, sizeof(m_cMsg));
 		strcpy(m_cMsg, "6B");
 		break;
 
 	case DEF_LOGRESMSGTYPE_PASSWORDCHANGEFAIL:
 		ChangeGameMode(DEF_GAMEMODE_ONLOGRESMSG);
-		ZeroMemory(m_cMsg, sizeof(m_cMsg));
+		std::memset(m_cMsg, 0, sizeof(m_cMsg));
 		strcpy(m_cMsg, "6C");
 		break;
 
 	case DEF_LOGRESMSGTYPE_PASSWORDMISMATCH:
 		ChangeGameMode(DEF_GAMEMODE_ONLOGRESMSG);
-		ZeroMemory(m_cMsg, sizeof(m_cMsg));
+		std::memset(m_cMsg, 0, sizeof(m_cMsg));
 		strcpy(m_cMsg, "11");
 		break;
 
 	case DEF_LOGRESMSGTYPE_NOTEXISTINGACCOUNT:
 		ChangeGameMode(DEF_GAMEMODE_ONLOGRESMSG);
-		ZeroMemory(m_cMsg, sizeof(m_cMsg));
+		std::memset(m_cMsg, 0, sizeof(m_cMsg));
 		strcpy(m_cMsg, "12");
 		break;
 
 	case DEF_LOGRESMSGTYPE_NEWACCOUNTCREATED:
 		ChangeGameMode(DEF_GAMEMODE_ONLOGRESMSG);
-		ZeroMemory(m_cMsg, sizeof(m_cMsg));
+		std::memset(m_cMsg, 0, sizeof(m_cMsg));
 		strcpy(m_cMsg, "54");
 		break;
 
 	case DEF_LOGRESMSGTYPE_NEWACCOUNTFAILED:
 		ChangeGameMode(DEF_GAMEMODE_ONLOGRESMSG);
-		ZeroMemory(m_cMsg, sizeof(m_cMsg));
+		std::memset(m_cMsg, 0, sizeof(m_cMsg));
 		strcpy(m_cMsg, "05");
 		break;
 
 	case DEF_LOGRESMSGTYPE_ALREADYEXISTINGACCOUNT:
 		ChangeGameMode(DEF_GAMEMODE_ONLOGRESMSG);
-		ZeroMemory(m_cMsg, sizeof(m_cMsg));
+		std::memset(m_cMsg, 0, sizeof(m_cMsg));
 		strcpy(m_cMsg, "06");
 		break;
 
 	case DEF_LOGRESMSGTYPE_NOTEXISTINGCHARACTER:
 		ChangeGameMode(DEF_GAMEMODE_ONMSG);
-		ZeroMemory(m_cMsg, sizeof(m_cMsg));
+		std::memset(m_cMsg, 0, sizeof(m_cMsg));
 		strcpy(m_cMsg, "Not existing character!");
 		break;
 
 	case DEF_LOGRESMSGTYPE_NEWCHARACTERCREATED:
-		ZeroMemory(cCharName, sizeof(cCharName));
+		std::memset(cCharName, 0, sizeof(cCharName));
 		memcpy(cCharName, cp, 10);
 		cp += 10;
 
@@ -15094,25 +15095,25 @@ void CGame::LogResponseHandler(char* pData)
 
 			Pop(cp, m_pCharList[i]->m_iApprColor);
 
-			ZeroMemory(m_pCharList[i]->m_cMapName, sizeof(m_pCharList[i]->m_cMapName));
+			std::memset(m_pCharList[i]->m_cMapName, 0, sizeof(m_pCharList[i]->m_cMapName));
 			memcpy(m_pCharList[i]->m_cMapName, cp, 10);
 			cp += 10;
 			//}
 		}
 		ChangeGameMode(DEF_GAMEMODE_ONLOGRESMSG);
-		ZeroMemory(m_cMsg, sizeof(m_cMsg));
+		std::memset(m_cMsg, 0, sizeof(m_cMsg));
 		strcpy(m_cMsg, "47");
 		break;
 
 	case DEF_LOGRESMSGTYPE_NEWCHARACTERFAILED:
 		ChangeGameMode(DEF_GAMEMODE_ONLOGRESMSG);
-		ZeroMemory(m_cMsg, sizeof(m_cMsg));
+		std::memset(m_cMsg, 0, sizeof(m_cMsg));
 		strcpy(m_cMsg, "28");
 		break;
 
 	case DEF_LOGRESMSGTYPE_ALREADYEXISTINGCHARACTER:
 		ChangeGameMode(DEF_GAMEMODE_ONLOGRESMSG);
-		ZeroMemory(m_cMsg, sizeof(m_cMsg));
+		std::memset(m_cMsg, 0, sizeof(m_cMsg));
 		strcpy(m_cMsg, "29");
 		break;
 
@@ -15124,14 +15125,14 @@ void CGame::LogResponseHandler(char* pData)
 	{
 		int iGameServerPort;
 		char cGameServerAddr[16];
-		ZeroMemory(cGameServerAddr, sizeof(cGameServerAddr));
+		std::memset(cGameServerAddr, 0, sizeof(cGameServerAddr));
 		cp = (pData + DEF_INDEX2_MSGTYPE + 2);
 		memcpy(cGameServerAddr, cp, 16);
 		cp += 16;
 		wp = (WORD*)cp;
 		iGameServerPort = *wp;
 		cp += 2;
-		ZeroMemory(m_cGameServerName, sizeof(m_cGameServerName));
+		std::memset(m_cGameServerName, 0, sizeof(m_cGameServerName));
 		memcpy(m_cGameServerName, cp, 20);
 		cp += 20;
 		m_pGSock = new class XSocket(DEF_SOCKETBLOCKLIMIT);
@@ -15142,7 +15143,7 @@ void CGame::LogResponseHandler(char* pData)
 
 	case DEF_ENTERGAMERESTYPE_REJECT:
 		ChangeGameMode(DEF_GAMEMODE_ONLOGRESMSG);
-		ZeroMemory(m_cMsg, sizeof(m_cMsg));
+		std::memset(m_cMsg, 0, sizeof(m_cMsg));
 		cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
 		switch (*cp) {
 		case 1:	strcpy(m_cMsg, "3E"); break;
@@ -15157,19 +15158,19 @@ void CGame::LogResponseHandler(char* pData)
 
 	case DEF_ENTERGAMERESTYPE_FORCEDISCONN:
 		ChangeGameMode(DEF_GAMEMODE_ONLOGRESMSG);
-		ZeroMemory(m_cMsg, sizeof(m_cMsg));
+		std::memset(m_cMsg, 0, sizeof(m_cMsg));
 		strcpy(m_cMsg, "3X");
 		break;
 
 	case DEF_LOGRESMSGTYPE_NOTEXISTINGWORLDSERVER:
 		ChangeGameMode(DEF_GAMEMODE_ONLOGRESMSG);
-		ZeroMemory(m_cMsg, sizeof(m_cMsg));
+		std::memset(m_cMsg, 0, sizeof(m_cMsg));
 		strcpy(m_cMsg, "1Y");
 		break;
 
 	case DEF_LOGRESMSGTYPE_INPUTKEYCODE:
 		ChangeGameMode(DEF_GAMEMODE_ONLOGRESMSG);
-		ZeroMemory(m_cMsg, sizeof(m_cMsg));
+		std::memset(m_cMsg, 0, sizeof(m_cMsg));
 		cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
 		switch (*cp) {
 		case 1:	strcpy(m_cMsg, "8U"); break; //MainMenu, Keycode registration success
@@ -15183,19 +15184,19 @@ void CGame::LogResponseHandler(char* pData)
 
 	case DEF_LOGRESMSGTYPE_FORCECHANGEPASSWORD:
 		ChangeGameMode(DEF_GAMEMODE_ONLOGRESMSG);
-		ZeroMemory(m_cMsg, sizeof(m_cMsg));
+		std::memset(m_cMsg, 0, sizeof(m_cMsg));
 		strcpy(m_cMsg, "6M");
 		break;
 
 	case DEF_LOGRESMSGTYPE_INVALIDKOREANSSN:
 		ChangeGameMode(DEF_GAMEMODE_ONLOGRESMSG);
-		ZeroMemory(m_cMsg, sizeof(m_cMsg));
+		std::memset(m_cMsg, 0, sizeof(m_cMsg));
 		strcpy(m_cMsg, "1a");
 		break;
 
 	case DEF_LOGRESMSGTYPE_LESSTHENFIFTEEN:
 		ChangeGameMode(DEF_GAMEMODE_ONLOGRESMSG);
-		ZeroMemory(m_cMsg, sizeof(m_cMsg));
+		std::memset(m_cMsg, 0, sizeof(m_cMsg));
 		strcpy(m_cMsg, "1b");
 		break;
 
@@ -15213,7 +15214,7 @@ void CGame::UpdateScreen_OnMsg()
 {
 	short msX, msY, msZ;
 	char cLB, cRB;
-	DWORD dwTime = G_dwGlobalTime;
+	uint32_t dwTime = G_dwGlobalTime;
 	m_DDraw.ClearBackB4();
 	PutString(10, 10, m_cMsg, RGB(255, 155, 155), false, 1);
 	DrawVersion();
@@ -15243,14 +15244,14 @@ void CGame::_InitOnCreateNewCharacter()
 
 void CGame::ClearContents_OnCreateNewAccount()
 {
-	ZeroMemory(m_cAccountPassword, sizeof(m_cAccountPassword));
-	ZeroMemory(m_cAccountAge, sizeof(m_cAccountAge));
-	ZeroMemory(m_cAccountCountry, sizeof(m_cAccountCountry));
-	ZeroMemory(m_cAccountSSN, sizeof(m_cAccountSSN));
-	ZeroMemory(m_cEmailAddr, sizeof(m_cEmailAddr));
+	std::memset(m_cAccountPassword, 0, sizeof(m_cAccountPassword));
+	std::memset(m_cAccountAge, 0, sizeof(m_cAccountAge));
+	std::memset(m_cAccountCountry, 0, sizeof(m_cAccountCountry));
+	std::memset(m_cAccountSSN, 0, sizeof(m_cAccountSSN));
+	std::memset(m_cEmailAddr, 0, sizeof(m_cEmailAddr));
 	//v1.4334
-	ZeroMemory(m_cAccountQuiz, sizeof(m_cAccountQuiz));
-	ZeroMemory(m_cAccountAnswer, sizeof(m_cAccountAnswer));
+	std::memset(m_cAccountQuiz, 0, sizeof(m_cAccountQuiz));
+	std::memset(m_cAccountAnswer, 0, sizeof(m_cAccountAnswer));
 }
 
 void CGame::ChangeGameMode(char cMode)
@@ -15262,7 +15263,7 @@ void CGame::ChangeGameMode(char cMode)
 #ifndef DEF_SELECTSERVER
 	if (cMode == DEF_GAMEMODE_ONSELECTSERVER)
 	{
-		ZeroMemory(m_cWorldServerName, sizeof(m_cWorldServerName));
+		std::memset(m_cWorldServerName, 0, sizeof(m_cWorldServerName));
 		strcpy(m_cWorldServerName, NAME_WORLDNAME1);
 		m_cGameMode = DEF_GAMEMODE_ONLOGIN;
 	}
@@ -15271,7 +15272,7 @@ void CGame::ChangeGameMode(char cMode)
 
 bool CGame::bReadIp()
 {
-	ZeroMemory(m_cLogServerAddr, sizeof(m_cLogServerAddr));
+	std::memset(m_cLogServerAddr, 0, sizeof(m_cLogServerAddr));
 	strcpy(m_cLogServerAddr, DEF_SERVER_IP);
 	m_iLogServerPort = DEF_SERVER_PORT;
 	m_iGameServerPort = DEF_GSERVER_PORT;
@@ -15282,7 +15283,7 @@ bool CGame::bReadLoginConfigFile(char* cFn)
 {
 	FILE* pFile;
 	HANDLE hFile;
-	DWORD  dwFileSize;
+	uint32_t dwFileSize;
 	char* cp, * token, cReadMode;
 	char seps[] = "= ,\t\n";
 	cReadMode = 0;
@@ -15293,7 +15294,7 @@ bool CGame::bReadLoginConfigFile(char* cFn)
 	pFile = fopen(cFn, "rt");
 	if (pFile == 0) goto DEFAULT_IP;
 	cp = new char[dwFileSize + 2];
-	ZeroMemory(cp, dwFileSize + 2);
+	std::memset(cp, 0, dwFileSize + 2);
 	fread(cp, dwFileSize, 1, pFile);
 	token = strtok(cp, seps);
 	while (token != 0)
@@ -15308,7 +15309,7 @@ bool CGame::bReadLoginConfigFile(char* cFn)
 					if (pFile != 0) fclose(pFile);
 					goto DEFAULT_IP;
 				}
-				ZeroMemory(m_cLogServerAddr, sizeof(m_cLogServerAddr));
+				std::memset(m_cLogServerAddr, 0, sizeof(m_cLogServerAddr));
 				strcpy(m_cLogServerAddr, token);
 				cReadMode = 0;
 				break;
@@ -15353,7 +15354,7 @@ bool CGame::bReadLoginConfigFile(char* cFn)
 	if (pFile != 0) fclose(pFile);
 	return true;
 DEFAULT_IP:
-	ZeroMemory(m_cLogServerAddr, sizeof(m_cLogServerAddr));
+	std::memset(m_cLogServerAddr, 0, sizeof(m_cLogServerAddr));
 	strcpy(m_cLogServerAddr, DEF_SERVER_IP);
 	m_iLogServerPort = DEF_SERVER_PORT;
 	m_iGameServerPort = DEF_GSERVER_PORT;
@@ -15427,7 +15428,7 @@ void CGame::ChatMsgHandler(char* pData)
 	int i, iObjectID, iLoc;
 	short* sp, sX, sY;
 	char* cp, cMsgType, cName[21], cTemp[100], cMsg[100], cTxt1[100], cTxt2[100];
-	DWORD dwTime;
+	uint32_t dwTime;
 	WORD* wp;
 	bool bFlag;
 
@@ -15435,9 +15436,9 @@ void CGame::ChatMsgHandler(char* pData)
 
 	dwTime = m_dwCurTime;
 
-	ZeroMemory(cTxt1, sizeof(cTxt1));
-	ZeroMemory(cTxt2, sizeof(cTxt2));
-	ZeroMemory(cMsg, sizeof(cMsg));
+	std::memset(cTxt1, 0, sizeof(cTxt1));
+	std::memset(cTxt2, 0, sizeof(cTxt2));
+	std::memset(cMsg, 0, sizeof(cMsg));
 
 	wp = (WORD*)(pData + DEF_INDEX2_MSGTYPE);
 	iObjectID = (int)*wp;
@@ -15451,7 +15452,7 @@ void CGame::ChatMsgHandler(char* pData)
 	sp = (short*)cp;
 	sY = *sp;
 	cp += 2;
-	ZeroMemory(cName, sizeof(cName));
+	std::memset(cName, 0, sizeof(cName));
 	memcpy(cName, (char*)cp, 10);
 	cp += 10;
 
@@ -15460,7 +15461,7 @@ void CGame::ChatMsgHandler(char* pData)
 
 	if (bCheckExID(cName) == true) return;
 
-	ZeroMemory(cTemp, sizeof(cTemp));
+	std::memset(cTemp, 0, sizeof(cTemp));
 	strcpy(cTemp, cp);
 
 	if ((cMsgType == 0) || (cMsgType == 2) || (cMsgType == 3))
@@ -15476,7 +15477,7 @@ void CGame::ChatMsgHandler(char* pData)
 		if (cMsgType == 2 || cMsgType == 3) return;
 	}
 
-	ZeroMemory(cMsg, sizeof(cMsg));
+	std::memset(cMsg, 0, sizeof(cMsg));
 	wsprintf(cMsg, "%s: %s", cName, cTemp);
 	m_DDraw._GetBackBufferDC();
 	bFlag = false;
@@ -15494,23 +15495,23 @@ void CGame::ChatMsgHandler(char* pData)
 		{
 			if ((sCheckByte % 2) == 0)
 			{
-				ZeroMemory(cTemp, sizeof(cTemp));
+				std::memset(cTemp, 0, sizeof(cTemp));
 				memcpy(cTemp, cMsg, iLoc);
 				PutChatScrollList(cTemp, cMsgType);
-				ZeroMemory(cTemp, sizeof(cTemp));
+				std::memset(cTemp, 0, sizeof(cTemp));
 				strcpy(cTemp, cMsg + iLoc);
-				ZeroMemory(cMsg, sizeof(cMsg));
+				std::memset(cMsg, 0, sizeof(cMsg));
 				strcpy(cMsg, " ");
 				strcat(cMsg, cTemp);
 			}
 			else
 			{
-				ZeroMemory(cTemp, sizeof(cTemp));
+				std::memset(cTemp, 0, sizeof(cTemp));
 				memcpy(cTemp, cMsg, iLoc + 1);
 				PutChatScrollList(cTemp, cMsgType);
-				ZeroMemory(cTemp, sizeof(cTemp));
+				std::memset(cTemp, 0, sizeof(cTemp));
 				strcpy(cTemp, cMsg + iLoc + 1);
-				ZeroMemory(cMsg, sizeof(cMsg));
+				std::memset(cMsg, 0, sizeof(cMsg));
 				strcpy(cMsg, " ");
 				strcat(cMsg, cTemp);
 			}
@@ -15532,7 +15533,7 @@ void CGame::ChatMsgHandler(char* pData)
 			}
 
 			if ((cMsgType != 0) && (m_bIsDialogEnabled[10] != true)) {
-				ZeroMemory(cHeadMsg, sizeof(cHeadMsg));
+				std::memset(cHeadMsg, 0, sizeof(cHeadMsg));
 				wsprintf(cHeadMsg, "%s:%s", cName, cp);
 				AddEventList(cHeadMsg, cMsgType);
 			}
@@ -15543,7 +15544,7 @@ void CGame::ChatMsgHandler(char* pData)
 void CGame::ReleaseTimeoverChatMsg()
 {
 	int i;
-	DWORD dwTime;
+	uint32_t dwTime;
 	dwTime = G_dwGlobalTime;
 	for (i = 1; i < DEF_MAXCHATMSGS; i++)
 		if (m_pChatMsgList[i] != 0) {
@@ -15618,7 +15619,7 @@ void CGame::DrawBackground(short sDivX, short sModX, short sDivY, short sModY)
 bool CGame::bEffectFrameCounter()
 {
 	int i, x;
-	DWORD dwTime;
+	uint32_t dwTime;
 	bool bRet = false;
 	short sAbsX, sAbsY, sDist;
 	char  cDir;
@@ -16590,7 +16591,7 @@ bool CGame::bEffectFrameCounter()
 }
 
 
-bool   CGame::DrawObject_OnRun(int indexX, int indexY, int sX, int sY, bool bTrans, DWORD dwTime, int msX, int msY, bool frame_omision)
+bool   CGame::DrawObject_OnRun(int indexX, int indexY, int sX, int sY, bool bTrans, uint32_t dwTime, int msX, int msY, bool frame_omision)
 {
 	int dx, dy;
 	int iBodyIndex, iHairIndex, iUndiesIndex, iArmArmorIndex, iBodyArmorIndex, iPantsIndex, iBootsIndex, iWeaponIndex, iShieldIndex, iHelmIndex, iR, iG, iB, iMantleIndex;
@@ -17243,7 +17244,7 @@ int CGame::_iCheckDlgBoxFocus(short msX, short msY, char cButtonSide)
 	int i;
 	char         cDlgID;
 	short        sX, sY;
-	DWORD		  dwTime = m_dwCurTime;
+	uint32_t dwTime = m_dwCurTime;
 	if (cButtonSide == 1) {
 		// Snoopy: 41->61
 		for (i = 0; i < 61; i++)
@@ -18047,7 +18048,7 @@ void CGame::DrawDialogBoxs(short msX, short msY, short msZ, char cLB)
 
 void CGame::_Draw_CharacterBody(short sX, short sY, short sType)
 {
-	DWORD dwTime = m_dwCurTime;
+	uint32_t dwTime = m_dwCurTime;
 	int  iR, iG, iB;
 
 	if (sType <= 3)
@@ -18151,7 +18152,7 @@ void CGame::EnableDialogBox(int iBoxID, int cType, int sV1, int sV2, char* pStri
 			m_stDialogBoxInfo[iBoxID].cMode = 1;
 			m_stDialogBoxInfo[17].sView = cType;
 			EndInputString();
-			ZeroMemory(m_cAmountString, sizeof(m_cAmountString));
+			std::memset(m_cAmountString, 0, sizeof(m_cAmountString));
 			wsprintf(m_cAmountString, "%d", sV1);
 			sX = m_stDialogBoxInfo[17].sX;
 			sY = m_stDialogBoxInfo[17].sY;
@@ -18353,8 +18354,8 @@ void CGame::EnableDialogBox(int iBoxID, int cType, int sV1, int sV2, char* pStri
 			m_stDialogBoxInfo[27].cMode = cType;
 			for (i = 0; i < 8; i++)
 			{
-				ZeroMemory(m_stDialogBoxExchangeInfo[i].cStr1, sizeof(m_stDialogBoxExchangeInfo[i].cStr1));
-				ZeroMemory(m_stDialogBoxExchangeInfo[i].cStr2, sizeof(m_stDialogBoxExchangeInfo[i].cStr2));
+				std::memset(m_stDialogBoxExchangeInfo[i].cStr1, 0, sizeof(m_stDialogBoxExchangeInfo[i].cStr1));
+				std::memset(m_stDialogBoxExchangeInfo[i].cStr2, 0, sizeof(m_stDialogBoxExchangeInfo[i].cStr2));
 				m_stDialogBoxExchangeInfo[i].sV1 = -1;
 				m_stDialogBoxExchangeInfo[i].sV2 = -1;
 				m_stDialogBoxExchangeInfo[i].sV3 = -1;
@@ -18621,8 +18622,8 @@ void CGame::DisableDialogBox(int iBoxID)
 	case 27: //Snoopy: 7 mar 06 (multiTrade) case rewriten
 		for (i = 0; i < 8; i++)
 		{
-			ZeroMemory(m_stDialogBoxExchangeInfo[i].cStr1, sizeof(m_stDialogBoxExchangeInfo[i].cStr1));
-			ZeroMemory(m_stDialogBoxExchangeInfo[i].cStr2, sizeof(m_stDialogBoxExchangeInfo[i].cStr2));
+			std::memset(m_stDialogBoxExchangeInfo[i].cStr1, 0, sizeof(m_stDialogBoxExchangeInfo[i].cStr1));
+			std::memset(m_stDialogBoxExchangeInfo[i].cStr2, 0, sizeof(m_stDialogBoxExchangeInfo[i].cStr2));
 			m_stDialogBoxExchangeInfo[i].sV1 = -1;
 			m_stDialogBoxExchangeInfo[i].sV2 = -1;
 			m_stDialogBoxExchangeInfo[i].sV3 = -1;
@@ -18657,10 +18658,10 @@ void CGame::DisableDialogBox(int iBoxID)
 		m_bIsItemDisabled[m_stDialogBoxInfo[40].sV3] = false;
 		m_bIsItemDisabled[m_stDialogBoxInfo[40].sV4] = false;
 
-		ZeroMemory(m_stDialogBoxInfo[40].cStr, sizeof(m_stDialogBoxInfo[40].cStr));
-		ZeroMemory(m_stDialogBoxInfo[40].cStr2, sizeof(m_stDialogBoxInfo[40].cStr2));
-		ZeroMemory(m_stDialogBoxInfo[40].cStr3, sizeof(m_stDialogBoxInfo[40].cStr3));
-		ZeroMemory(m_stDialogBoxInfo[40].cStr4, sizeof(m_stDialogBoxInfo[40].cStr4));
+		std::memset(m_stDialogBoxInfo[40].cStr, 0, sizeof(m_stDialogBoxInfo[40].cStr));
+		std::memset(m_stDialogBoxInfo[40].cStr2, 0, sizeof(m_stDialogBoxInfo[40].cStr2));
+		std::memset(m_stDialogBoxInfo[40].cStr3, 0, sizeof(m_stDialogBoxInfo[40].cStr3));
+		std::memset(m_stDialogBoxInfo[40].cStr4, 0, sizeof(m_stDialogBoxInfo[40].cStr4));
 		m_stDialogBoxInfo[40].sV1 = -1;
 		m_stDialogBoxInfo[40].sV2 = -1;
 		m_stDialogBoxInfo[40].sV3 = -1;
@@ -18865,7 +18866,7 @@ void CGame::_LoadTextDlgContents(int cType)
 	char* pContents, * token, cTemp[120], cFileName[120];
 	char   seps[] = "\n";
 	int    iIndex = 0, i;
-	DWORD  dwFileSize;
+	uint32_t dwFileSize;
 	HANDLE hFile;
 	FILE* pFile;
 	for (i = 0; i < DEF_TEXTDLGMAXLINES; i++)
@@ -18875,8 +18876,8 @@ void CGame::_LoadTextDlgContents(int cType)
 		m_pMsgTextList[i] = 0;
 	}
 	// cType
-	ZeroMemory(cTemp, sizeof(cTemp));
-	ZeroMemory(cFileName, sizeof(cFileName));
+	std::memset(cTemp, 0, sizeof(cTemp));
+	std::memset(cFileName, 0, sizeof(cFileName));
 
 	wsprintf(cTemp, "contents%d", cType);
 	strcat(cFileName, "contents");
@@ -18893,7 +18894,7 @@ void CGame::_LoadTextDlgContents(int cType)
 	else
 	{
 		pContents = new char[dwFileSize + 1];
-		ZeroMemory(pContents, dwFileSize + 1);
+		std::memset(pContents, 0, dwFileSize + 1);
 		fread(pContents, dwFileSize, 1, pFile);
 	}
 	fclose(pFile);
@@ -18914,7 +18915,7 @@ int CGame::_iLoadTextDlgContents2(int iType)
 	char* pContents, * token, cTemp[120], cFileName[120];
 	char   seps[] = "\n";
 	int    iIndex = 0, i;
-	DWORD  dwFileSize;
+	uint32_t dwFileSize;
 	HANDLE hFile;
 	FILE* pFile;
 	for (i = 0; i < DEF_TEXTDLGMAXLINES; i++)
@@ -18924,8 +18925,8 @@ int CGame::_iLoadTextDlgContents2(int iType)
 		m_pMsgTextList2[i] = 0;
 	}
 	// cType
-	ZeroMemory(cTemp, sizeof(cTemp));
-	ZeroMemory(cFileName, sizeof(cFileName));
+	std::memset(cTemp, 0, sizeof(cTemp));
+	std::memset(cFileName, 0, sizeof(cFileName));
 
 	wsprintf(cTemp, "contents%d", iType);
 
@@ -18943,7 +18944,7 @@ int CGame::_iLoadTextDlgContents2(int iType)
 	{
 		pContents = new char[dwFileSize + 1];
 		if (pContents == 0) return -1;
-		ZeroMemory(pContents, dwFileSize + 1);
+		std::memset(pContents, 0, dwFileSize + 1);
 		fread(pContents, dwFileSize, 1, pFile);
 	}
 	fclose(pFile);
@@ -18966,7 +18967,7 @@ void CGame::_LoadGameMsgTextContents()
 	char* pContents, * token, cTemp[120], cFileName[120];
 	char   seps[] = ";\n";
 	int    iIndex = 0, i;
-	DWORD  dwFileSize;
+	uint32_t dwFileSize;
 	HANDLE hFile;
 	FILE* pFile;
 
@@ -18976,8 +18977,8 @@ void CGame::_LoadGameMsgTextContents()
 		m_pGameMsgList[i] = 0;
 	}
 
-	ZeroMemory(cTemp, sizeof(cTemp));
-	ZeroMemory(cFileName, sizeof(cFileName));
+	std::memset(cTemp, 0, sizeof(cTemp));
+	std::memset(cFileName, 0, sizeof(cFileName));
 
 	strcpy(cTemp, "GameMsgList");
 
@@ -18995,7 +18996,7 @@ void CGame::_LoadGameMsgTextContents()
 	if (pFile == 0) return;
 	else {
 		pContents = new char[dwFileSize + 1];
-		ZeroMemory(pContents, dwFileSize + 1);
+		std::memset(pContents, 0, dwFileSize + 1);
 		fread(pContents, dwFileSize, 1, pFile);
 	}
 
@@ -19222,7 +19223,7 @@ void CGame::AddMapStatusInfo(char* pData, bool bIsLastData)
 	short* sp, sIndex;
 	int i;
 
-	ZeroMemory(m_cStatusMapName, sizeof(m_cStatusMapName));
+	std::memset(m_cStatusMapName, 0, sizeof(m_cStatusMapName));
 
 	cp = (char*)(pData + 6);
 	memcpy(m_cStatusMapName, cp, 10);
@@ -19268,7 +19269,7 @@ bool CGame::GetText(HWND hWnd, UINT msg, WPARAM wparam, LPARAM lparam)
 	if (m_pInputBuffer == 0) return false;
 	switch (msg) {
 	case WM_IME_COMPOSITION:
-		ZeroMemory(m_cEdit, sizeof(m_cEdit));
+		std::memset(m_cEdit, 0, sizeof(m_cEdit));
 		if (lparam & GCS_RESULTSTR)
 		{
 			hIMC = ImmGetContext(hWnd);
@@ -19278,7 +19279,7 @@ bool CGame::GetText(HWND hWnd, UINT msg, WPARAM wparam, LPARAM lparam)
 			ImmReleaseContext(hWnd, hIMC);
 			len = strlen(m_pInputBuffer) + strlen(m_cEdit);
 			if (len < m_cInputMaxLen) strcpy(m_pInputBuffer + strlen(m_pInputBuffer), m_cEdit);
-			ZeroMemory(m_cEdit, sizeof(m_cEdit));
+			std::memset(m_cEdit, 0, sizeof(m_cEdit));
 		}
 		else if (lparam & GCS_COMPSTR)
 		{
@@ -19288,7 +19289,7 @@ bool CGame::GetText(HWND hWnd, UINT msg, WPARAM wparam, LPARAM lparam)
 			ImmGetCompositionString(hIMC, GCS_COMPSTR, m_cEdit, len);
 			ImmReleaseContext(hWnd, hIMC);
 			len = strlen(m_pInputBuffer) + strlen(m_cEdit);
-			if (len >= m_cInputMaxLen) ZeroMemory(m_cEdit, sizeof(m_cEdit));
+			if (len >= m_cInputMaxLen) std::memset(m_cEdit, 0, sizeof(m_cEdit));
 		}
 		return true;
 
@@ -19308,7 +19309,7 @@ bool CGame::GetText(HWND hWnd, UINT msg, WPARAM wparam, LPARAM lparam)
 					m_pInputBuffer[len - 1] = 0;
 					break;
 				}
-				ZeroMemory(m_cEdit, sizeof(m_cEdit));
+				std::memset(m_cEdit, 0, sizeof(m_cEdit));
 			}
 		}
 		else if ((wparam != 9) && (wparam != 13) && (wparam != 27))
@@ -19342,7 +19343,7 @@ int CGame::GetCharKind(char* str, int index)
 
 void CGame::ShowReceivedString(bool bIsHide)
 {
-	ZeroMemory(G_cTxt, sizeof(G_cTxt));
+	std::memset(G_cTxt, 0, sizeof(G_cTxt));
 
 	strcpy(G_cTxt, m_pInputBuffer);
 	if ((m_cEdit[0] != 0) && (strlen(m_pInputBuffer) + strlen(m_cEdit) + 1 <= m_cInputMaxLen))
@@ -19366,8 +19367,8 @@ void CGame::ShowReceivedString(bool bIsHide)
 
 void CGame::ClearInputString()
 {
-	if (m_pInputBuffer != 0)	ZeroMemory(m_pInputBuffer, sizeof(m_pInputBuffer));
-	ZeroMemory(m_cEdit, sizeof(m_cEdit));
+	if (m_pInputBuffer != 0)	std::memset(m_pInputBuffer, 0, sizeof(m_pInputBuffer));
+	std::memset(m_cEdit, 0, sizeof(m_cEdit));
 }
 
 void CGame::StartInputString(int sX, int sY, unsigned char iLen, char* pBuffer, bool bIsHide)
@@ -19376,7 +19377,7 @@ void CGame::StartInputString(int sX, int sY, unsigned char iLen, char* pBuffer, 
 	m_iInputX = sX;
 	m_iInputY = sY;
 	m_pInputBuffer = pBuffer;
-	ZeroMemory(m_cEdit, sizeof(m_cEdit));
+	std::memset(m_cEdit, 0, sizeof(m_cEdit));
 	m_cInputMaxLen = iLen;
 }
 
@@ -19388,7 +19389,7 @@ void CGame::EndInputString()
 	{
 		m_cEdit[len] = 0;
 		strcpy(m_pInputBuffer + strlen(m_pInputBuffer), m_cEdit);
-		ZeroMemory(m_cEdit, sizeof(m_cEdit));
+		std::memset(m_cEdit, 0, sizeof(m_cEdit));
 	}
 }
 
@@ -19399,7 +19400,7 @@ void CGame::ReceiveString(char* pString)
 
 void CGame::DrawNewDialogBox(char cType, int sX, int sY, int iFrame, bool bIsNoColorKey, bool bIsTrans)
 {
-	DWORD dwTime = G_dwGlobalTime;
+	uint32_t dwTime = G_dwGlobalTime;
 
 	if (m_pSprite[cType] == 0) return;
 	if (bIsNoColorKey == false)
@@ -19858,7 +19859,7 @@ void CGame::DrawObjectFOE(int ix, int iy, int iFrame)
 
 void CGame::SetTopMsg(char* pString, unsigned char iLastSec)
 {
-	ZeroMemory(m_cTopMsg, sizeof(m_cTopMsg));
+	std::memset(m_cTopMsg, 0, sizeof(m_cTopMsg));
 	strcpy(m_cTopMsg, pString);
 
 	m_iTopMsgLastSec = iLastSec;
@@ -19874,7 +19875,7 @@ void CGame::DrawTopMsg()
 		PutAlignedString(0, LOGICAL_MAX_X, 10, m_cTopMsg, 255, 255, 0);
 
 	if (G_dwGlobalTime > (m_iTopMsgLastSec * 1000 + m_dwTopMsgTime)) {
-		ZeroMemory(m_cTopMsg, sizeof(m_cTopMsg));
+		std::memset(m_cTopMsg, 0, sizeof(m_cTopMsg));
 	}
 }
 
@@ -19882,7 +19883,7 @@ void CGame::DrawTopMsg()
 void CGame::DrawDialogBox_IconPannel(short msX, short msY)
 {
 	short sX, sY;
-	DWORD dwTime = m_dwCurTime;
+	uint32_t dwTime = m_dwCurTime;
 	int resy, resx;
 
 	resy = 0;
@@ -19900,12 +19901,12 @@ void CGame::DrawDialogBox_IconPannel(short msX, short msY)
 
 	if (m_iHP > 0) {
 		if ((m_iLU_Point > 0) && (m_bIsDialogEnabled[12] == false)) // Level-Up button
-			PutString_SprFont2(LEVELUP_TEXT_X, LEVELUP_TEXT_Y, "Level Up!", (timeGetTime() / 3) % 255, (timeGetTime() / 3) % 255, 0);
+			PutString_SprFont2(LEVELUP_TEXT_X, LEVELUP_TEXT_Y, "Level Up!", (GameClock::GetTimeMS() / 3) % 255, (GameClock::GetTimeMS() / 3) % 255, 0);
 	}
 	else
 	{
 		if (m_cRestartCount == -1)
-			PutString_SprFont2(LEVELUP_TEXT_X, LEVELUP_TEXT_Y, "Restart", (timeGetTime() / 3) % 255, (timeGetTime() / 3) % 255, 0);
+			PutString_SprFont2(LEVELUP_TEXT_X, LEVELUP_TEXT_Y, "Restart", (GameClock::GetTimeMS() / 3) % 255, (GameClock::GetTimeMS() / 3) % 255, 0);
 	}
 
 	if (m_bIsSafeAttackMode) m_pSprite[DEF_SPRID_INTERFACE_ND_ICONPANNEL]->PutSpriteFast(sX + 368 + resx + addx, sY + 440 + resy, 4, dwTime); // Safe Attack Icon
@@ -19935,8 +19936,8 @@ void CGame::DrawDialogBox_IconPannel(short msX, short msY)
 
 	if (m_bCtrlPressed)
 	{
-		DWORD iCurExp = iGetLevelExp(m_iLevel);
-		DWORD iNextExp = iGetLevelExp(m_iLevel + 1);
+	uint32_t iCurExp = iGetLevelExp(m_iLevel);
+	uint32_t iNextExp = iGetLevelExp(m_iLevel + 1);
 		if (m_iExp < iNextExp)
 		{
 			iNextExp = iNextExp - iCurExp;
@@ -20040,10 +20041,8 @@ void CGame::DrawDialogBox_GaugePannel()
 	PutString_SprNum(baseX + 228 + resx, baseY + 435 + resy, G_cTxt, 255, 255, 255);
 
 	// Experience Gauge - MORLA - arreglada para que vaya de izquierda a derecha
-
-	DWORD iMaxPoint3 = iGetLevelExp(m_iLevel + 1) - iGetLevelExp(m_iLevel);
-
-	DWORD uTemp = m_iExp - iGetLevelExp(m_iLevel);
+	uint32_t iMaxPoint3 = iGetLevelExp(m_iLevel + 1) - iGetLevelExp(m_iLevel);
+	uint32_t uTemp = m_iExp - iGetLevelExp(m_iLevel);
 	iBarWidth = (uTemp * ICON_PANEL_WIDTH) / iMaxPoint3;
 	if (iBarWidth < 0) iBarWidth = 0;
 	if (iBarWidth > ICON_PANEL_WIDTH) iBarWidth = ICON_PANEL_WIDTH;
@@ -20281,7 +20280,7 @@ void CGame::DrawDialogBox_Slates(short msX, short msY, short msZ, char cLB)
 {
 	int iAdjX, iAdjY;
 	short sX, sY;
-	DWORD dwTime = m_dwCurTime;
+	uint32_t dwTime = m_dwCurTime;
 
 	iAdjX = 5;
 	iAdjY = 8;
@@ -20482,7 +20481,7 @@ void CGame::DlgBoxClick_ItemUpgrade(int msX, int msY)
 			PlaySound('E', 14, 5);
 			PlaySound('E', 44, 0);
 			m_stDialogBoxInfo[34].cMode = 2;
-			m_stDialogBoxInfo[34].dwV1 = timeGetTime();
+			m_stDialogBoxInfo[34].dwV1 = GameClock::GetTimeMS();
 		}
 		if ((msX >= sX + DEF_RBTNPOSX) && (msX <= sX + DEF_RBTNPOSX + DEF_BTNSZX) && (msY >= sY + DEF_BTNPOSY) && (msY <= sY + DEF_BTNPOSY + DEF_BTNSZY))
 		{	// Cancel
@@ -20541,7 +20540,7 @@ void CGame::DlgBoxClick_ItemUpgrade(int msX, int msY)
 			PlaySound('E', 14, 5);
 			PlaySound('E', 44, 0);
 			m_stDialogBoxInfo[34].cMode = 2;
-			m_stDialogBoxInfo[34].dwV1 = timeGetTime();
+			m_stDialogBoxInfo[34].dwV1 = GameClock::GetTimeMS();
 		}
 		if ((msX >= sX + DEF_RBTNPOSX) && (msX <= sX + DEF_RBTNPOSX + DEF_BTNSZX) && (msY >= sY + DEF_BTNPOSY) && (msY <= sY + DEF_BTNPOSY + DEF_BTNSZY))
 		{	// Cancel
@@ -20922,12 +20921,12 @@ void CGame::CannotConstruct(int iCode)
 	}
 }
 
-void CGame::DisplayCommaNumber_G_cTxt(DWORD iGold)
+void CGame::DisplayCommaNumber_G_cTxt(uint32_t iGold)
 {
 	char cGold[20];
 	int iStrLen;
-	ZeroMemory(cGold, sizeof(cGold));
-	ZeroMemory(G_cTxt, sizeof(G_cTxt));
+	std::memset(cGold, 0, sizeof(cGold));
+	std::memset(G_cTxt, 0, sizeof(G_cTxt));
 	ltoa(iGold, cGold, 10);
 #ifdef DEF_COMMA_GOLD
 	iStrLen = strlen(cGold);
@@ -20955,7 +20954,7 @@ void CGame::DrawDialogBox_Inventory(int msX, int msY)
 {
 	int i;
 	short sX, sY;
-	DWORD dwTime = m_dwCurTime;
+	uint32_t dwTime = m_dwCurTime;
 	char cItemColor;
 	sX = m_stDialogBoxInfo[2].sX;
 	sY = m_stDialogBoxInfo[2].sY;
@@ -21063,7 +21062,7 @@ void CGame::CrusadeContributionResult(int iWarContribution)
 		m_pMsgTextList[5] = new class CMsg(0, m_pGameMsgList[26]->m_pMsg, 0); // a prize
 		m_pMsgTextList[6] = new class CMsg(0, " ", 0);
 		m_pMsgTextList[7] = new class CMsg(0, m_pGameMsgList[27]->m_pMsg, 0); // Experience point of the battle contribution:
-		ZeroMemory(cTemp, sizeof(cTemp));											//
+		std::memset(cTemp, 0, sizeof(cTemp));											//
 		wsprintf(cTemp, "+%dExp Points!", iWarContribution);
 		m_pMsgTextList[8] = new class CMsg(0, cTemp, 0);
 		for (i = 9; i < 18; i++)
@@ -21244,16 +21243,16 @@ void CGame::DrawChatMsgBox(short sX, short sY, int iChatIndex, bool bIsPreDC)
 {
 	char cMsg[100], cMsgA[22], cMsgB[22], cMsgC[22], * cp;
 	int  iRet, iLines, i, iSize, iSize2, iLoc, iFontSize;
-	DWORD dwTime;
+	uint32_t dwTime;
 	COLORREF rgb;
 	bool bIsTrans;
 	RECT rcRect;
 	SIZE Size;
 
-	ZeroMemory(cMsg, sizeof(cMsg));
-	ZeroMemory(cMsgA, sizeof(cMsgA));
-	ZeroMemory(cMsgB, sizeof(cMsgB));
-	ZeroMemory(cMsgC, sizeof(cMsgC));
+	std::memset(cMsg, 0, sizeof(cMsg));
+	std::memset(cMsgA, 0, sizeof(cMsgA));
+	std::memset(cMsgB, 0, sizeof(cMsgB));
+	std::memset(cMsgC, 0, sizeof(cMsgC));
 
 	dwTime = m_pChatMsgList[iChatIndex]->m_dwTime;
 	strcpy(cMsg, m_pChatMsgList[iChatIndex]->m_pMsg);
@@ -21458,12 +21457,12 @@ void CGame::UpdateScreen_OnSelectCharacter()
 	char  cLB, cRB, cTotalChar;
 	char  cMIresult;
 	static class CMouseInterface* pMI;
-	DWORD dwTime;
+	uint32_t dwTime;
 	static DWORD dwCTime;
 
 	int iMIbuttonNum;
 
-	dwTime = timeGetTime();
+	dwTime = GameClock::GetTimeMS();
 	sX = 0;
 	sY = 0;
 	cTotalChar = 0;
@@ -21491,7 +21490,7 @@ void CGame::UpdateScreen_OnSelectCharacter()
 		m_cArrowPressed = 0;
 		m_bEnterPressed = false;
 
-		dwCTime = timeGetTime();
+		dwCTime = GameClock::GetTimeMS();
 	}
 
 	m_cGameModeCount++;
@@ -21529,7 +21528,7 @@ void CGame::UpdateScreen_OnSelectCharacter()
 		{
 			if (m_pCharList[m_cCurFocus - 1]->m_sSex != 0)
 			{
-				ZeroMemory(m_cPlayerName, sizeof(m_cPlayerName));
+				std::memset(m_cPlayerName, 0, sizeof(m_cPlayerName));
 				strcpy(m_cPlayerName, m_pCharList[m_cCurFocus - 1]->m_cName);
 				m_iLevel = (int)m_pCharList[m_cCurFocus - 1]->m_sLevel;
 				if (CMisc::bCheckValidString(m_cPlayerName) == true)
@@ -21542,9 +21541,9 @@ void CGame::UpdateScreen_OnSelectCharacter()
 					ChangeGameMode(DEF_GAMEMODE_ONCONNECTING);
 					m_dwConnectMode = MSGID_REQUEST_ENTERGAME;
 					m_wEnterGameType = DEF_ENTERGAMEMSGTYPE_NEW;
-					ZeroMemory(m_cMsg, sizeof(m_cMsg));
+					std::memset(m_cMsg, 0, sizeof(m_cMsg));
 					strcpy(m_cMsg, "33");
-					ZeroMemory(m_cMapName, sizeof(m_cMapName));
+					std::memset(m_cMapName, 0, sizeof(m_cMapName));
 					memcpy(m_cMapName, m_pCharList[m_cCurFocus - 1]->m_cMapName, 10);
 					delete pMI;
 					return;
@@ -21600,7 +21599,7 @@ void CGame::UpdateScreen_OnSelectCharacter()
 				{
 					if (m_pCharList[m_cCurFocus - 1]->m_sSex != 0)
 					{
-						ZeroMemory(m_cPlayerName, sizeof(m_cPlayerName));
+						std::memset(m_cPlayerName, 0, sizeof(m_cPlayerName));
 						strcpy(m_cPlayerName, m_pCharList[m_cCurFocus - 1]->m_cName);
 						m_iLevel = (int)m_pCharList[m_cCurFocus - 1]->m_sLevel;
 						if (CMisc::bCheckValidString(m_cPlayerName) == true)
@@ -21613,9 +21612,9 @@ void CGame::UpdateScreen_OnSelectCharacter()
 							ChangeGameMode(DEF_GAMEMODE_ONCONNECTING);
 							m_dwConnectMode = MSGID_REQUEST_ENTERGAME;
 							m_wEnterGameType = DEF_ENTERGAMEMSGTYPE_NEW;
-							ZeroMemory(m_cMsg, sizeof(m_cMsg));
+							std::memset(m_cMsg, 0, sizeof(m_cMsg));
 							strcpy(m_cMsg, "33");
-							ZeroMemory(m_cMapName, sizeof(m_cMapName));
+							std::memset(m_cMapName, 0, sizeof(m_cMapName));
 							memcpy(m_cMapName, m_pCharList[m_cCurFocus - 1]->m_cMapName, 10);
 							delete pMI;
 							return;
@@ -21637,7 +21636,7 @@ void CGame::UpdateScreen_OnSelectCharacter()
 			{
 				if (m_pCharList[m_cCurFocus - 1]->m_sSex != 0)
 				{
-					ZeroMemory(m_cPlayerName, sizeof(m_cPlayerName));
+					std::memset(m_cPlayerName, 0, sizeof(m_cPlayerName));
 					strcpy(m_cPlayerName, m_pCharList[m_cCurFocus - 1]->m_cName);
 					m_iLevel = (int)m_pCharList[m_cCurFocus - 1]->m_sLevel;
 
@@ -21650,9 +21649,9 @@ void CGame::UpdateScreen_OnSelectCharacter()
 						ChangeGameMode(DEF_GAMEMODE_ONCONNECTING);
 						m_dwConnectMode = MSGID_REQUEST_ENTERGAME;
 						m_wEnterGameType = DEF_ENTERGAMEMSGTYPE_NEW;
-						ZeroMemory(m_cMsg, sizeof(m_cMsg));
+						std::memset(m_cMsg, 0, sizeof(m_cMsg));
 						strcpy(m_cMsg, "33");
-						ZeroMemory(m_cMapName, sizeof(m_cMapName));
+						std::memset(m_cMapName, 0, sizeof(m_cMapName));
 						memcpy(m_cMapName, m_pCharList[m_cCurFocus - 1]->m_cMapName, 10);
 						delete pMI;
 						return;
@@ -22161,7 +22160,7 @@ void CGame::DlgBoxClick_CityhallMenu(short msX, short msY)
 		{
 			if (m_bAresden == true) iReqHeroItemID = 400;
 			else iReqHeroItemID = 401;
-			ZeroMemory(m_cTakeHeroItemName, sizeof(m_cTakeHeroItemName));
+			std::memset(m_cTakeHeroItemName, 0, sizeof(m_cTakeHeroItemName));
 			memcpy(m_cTakeHeroItemName, DRAW_DIALOGBOX_CITYHALL_MENU47, strlen(DRAW_DIALOGBOX_CITYHALL_MENU47));
 			m_stDialogBoxInfo[13].cMode = 11;
 			m_stDialogBoxInfo[13].sV1 = iReqHeroItemID;
@@ -22174,7 +22173,7 @@ void CGame::DlgBoxClick_CityhallMenu(short msX, short msY)
 			if ((m_bAresden == true) && (m_pCharList[m_cCurFocus - 1]->m_sSex == 2)) iReqHeroItemID = 404;
 			if ((m_bAresden == false) && (m_pCharList[m_cCurFocus - 1]->m_sSex == 1)) iReqHeroItemID = 405;
 			if ((m_bAresden == false) && (m_pCharList[m_cCurFocus - 1]->m_sSex == 2)) iReqHeroItemID = 406;
-			ZeroMemory(m_cTakeHeroItemName, sizeof(m_cTakeHeroItemName));
+			std::memset(m_cTakeHeroItemName, 0, sizeof(m_cTakeHeroItemName));
 			memcpy(m_cTakeHeroItemName, DRAW_DIALOGBOX_CITYHALL_MENU48, strlen(DRAW_DIALOGBOX_CITYHALL_MENU48));
 			m_stDialogBoxInfo[13].cMode = 11;
 			m_stDialogBoxInfo[13].sV1 = iReqHeroItemID;
@@ -22187,7 +22186,7 @@ void CGame::DlgBoxClick_CityhallMenu(short msX, short msY)
 			if ((m_bAresden == true) && (m_pCharList[m_cCurFocus - 1]->m_sSex == 2)) iReqHeroItemID = 408;
 			if ((m_bAresden == false) && (m_pCharList[m_cCurFocus - 1]->m_sSex == 1)) iReqHeroItemID = 409;
 			if ((m_bAresden == false) && (m_pCharList[m_cCurFocus - 1]->m_sSex == 2)) iReqHeroItemID = 410;
-			ZeroMemory(m_cTakeHeroItemName, sizeof(m_cTakeHeroItemName));
+			std::memset(m_cTakeHeroItemName, 0, sizeof(m_cTakeHeroItemName));
 			memcpy(m_cTakeHeroItemName, DRAW_DIALOGBOX_CITYHALL_MENU49, strlen(DRAW_DIALOGBOX_CITYHALL_MENU49));
 			m_stDialogBoxInfo[13].cMode = 11;
 			m_stDialogBoxInfo[13].sV1 = iReqHeroItemID;
@@ -22200,7 +22199,7 @@ void CGame::DlgBoxClick_CityhallMenu(short msX, short msY)
 			if ((m_bAresden == true) && (m_pCharList[m_cCurFocus - 1]->m_sSex == 2)) iReqHeroItemID = 412;
 			if ((m_bAresden == false) && (m_pCharList[m_cCurFocus - 1]->m_sSex == 1)) iReqHeroItemID = 413;
 			if ((m_bAresden == false) && (m_pCharList[m_cCurFocus - 1]->m_sSex == 2)) iReqHeroItemID = 414;
-			ZeroMemory(m_cTakeHeroItemName, sizeof(m_cTakeHeroItemName));
+			std::memset(m_cTakeHeroItemName, 0, sizeof(m_cTakeHeroItemName));
 			memcpy(m_cTakeHeroItemName, DRAW_DIALOGBOX_CITYHALL_MENU50, strlen(DRAW_DIALOGBOX_CITYHALL_MENU50));
 			m_stDialogBoxInfo[13].cMode = 11;
 			m_stDialogBoxInfo[13].sV1 = iReqHeroItemID;
@@ -22213,7 +22212,7 @@ void CGame::DlgBoxClick_CityhallMenu(short msX, short msY)
 			if ((m_bAresden == true) && (m_pCharList[m_cCurFocus - 1]->m_sSex == 2)) iReqHeroItemID = 416;
 			if ((m_bAresden == false) && (m_pCharList[m_cCurFocus - 1]->m_sSex == 1)) iReqHeroItemID = 417;
 			if ((m_bAresden == false) && (m_pCharList[m_cCurFocus - 1]->m_sSex == 2)) iReqHeroItemID = 418;
-			ZeroMemory(m_cTakeHeroItemName, sizeof(m_cTakeHeroItemName));
+			std::memset(m_cTakeHeroItemName, 0, sizeof(m_cTakeHeroItemName));
 			memcpy(m_cTakeHeroItemName, DRAW_DIALOGBOX_CITYHALL_MENU51, strlen(DRAW_DIALOGBOX_CITYHALL_MENU51));
 			m_stDialogBoxInfo[13].cMode = 11;
 			m_stDialogBoxInfo[13].sV1 = iReqHeroItemID;
@@ -22226,7 +22225,7 @@ void CGame::DlgBoxClick_CityhallMenu(short msX, short msY)
 			if ((m_bAresden == true) && (m_pCharList[m_cCurFocus - 1]->m_sSex == 2)) iReqHeroItemID = 420;
 			if ((m_bAresden == false) && (m_pCharList[m_cCurFocus - 1]->m_sSex == 1)) iReqHeroItemID = 421;
 			if ((m_bAresden == false) && (m_pCharList[m_cCurFocus - 1]->m_sSex == 2)) iReqHeroItemID = 422;
-			ZeroMemory(m_cTakeHeroItemName, sizeof(m_cTakeHeroItemName));
+			std::memset(m_cTakeHeroItemName, 0, sizeof(m_cTakeHeroItemName));
 			memcpy(m_cTakeHeroItemName, DRAW_DIALOGBOX_CITYHALL_MENU52, strlen(DRAW_DIALOGBOX_CITYHALL_MENU52));
 			m_stDialogBoxInfo[13].cMode = 11;
 			m_stDialogBoxInfo[13].sV1 = iReqHeroItemID;
@@ -22239,7 +22238,7 @@ void CGame::DlgBoxClick_CityhallMenu(short msX, short msY)
 			if ((m_bAresden == true) && (m_pCharList[m_cCurFocus - 1]->m_sSex == 2)) iReqHeroItemID = 424;
 			if ((m_bAresden == false) && (m_pCharList[m_cCurFocus - 1]->m_sSex == 1)) iReqHeroItemID = 425;
 			if ((m_bAresden == false) && (m_pCharList[m_cCurFocus - 1]->m_sSex == 2)) iReqHeroItemID = 426;
-			ZeroMemory(m_cTakeHeroItemName, sizeof(m_cTakeHeroItemName));
+			std::memset(m_cTakeHeroItemName, 0, sizeof(m_cTakeHeroItemName));
 			memcpy(m_cTakeHeroItemName, DRAW_DIALOGBOX_CITYHALL_MENU53, strlen(DRAW_DIALOGBOX_CITYHALL_MENU53));
 			m_stDialogBoxInfo[13].cMode = 11;
 			m_stDialogBoxInfo[13].sV1 = iReqHeroItemID;
@@ -22322,7 +22321,7 @@ void CGame::CivilRightAdmissionHandler(char* pData)
 	case 1:
 		m_stDialogBoxInfo[13].cMode = 3;
 		cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
-		ZeroMemory(m_cLocation, sizeof(m_cLocation));
+		std::memset(m_cLocation, 0, sizeof(m_cLocation));
 		memcpy(m_cLocation, cp, 10);
 		if (memcmp(m_cLocation, "aresden", 7) == 0)
 		{
@@ -22557,9 +22556,9 @@ void CGame::PlaySound(char cType, int iNum, int iDist, long lPan)
 void CGame::_DrawBlackRect(int iSize)
 {
 	int ix, iy, sx, sy, dcx, dcy;
-	DWORD dwTime;
+	uint32_t dwTime;
 
-	dwTime = timeGetTime();
+	dwTime = GameClock::GetTimeMS();
 
 	dcx = 40 - iSize * 2;
 	dcy = 30 - iSize * 2;
@@ -22633,7 +22632,7 @@ void CGame::DynamicObjectHandler(char* pData)
 bool CGame::_bIsItemOnHand() // Snoopy: Fixed to remove ShieldCast
 {
 	int i;
-	WORD wWeaponType;
+	uint16_t wWeaponType;
 	for (i = 0; i < DEF_MAXITEMS; i++)
 		if ((m_pItemList[i] != 0) && (m_bIsItemEquipped[i] == true))
 		{
@@ -22769,11 +22768,9 @@ void CGame::DlgBoxClick_ItemSellorRepair(short msX, short msY)
 		break;
 	}
 }
-
-
-DWORD CGame::iGetLevelExp(int iLevel)
+	uint32_t CGame::iGetLevelExp(int iLevel)
 {
-	DWORD iRet;
+	uint32_t iRet;
 	if (iLevel == 0) return 0;
 	iRet = iGetLevelExp(iLevel - 1) + iLevel * (50 + (iLevel * (iLevel / 17) * (iLevel / 17)));
 	return iRet;
@@ -22793,7 +22790,7 @@ bool CGame::bCheckExID(char* pName)
 	if (m_pExID == 0) return false;
 	if (memcmp(m_cPlayerName, pName, 10) == 0) return false;
 	char cTxt[12];
-	ZeroMemory(cTxt, sizeof(cTxt));
+	std::memset(cTxt, 0, sizeof(cTxt));
 	memcpy(cTxt, m_pExID->m_pMsg, strlen(m_pExID->m_pMsg));
 	if (memcmp(cTxt, pName, 10) == 0) return true;
 	else return false;
@@ -22809,7 +22806,7 @@ void CGame::DrawWhetherEffects()
 	int i;
 	short dX, dY, sCnt;
 	char cTempFrame;
-	DWORD dwTime = m_dwCurTime;
+	uint32_t dwTime = m_dwCurTime;
 
 	switch (m_cWhetherEffectType) {
 	case 1:
@@ -22894,7 +22891,7 @@ void CGame::WhetherObjectFrameCounter()
 	int i;
 	short sCnt;
 	char  cAdd;
-	DWORD dwTime = m_dwCurTime;
+	uint32_t dwTime = m_dwCurTime;
 
 	if ((dwTime - m_dwWOFtime) < 30) return;
 	m_dwWOFtime = dwTime;
@@ -23222,8 +23219,8 @@ void CGame::_DrawThunderEffect(int sX, int sY, int dX, int dY, int rX, int rY, c
 {
 	int j, iErr, pX1, pY1, iX1, iY1, tX, tY;
 	char cDir;
-	DWORD dwTime;
-	WORD  wR1, wG1, wB1, wR2, wG2, wB2, wR3, wG3, wB3, wR4, wG4, wB4;
+	uint32_t dwTime;
+	uint16_t wR1, wG1, wB1, wR2, wG2, wB2, wR3, wG3, wB3, wR4, wG4, wB4;
 	dwTime = m_dwCurTime;
 	sX = pX1 = iX1 = tX = sX;
 	sY = pY1 = iY1 = tY = sY;
@@ -23298,7 +23295,7 @@ bool CGame::bDlgBoxPress_SkillDlg(short msX, short msY)
 	iAdjY = 10;
 	switch (m_stDialogBoxInfo[26].cMode) {
 	case 1:
-		ZeroMemory(sArray, sizeof(sArray));
+		std::memset(sArray, 0, sizeof(sArray));
 		sArray[1] = m_stDialogBoxInfo[26].sV1;
 		sArray[2] = m_stDialogBoxInfo[26].sV2;
 		sArray[3] = m_stDialogBoxInfo[26].sV3;
@@ -23342,7 +23339,7 @@ bool CGame::bDlgBoxPress_SkillDlg(short msX, short msY)
 		break;
 
 	case 4:
-		ZeroMemory(sArray, sizeof(sArray));
+		std::memset(sArray, 0, sizeof(sArray));
 		sArray[1] = m_stDialogBoxInfo[26].sV1;
 		sArray[2] = m_stDialogBoxInfo[26].sV2;
 		sArray[3] = m_stDialogBoxInfo[26].sV3;
@@ -23388,7 +23385,7 @@ bool CGame::bDlgBoxPress_SkillDlg(short msX, short msY)
 		break;
 		// Crafting
 	case 7:
-		ZeroMemory(sArray, sizeof(sArray));
+		std::memset(sArray, 0, sizeof(sArray));
 		sArray[1] = m_stDialogBoxInfo[26].sV1;
 		sArray[2] = m_stDialogBoxInfo[26].sV2;
 		sArray[3] = m_stDialogBoxInfo[26].sV3;
@@ -23437,7 +23434,7 @@ bool CGame::bDlgBoxPress_SkillDlg(short msX, short msY)
 // Snoopy: added StormBlade
 int CGame::_iGetAttackType()
 {
-	WORD wWeaponType;
+	uint16_t wWeaponType;
 	wWeaponType = ((m_sPlayerAppr2 & 0x0FF0) >> 4);
 	if (wWeaponType == 0)
 	{
@@ -23497,7 +23494,7 @@ int CGame::_iGetAttackType()
 
 int CGame::_iGetWeaponSkillType()
 {
-	WORD wWeaponType;
+	uint16_t wWeaponType;
 	wWeaponType = ((m_sPlayerAppr2 & 0x0FF0) >> 4);
 	if (wWeaponType == 0)
 	{
@@ -23563,7 +23560,7 @@ void CGame::NotifyMsg_AdminInfo(char* pData)
 	iV5 = *ip;
 	cp += 4;
 
-	ZeroMemory(cStr, sizeof(cStr));
+	std::memset(cStr, 0, sizeof(cStr));
 	wsprintf(cStr, "%d %d %d %d %d", iV1, iV2, iV3, iV4, iV5);
 	AddEventList(cStr);
 }
@@ -23572,7 +23569,7 @@ bool CGame::_bCheckBadWords(char* pMsg)
 {
 	char cStr[500];
 	int i, iLen;
-	ZeroMemory(cStr, sizeof(cStr));
+	std::memset(cStr, 0, sizeof(cStr));
 	strcpy(cStr, pMsg);
 	iLen = strlen(cStr);
 
@@ -23611,7 +23608,7 @@ void CGame::bItemDrop_ExchangeDialog(short msX, short msY)
 		else if (m_stDialogBoxExchangeInfo[2].sV1 == -1)	m_stDialogBoxExchangeInfo[2].sItemID = cItemID;
 		else if (m_stDialogBoxExchangeInfo[3].sV1 == -1)	m_stDialogBoxExchangeInfo[3].sItemID = cItemID;
 		else return; // Impossible case, tested at function beginning
-		ZeroMemory(m_stDialogBoxInfo[17].cStr, sizeof(m_stDialogBoxInfo[17].cStr));
+		std::memset(m_stDialogBoxInfo[17].cStr, 0, sizeof(m_stDialogBoxInfo[17].cStr));
 		EnableDialogBox(17, cItemID, m_pItemList[cItemID]->m_dwCount, 0);
 		return;
 	}
@@ -23752,7 +23749,7 @@ bool CGame::_bDecodeBuildItemContents()
 	char cFileName[255], cTemp[255];
 	HANDLE hFile;
 	FILE* pFile;
-	DWORD  dwFileSize;
+	uint32_t dwFileSize;
 	char* pBuffer;
 	bool   bRet;
 	int    i;
@@ -23764,8 +23761,8 @@ bool CGame::_bDecodeBuildItemContents()
 			m_pBuildItemList[i] = 0;
 		}
 
-	ZeroMemory(cTemp, sizeof(cTemp));
-	ZeroMemory(cFileName, sizeof(cFileName));
+	std::memset(cTemp, 0, sizeof(cTemp));
+	std::memset(cFileName, 0, sizeof(cFileName));
 
 	strcpy(cTemp, "BItemcfg");
 	strcat(cFileName, "contents");
@@ -23783,7 +23780,7 @@ bool CGame::_bDecodeBuildItemContents()
 	else
 	{
 		pBuffer = new char[dwFileSize + 1];
-		ZeroMemory(pBuffer, dwFileSize + 1);
+		std::memset(pBuffer, 0, dwFileSize + 1);
 		fread(pBuffer, dwFileSize, 1, pFile);
 		bRet = __bDecodeBuildItemContents(pBuffer);
 		delete[] pBuffer;
@@ -23840,7 +23837,7 @@ bool CGame::_bCheckBuildItemStatus()
 					else iItemCount[j] = 0;
 
 				// Element1
-				ZeroMemory(cTempName, sizeof(cTempName));
+				std::memset(cTempName, 0, sizeof(cTempName));
 				memcpy(cTempName, m_pBuildItemList[i]->m_cElementName1, 20);
 				iCount = m_pBuildItemList[i]->m_iElementCount[1];
 				if (iCount == 0) iMatch++;
@@ -23861,7 +23858,7 @@ bool CGame::_bCheckBuildItemStatus()
 
 			CBIS_STEP2:;
 				// Element2
-				ZeroMemory(cTempName, sizeof(cTempName));
+				std::memset(cTempName, 0, sizeof(cTempName));
 				memcpy(cTempName, m_pBuildItemList[i]->m_cElementName2, 20);
 				iCount = m_pBuildItemList[i]->m_iElementCount[2];
 				if (iCount == 0) iMatch++;
@@ -23883,7 +23880,7 @@ bool CGame::_bCheckBuildItemStatus()
 
 			CBIS_STEP3:;
 				// Element3
-				ZeroMemory(cTempName, sizeof(cTempName));
+				std::memset(cTempName, 0, sizeof(cTempName));
 				memcpy(cTempName, m_pBuildItemList[i]->m_cElementName3, 20);
 				iCount = m_pBuildItemList[i]->m_iElementCount[3];
 				if (iCount == 0) iMatch++;
@@ -23905,7 +23902,7 @@ bool CGame::_bCheckBuildItemStatus()
 
 			CBIS_STEP4:;
 				// Element4 �˻�
-				ZeroMemory(cTempName, sizeof(cTempName));
+				std::memset(cTempName, 0, sizeof(cTempName));
 				memcpy(cTempName, m_pBuildItemList[i]->m_cElementName4, 20);
 				iCount = m_pBuildItemList[i]->m_iElementCount[4];
 				if (iCount == 0) iMatch++;
@@ -23928,7 +23925,7 @@ bool CGame::_bCheckBuildItemStatus()
 			CBIS_STEP5:;
 
 				// Element5
-				ZeroMemory(cTempName, sizeof(cTempName));
+				std::memset(cTempName, 0, sizeof(cTempName));
 				memcpy(cTempName, m_pBuildItemList[i]->m_cElementName5, 20);
 				iCount = m_pBuildItemList[i]->m_iElementCount[5];
 				if (iCount == 0) iMatch++;
@@ -23951,7 +23948,7 @@ bool CGame::_bCheckBuildItemStatus()
 			CBIS_STEP6:;
 
 				// Element6
-				ZeroMemory(cTempName, sizeof(cTempName));
+				std::memset(cTempName, 0, sizeof(cTempName));
 				memcpy(cTempName, m_pBuildItemList[i]->m_cElementName6, 20);
 				iCount = m_pBuildItemList[i]->m_iElementCount[6];
 				if (iCount == 0) iMatch++;
@@ -24042,7 +24039,7 @@ bool CGame::__bDecodeBuildItemContents(char* pBuffer)
 			case 1:
 				switch (cReadModeB) {
 				case 1:
-					ZeroMemory(m_pBuildItemList[iIndex]->m_cName, sizeof(m_pBuildItemList[iIndex]->m_cName));
+					std::memset(m_pBuildItemList[iIndex]->m_cName, 0, sizeof(m_pBuildItemList[iIndex]->m_cName));
 					memcpy(m_pBuildItemList[iIndex]->m_cName, token, strlen(token));
 					cReadModeB = 2;
 					break;
@@ -24051,7 +24048,7 @@ bool CGame::__bDecodeBuildItemContents(char* pBuffer)
 					cReadModeB = 3;
 					break;
 				case 3: // m_cElementName1
-					ZeroMemory(m_pBuildItemList[iIndex]->m_cElementName1, sizeof(m_pBuildItemList[iIndex]->m_cElementName1));
+					std::memset(m_pBuildItemList[iIndex]->m_cElementName1, 0, sizeof(m_pBuildItemList[iIndex]->m_cElementName1));
 					memcpy(m_pBuildItemList[iIndex]->m_cElementName1, token, strlen(token));
 					cReadModeB = 4;
 					break;
@@ -24060,7 +24057,7 @@ bool CGame::__bDecodeBuildItemContents(char* pBuffer)
 					cReadModeB = 5;
 					break;
 				case 5: // m_cElementName2
-					ZeroMemory(m_pBuildItemList[iIndex]->m_cElementName2, sizeof(m_pBuildItemList[iIndex]->m_cElementName2));
+					std::memset(m_pBuildItemList[iIndex]->m_cElementName2, 0, sizeof(m_pBuildItemList[iIndex]->m_cElementName2));
 					memcpy(m_pBuildItemList[iIndex]->m_cElementName2, token, strlen(token));
 					cReadModeB = 6;
 					break;
@@ -24069,7 +24066,7 @@ bool CGame::__bDecodeBuildItemContents(char* pBuffer)
 					cReadModeB = 7;
 					break;
 				case 7: // m_cElementName3
-					ZeroMemory(m_pBuildItemList[iIndex]->m_cElementName3, sizeof(m_pBuildItemList[iIndex]->m_cElementName3));
+					std::memset(m_pBuildItemList[iIndex]->m_cElementName3, 0, sizeof(m_pBuildItemList[iIndex]->m_cElementName3));
 					memcpy(m_pBuildItemList[iIndex]->m_cElementName3, token, strlen(token));
 					cReadModeB = 8;
 					break;
@@ -24078,7 +24075,7 @@ bool CGame::__bDecodeBuildItemContents(char* pBuffer)
 					cReadModeB = 9;
 					break;
 				case 9: // m_cElementName4
-					ZeroMemory(m_pBuildItemList[iIndex]->m_cElementName4, sizeof(m_pBuildItemList[iIndex]->m_cElementName4));
+					std::memset(m_pBuildItemList[iIndex]->m_cElementName4, 0, sizeof(m_pBuildItemList[iIndex]->m_cElementName4));
 					memcpy(m_pBuildItemList[iIndex]->m_cElementName4, token, strlen(token));
 					cReadModeB = 10;
 					break;
@@ -24087,7 +24084,7 @@ bool CGame::__bDecodeBuildItemContents(char* pBuffer)
 					cReadModeB = 11;
 					break;
 				case 11: // m_cElementName5
-					ZeroMemory(m_pBuildItemList[iIndex]->m_cElementName5, sizeof(m_pBuildItemList[iIndex]->m_cElementName5));
+					std::memset(m_pBuildItemList[iIndex]->m_cElementName5, 0, sizeof(m_pBuildItemList[iIndex]->m_cElementName5));
 					memcpy(m_pBuildItemList[iIndex]->m_cElementName5, token, strlen(token));
 					cReadModeB = 12;
 					break;
@@ -24096,7 +24093,7 @@ bool CGame::__bDecodeBuildItemContents(char* pBuffer)
 					cReadModeB = 13;
 					break;
 				case 13: // m_cElementName6
-					ZeroMemory(m_pBuildItemList[iIndex]->m_cElementName6, sizeof(m_pBuildItemList[iIndex]->m_cElementName6));
+					std::memset(m_pBuildItemList[iIndex]->m_cElementName6, 0, sizeof(m_pBuildItemList[iIndex]->m_cElementName6));
 					memcpy(m_pBuildItemList[iIndex]->m_cElementName6, token, strlen(token));
 					cReadModeB = 14;
 					break;
@@ -24172,7 +24169,7 @@ bool CGame::_bCheckCurrentBuildItemStatus()
 	for (i = 1; i <= 6; i++) bItemFlag[i] = false;
 
 	// Element1
-	ZeroMemory(cTempName, sizeof(cTempName));
+	std::memset(cTempName, 0, sizeof(cTempName));
 	memcpy(cTempName, m_pDispBuildItemList[iIndex]->m_cElementName1, 20);
 	iCount = m_pDispBuildItemList[iIndex]->m_iElementCount[1];
 	if (iCount == 0) iMatch++;
@@ -24195,7 +24192,7 @@ bool CGame::_bCheckCurrentBuildItemStatus()
 CCBIS_STEP2:;
 
 	// Element2
-	ZeroMemory(cTempName, sizeof(cTempName));
+	std::memset(cTempName, 0, sizeof(cTempName));
 	memcpy(cTempName, m_pDispBuildItemList[iIndex]->m_cElementName2, 20);
 	iCount = m_pDispBuildItemList[iIndex]->m_iElementCount[2];
 	if (iCount == 0) iMatch++;
@@ -24219,7 +24216,7 @@ CCBIS_STEP3:;
 
 
 	// Element3
-	ZeroMemory(cTempName, sizeof(cTempName));
+	std::memset(cTempName, 0, sizeof(cTempName));
 	memcpy(cTempName, m_pDispBuildItemList[iIndex]->m_cElementName3, 20);
 	iCount = m_pDispBuildItemList[iIndex]->m_iElementCount[3];
 	if (iCount == 0) iMatch++;
@@ -24242,7 +24239,7 @@ CCBIS_STEP3:;
 CCBIS_STEP4:;
 
 	// Element4
-	ZeroMemory(cTempName, sizeof(cTempName));
+	std::memset(cTempName, 0, sizeof(cTempName));
 	memcpy(cTempName, m_pDispBuildItemList[iIndex]->m_cElementName4, 20);
 	iCount = m_pDispBuildItemList[iIndex]->m_iElementCount[4];
 	if (iCount == 0) iMatch++;
@@ -24265,7 +24262,7 @@ CCBIS_STEP4:;
 CCBIS_STEP5:;
 
 	// Element5
-	ZeroMemory(cTempName, sizeof(cTempName));
+	std::memset(cTempName, 0, sizeof(cTempName));
 	memcpy(cTempName, m_pDispBuildItemList[iIndex]->m_cElementName5, 20);
 	iCount = m_pDispBuildItemList[iIndex]->m_iElementCount[5];
 	if (iCount == 0) iMatch++;
@@ -24288,7 +24285,7 @@ CCBIS_STEP5:;
 CCBIS_STEP6:;
 
 	// Element6
-	ZeroMemory(cTempName, sizeof(cTempName));
+	std::memset(cTempName, 0, sizeof(cTempName));
 	memcpy(cTempName, m_pDispBuildItemList[iIndex]->m_cElementName6, 20);
 	iCount = m_pDispBuildItemList[iIndex]->m_iElementCount[6];
 	if (iCount == 0) iMatch++;
@@ -24376,7 +24373,7 @@ void CGame::_SetIlusionEffect(int iOwnerH)
 
 	m_iIlusionOwnerH = iOwnerH;
 
-	ZeroMemory(m_cName_IE, sizeof(m_cName_IE));
+	std::memset(m_cName_IE, 0, sizeof(m_cName_IE));
 	m_pMapData->GetOwnerStatusByObjectID(iOwnerH, &m_cIlusionOwnerType, &cDir, &m_sAppr1_IE, &m_sAppr2_IE, &m_sAppr3_IE, &m_sAppr4_IE, &m_iStatus_IE, &m_iApprColor_IE, m_cName_IE);
 }
 
@@ -24421,7 +24418,7 @@ bool CGame::bReadItemNameConfigFile()
 {
 	FILE* pFile;
 	HANDLE hFile;
-	DWORD  dwFileSize;
+	uint32_t dwFileSize;
 	char* cp, * token, cReadModeA, cReadModeB;
 	char seps[] = "=\n";
 	int iIndex;
@@ -24437,7 +24434,7 @@ bool CGame::bReadItemNameConfigFile()
 	if (pFile == 0) return false;
 	else {
 		cp = new char[dwFileSize + 2];
-		ZeroMemory(cp, dwFileSize + 2);
+		std::memset(cp, 0, dwFileSize + 2);
 		fread(cp, dwFileSize, 1, pFile);
 
 		token = strtok(cp, seps);
@@ -24480,7 +24477,7 @@ bool CGame::bReadItemNameConfigFile()
 void CGame::DrawDialogBox_Map()
 {
 	short sX, sY;
-	DWORD dwTime = m_dwCurTime;
+	uint32_t dwTime = m_dwCurTime;
 	double dV1, dV2, dV3;
 	int    tX, tY, szX, szY, dX, dY;
 
@@ -24623,8 +24620,8 @@ void CGame::NotifyMsg_SetExchangeItem(char* pData)
 	int* ip, iAmount, i;
 	char* cp, cColor, cItemName[24], cCharName[12];
 	DWORD* dwp, dwAttribute;
-	ZeroMemory(cItemName, sizeof(cItemName));
-	ZeroMemory(cCharName, sizeof(cCharName));
+	std::memset(cItemName, 0, sizeof(cItemName));
+	std::memset(cCharName, 0, sizeof(cCharName));
 
 	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
 	sp = (short*)cp;
@@ -24692,17 +24689,17 @@ void CGame::NotifyMsg_SetExchangeItem(char* pData)
 void CGame::NotifyMsg_DismissGuildApprove(char* pData)
 {
 	char* cp, cName[24], cLocation[12];
-	ZeroMemory(cName, sizeof(cName));
-	ZeroMemory(cLocation, sizeof(cLocation));
+	std::memset(cName, 0, sizeof(cName));
+	std::memset(cLocation, 0, sizeof(cLocation));
 	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
 	memcpy(cName, cp, 20);
 	cp += 20;
 	cp += 2;
 	memcpy(cLocation, cp, 10);
 	cp += 10;
-	ZeroMemory(m_cGuildName, sizeof(m_cGuildName));
+	std::memset(m_cGuildName, 0, sizeof(m_cGuildName));
 	m_iGuildRank = -1;
-	ZeroMemory(m_cLocation, sizeof(m_cLocation));
+	std::memset(m_cLocation, 0, sizeof(m_cLocation));
 	memcpy(m_cLocation, cLocation, 10);
 	if (memcmp(m_cLocation, "aresden", 7) == 0)
 	{
@@ -24741,7 +24738,7 @@ void CGame::NotifyMsg_DismissGuildApprove(char* pData)
 void CGame::NotifyMsg_DismissGuildReject(char* pData)
 {
 	char* cp, cName[21];
-	ZeroMemory(cName, sizeof(cName));
+	std::memset(cName, 0, sizeof(cName));
 	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
 	memcpy(cName, cp, 20);
 	cp += 20;
@@ -24777,8 +24774,8 @@ void CGame::NotifyMsg_FishChance(char* pData)
 void CGame::NotifyMsg_GuildDisbanded(char* pData)
 {
 	char* cp, cName[24], cLocation[12];
-	ZeroMemory(cName, sizeof(cName));
-	ZeroMemory(cLocation, sizeof(cLocation));
+	std::memset(cName, 0, sizeof(cName));
+	std::memset(cLocation, 0, sizeof(cLocation));
 	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
 	memcpy(cName, cp, 20);
 	cp += 20;
@@ -24787,9 +24784,9 @@ void CGame::NotifyMsg_GuildDisbanded(char* pData)
 	CMisc::ReplaceString(cName, '_', ' ');
 	EnableDialogBox(8, 0, 0, 0);
 	_PutGuildOperationList(cName, 7);
-	ZeroMemory(m_cGuildName, sizeof(m_cGuildName));
+	std::memset(m_cGuildName, 0, sizeof(m_cGuildName));
 	m_iGuildRank = -1;
-	ZeroMemory(m_cLocation, sizeof(m_cLocation));
+	std::memset(m_cLocation, 0, sizeof(m_cLocation));
 	memcpy(m_cLocation, cLocation, 10);
 	if (memcmp(m_cLocation, "aresden", 7) == 0)
 	{
@@ -24872,7 +24869,7 @@ void CGame::NotifyMsg_RepairItemPrice(char* pData)
 	dwp = (DWORD*)cp;
 	wV4 = *dwp;
 	cp += 4;
-	ZeroMemory(cName, sizeof(cName));
+	std::memset(cName, 0, sizeof(cName));
 	memcpy(cName, cp, 20);
 	cp += 20;
 	EnableDialogBox(23, 2, wV1, wV2);
@@ -24896,7 +24893,7 @@ void CGame::NotifyMsg_SellItemPrice(char* pData)
 	dwp = (DWORD*)cp;
 	wV4 = *dwp;
 	cp += 4;
-	ZeroMemory(cName, sizeof(cName));
+	std::memset(cName, 0, sizeof(cName));
 	memcpy(cName, cp, 20);
 	cp += 20;
 	EnableDialogBox(23, 1, wV1, wV2);
@@ -24907,7 +24904,7 @@ void CGame::NotifyMsg_SellItemPrice(char* pData)
 void CGame::NotifyMsg_QueryDismissGuildPermission(char* pData)
 {
 	char* cp, cName[12];
-	ZeroMemory(cName, sizeof(cName));
+	std::memset(cName, 0, sizeof(cName));
 	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
 	memcpy(cName, cp, 10);
 	cp += 10;
@@ -24919,7 +24916,7 @@ void CGame::NotifyMsg_QueryDismissGuildPermission(char* pData)
 void CGame::NotifyMsg_QueryJoinGuildPermission(char* pData)
 {
 	char* cp, cName[12];
-	ZeroMemory(cName, sizeof(cName));
+	std::memset(cName, 0, sizeof(cName));
 	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
 	memcpy(cName, cp, 10);
 	cp += 10;
@@ -24960,7 +24957,7 @@ void CGame::NotifyMsg_QuestContents(char* pData)
 	sp = (short*)cp;
 	m_stQuest.bIsQuestCompleted = (bool)*sp;
 	cp += 2;
-	ZeroMemory(m_stQuest.cTargetName, sizeof(m_stQuest.cTargetName));
+	std::memset(m_stQuest.cTargetName, 0, sizeof(m_stQuest.cTargetName));
 	memcpy(m_stQuest.cTargetName, cp, 20);
 	cp += 20;
 	// v2.05
@@ -24972,7 +24969,7 @@ void CGame::NotifyMsg_PlayerProfile(char* pData)
 	char* cp;
 	char cTemp[500];
 	int i;
-	ZeroMemory(cTemp, sizeof(cTemp));
+	std::memset(cTemp, 0, sizeof(cTemp));
 	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
 	strcpy(cTemp, cp);
 	for (i = 0; i < 500; i++)
@@ -24997,8 +24994,8 @@ void CGame::NotifyMsg_OpenExchageWindow(char* pData)
 	int* ip, iAmount;
 	char* cp, cColor, cItemName[24], cCharName[12];
 	DWORD* dwp, dwAttribute;
-	ZeroMemory(cItemName, sizeof(cItemName));
-	ZeroMemory(cCharName, sizeof(cCharName));
+	std::memset(cItemName, 0, sizeof(cItemName));
+	std::memset(cCharName, 0, sizeof(cCharName));
 
 	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
 	sp = (short*)cp;
@@ -25073,13 +25070,13 @@ void CGame::NotifyMsg_JoinGuildApprove(char* pData)
 {
 	char* cp, cName[21];
 	short* sp;
-	ZeroMemory(cName, sizeof(cName));
+	std::memset(cName, 0, sizeof(cName));
 	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
 	memcpy(cName, cp, 20);
 	cp += 20;
 	sp = (short*)cp;
 	cp += 2;
-	ZeroMemory(m_cGuildName, sizeof(m_cGuildName));
+	std::memset(m_cGuildName, 0, sizeof(m_cGuildName));
 	strcpy(m_cGuildName, cName);
 	m_iGuildRank = *sp;
 	EnableDialogBox(8, 0, 0, 0);
@@ -25090,7 +25087,7 @@ void CGame::NotifyMsg_JoinGuildApprove(char* pData)
 void CGame::NotifyMsg_JoinGuildReject(char* pData)
 {
 	char* cp, cName[21];
-	ZeroMemory(cName, sizeof(cName));
+	std::memset(cName, 0, sizeof(cName));
 	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
 	memcpy(cName, cp, 20);
 	cp += 20;
@@ -25193,9 +25190,9 @@ void CGame::CreateScreenShot()
 	char SStime[32];
 	SYSTEMTIME SysTime;
 	GetLocalTime(&SysTime);
-	ZeroMemory(LongMapName, sizeof(LongMapName));
+	std::memset(LongMapName, 0, sizeof(LongMapName));
 	GetOfficialMapName(m_cMapName, LongMapName);
-	ZeroMemory(SStime, sizeof(SStime));
+	std::memset(SStime, 0, sizeof(SStime));
 	wsprintf(SStime, "%02d:%02d - %02d:%02d:%02d"
 		, SysTime.wMonth, SysTime.wDay
 		, SysTime.wHour, SysTime.wMinute, SysTime.wSecond
@@ -25208,7 +25205,7 @@ void CGame::CreateScreenShot()
 
 	for (i = 0; i < 1000; i++)
 	{
-		ZeroMemory(cFn, sizeof(cFn));
+		std::memset(cFn, 0, sizeof(cFn));
 		wsprintf(cFn, "Save\\HelShot%04d%02d%02d_%02d%02d%02d_%s%03d.bmp"
 			, SysTime.wYear, SysTime.wMonth, SysTime.wDay
 			, SysTime.wHour, SysTime.wMinute, SysTime.wSecond
@@ -25233,14 +25230,14 @@ void CGame::UpdateScreen_OnConnecting()
 {
 	short sX, sY, msX, msY, msZ;
 	char cLB, cRB;
-	DWORD dwTime = timeGetTime();
+	uint32_t dwTime = GameClock::GetTimeMS();
 	static class CMouseInterface* pMI;
 	static DWORD dwMTime, dwCTime;
 
 	if (m_cGameModeCount == 0) {
 		m_bEnterPressed = false;
 		m_bEscPressed = false;
-		dwCTime = dwMTime = timeGetTime();
+		dwCTime = dwMTime = GameClock::GetTimeMS();
 	}
 	m_cGameModeCount++;
 	if (m_cGameModeCount > 100) m_cGameModeCount = 100;
@@ -25336,7 +25333,7 @@ void CGame::UpdateScreen_OnWaitInitData()
 {
 	short msX, msY, msZ;
 	char cLB, cRB;
-	DWORD dwTime = timeGetTime();
+	uint32_t dwTime = GameClock::GetTimeMS();
 
 	if (m_cGameModeCount == 0) {
 		m_bEnterPressed = false;
@@ -25389,7 +25386,7 @@ void CGame::UpdateScreen_OnConnectionLost()
 	static DWORD dwTime;
 	if (m_cGameModeCount == 0)
 	{
-		dwTime = timeGetTime();
+		dwTime = GameClock::GetTimeMS();
 		if (m_bSoundFlag) m_pESound[38]->bStop();
 		if ((m_bSoundFlag) && (m_bMusicStat == true))
 		{
@@ -25408,7 +25405,7 @@ void CGame::UpdateScreen_OnConnectionLost()
 
 	if (m_DDraw.iFlip() == DDERR_SURFACELOST) RestoreSprites();
 
-	if ((timeGetTime() - m_dwTime) > 5000)
+	if ((GameClock::GetTimeMS() - m_dwTime) > 5000)
 	{
 		if (strlen(G_cCmdLineTokenA) != 0)
 			ChangeGameMode(DEF_GAMEMODE_ONQUIT);
@@ -25422,7 +25419,7 @@ void CGame::UpdateScreen_OnConnectionLost()
 bool CGame::_bDraw_OnCreateNewCharacter(char* pName, short msX, short msY, int iPoint)
 {
 	bool bFlag = true;
-	DWORD dwTime = timeGetTime();
+	uint32_t dwTime = GameClock::GetTimeMS();
 	int i = 0;
 
 	m_DDraw.ClearBackB4();
@@ -25505,7 +25502,7 @@ bool CGame::_bDraw_OnCreateNewCharacter(char* pName, short msX, short msY, int i
 	_tmp_sAppr2 = 0;
 	_tmp_sAppr3 = 0;
 	_tmp_sAppr4 = 0;
-	ZeroMemory(_tmp_cName, sizeof(_tmp_cName));
+	std::memset(_tmp_cName, 0, sizeof(_tmp_cName));
 	memcpy(_tmp_cName, m_cPlayerName, 10);
 	_tmp_cAction = DEF_OBJECTMOVE;
 	_tmp_cFrame = m_cMenuFrame;
@@ -25543,7 +25540,7 @@ void CGame::UpdateScreen_OnCreateNewCharacter()
 	short msX, msY, msZ;
 	bool bFlag;
 	static DWORD dwMTime;
-	DWORD dwTime = timeGetTime();
+	uint32_t dwTime = GameClock::GetTimeMS();
 
 	if (m_cGameModeCount == 0)
 	{
@@ -25598,7 +25595,7 @@ void CGame::UpdateScreen_OnCreateNewCharacter()
 		m_cMaxFocus = 6;
 		m_bEnterPressed = false;
 		m_cArrowPressed = 0;
-		dwMTime = timeGetTime();
+		dwMTime = GameClock::GetTimeMS();
 		StartInputString(193 + 4 + SCREENX, 65 + 45 + SCREENY, 11, cName);
 		ClearInputString();
 	}
@@ -25803,14 +25800,14 @@ void CGame::UpdateScreen_OnCreateNewCharacter()
 			if (bFlag == false) return;
 			//if (CMisc::bCheckValidName(m_cPlayerName) == false) break;
 			if (CMisc::bCheckValidName(cName) == false) break;
-			ZeroMemory(m_cPlayerName, sizeof(m_cPlayerName));
+			std::memset(m_cPlayerName, 0, sizeof(m_cPlayerName));
 			strcpy(m_cPlayerName, cName);
 			m_pLSock = new class XSocket(DEF_SOCKETBLOCKLIMIT);
 			m_pLSock->bConnect(m_cLogServerAddr, m_iLogServerPort + (rand() % 1));
 			m_pLSock->bInitBufferSize(30000);
 			ChangeGameMode(DEF_GAMEMODE_ONCONNECTING);
 			m_dwConnectMode = MSGID_REQUEST_CREATENEWCHARACTER;
-			ZeroMemory(m_cMsg, sizeof(m_cMsg));
+			std::memset(m_cMsg, 0, sizeof(m_cMsg));
 			strcpy(m_cMsg, "22");
 			delete pMI;
 			return;
@@ -26023,7 +26020,7 @@ void CGame::_LoadAgreementTextContents(char cType)
 	char* pContents, * token, cTemp[120], cFileName[120];
 	char   seps[] = "\n";
 	int    iIndex = 0, i;
-	DWORD  dwFileSize;
+	uint32_t dwFileSize;
 	HANDLE hFile;
 	FILE* pFile;
 
@@ -26033,8 +26030,8 @@ void CGame::_LoadAgreementTextContents(char cType)
 		m_pAgreeMsgTextList[i] = 0;
 	}
 
-	ZeroMemory(cTemp, sizeof(cTemp));
-	ZeroMemory(cFileName, sizeof(cFileName));
+	std::memset(cTemp, 0, sizeof(cTemp));
+	std::memset(cFileName, 0, sizeof(cFileName));
 
 	wsprintf(cTemp, "contents%d", cType);
 
@@ -26052,7 +26049,7 @@ void CGame::_LoadAgreementTextContents(char cType)
 	if (pFile == 0) return;
 	else {
 		pContents = new char[dwFileSize + 1];
-		ZeroMemory(pContents, dwFileSize + 1);
+		std::memset(pContents, 0, dwFileSize + 1);
 		fread(pContents, dwFileSize, 1, pFile);
 	}
 
@@ -26073,7 +26070,7 @@ void CGame::UpdateScreen_OnAgreement()
 	char  cMIresult;
 	static class CMouseInterface* pMI;
 	int i, iTotalLines, iPointerLoc;
-	DWORD dwTime = timeGetTime();
+	uint32_t dwTime = GameClock::GetTimeMS();
 	double d1, d2, d3;
 	int iMIbuttonNum;
 
@@ -26188,7 +26185,7 @@ void CGame::UpdateScreen_OnCreateNewAccount()
 	int  iMIbuttonNum;
 	static class CMouseInterface* pMI;
 	static char cName[12], cPassword[12], cConfirm[12], cPrevFocus, cSSN_A[8], cSSN_B[8], cQuiz[44], cAnswer[20], cTempQuiz[44];
-	DWORD dwTime = timeGetTime();
+	uint32_t dwTime = GameClock::GetTimeMS();
 	int iFlag = 0;
 
 	if (m_cGameModeCount == 0)
@@ -26211,16 +26208,16 @@ void CGame::UpdateScreen_OnCreateNewAccount()
 		m_cMaxFocus = 9; //12
 		m_bEnterPressed = false;
 		m_cArrowPressed = 0;
-		ZeroMemory(m_cEmailAddr, sizeof(m_cEmailAddr));
-		ZeroMemory(cName, sizeof(cName));
-		ZeroMemory(cPassword, sizeof(cPassword));
-		ZeroMemory(cConfirm, sizeof(cConfirm));
-		ZeroMemory(cSSN_A, sizeof(cSSN_A));
-		ZeroMemory(cSSN_B, sizeof(cSSN_B));
-		ZeroMemory(m_cAccountSSN, sizeof(m_cAccountSSN));
-		ZeroMemory(cQuiz, sizeof(cQuiz));
-		ZeroMemory(cTempQuiz, sizeof(cTempQuiz));
-		ZeroMemory(cAnswer, sizeof(cAnswer));
+		std::memset(m_cEmailAddr, 0, sizeof(m_cEmailAddr));
+		std::memset(cName, 0, sizeof(cName));
+		std::memset(cPassword, 0, sizeof(cPassword));
+		std::memset(cConfirm, 0, sizeof(cConfirm));
+		std::memset(cSSN_A, 0, sizeof(cSSN_A));
+		std::memset(cSSN_B, 0, sizeof(cSSN_B));
+		std::memset(m_cAccountSSN, 0, sizeof(m_cAccountSSN));
+		std::memset(cQuiz, 0, sizeof(cQuiz));
+		std::memset(cTempQuiz, 0, sizeof(cTempQuiz));
+		std::memset(cAnswer, 0, sizeof(cAnswer));
 		StartInputString(427 + SCREENX, 84 + SCREENY, 11, cName);
 		ClearInputString();
 	}
@@ -26467,11 +26464,11 @@ void CGame::UpdateScreen_OnCreateNewAccount()
 
 		case 7:
 			if (iFlag != 0) return;
-			ZeroMemory(m_cAccountName, sizeof(m_cAccountName));
-			ZeroMemory(m_cAccountPassword, sizeof(m_cAccountPassword));
+			std::memset(m_cAccountName, 0, sizeof(m_cAccountName));
+			std::memset(m_cAccountPassword, 0, sizeof(m_cAccountPassword));
 
-			ZeroMemory(m_cAccountQuiz, sizeof(m_cAccountQuiz));
-			ZeroMemory(m_cAccountAnswer, sizeof(m_cAccountAnswer));
+			std::memset(m_cAccountQuiz, 0, sizeof(m_cAccountQuiz));
+			std::memset(m_cAccountAnswer, 0, sizeof(m_cAccountAnswer));
 
 			strcpy(m_cAccountName, cName);
 			strcpy(m_cAccountPassword, cPassword);
@@ -26481,13 +26478,13 @@ void CGame::UpdateScreen_OnCreateNewAccount()
 			m_cAccountQuiz[45] = ' ';
 			m_cAccountAnswer[20] = ' ';
 
-			ZeroMemory(m_cAccountSSN, sizeof(m_cAccountSSN));
+			std::memset(m_cAccountSSN, 0, sizeof(m_cAccountSSN));
 			wsprintf(m_cAccountSSN, "%s-%s", cSSN_A, cSSN_B);
 
 			if (memcmp(cPassword, cConfirm, 10) != 0)
 			{
 				ChangeGameMode(DEF_GAMEMODE_ONMSG);
-				ZeroMemory(m_cMsg, sizeof(m_cMsg));
+				std::memset(m_cMsg, 0, sizeof(m_cMsg));
 				strcpy(m_cMsg, UPDATE_SCREEN_ON_CREATE_NEW_ACCOUNT82);
 				//"Cannot create account! - password not match!"
 				delete pMI;
@@ -26499,24 +26496,24 @@ void CGame::UpdateScreen_OnCreateNewAccount()
 
 			ChangeGameMode(DEF_GAMEMODE_ONCONNECTING);
 			m_dwConnectMode = MSGID_REQUEST_CREATENEWACCOUNT;
-			ZeroMemory(m_cMsg, sizeof(m_cMsg));
+			std::memset(m_cMsg, 0, sizeof(m_cMsg));
 			strcpy(m_cMsg, "00");
 			delete pMI;
 			return;
 
 		case 8:
-			ZeroMemory(cName, sizeof(cName));
-			ZeroMemory(cPassword, sizeof(cPassword));
-			ZeroMemory(cConfirm, sizeof(cConfirm));
-			ZeroMemory(m_cAccountAge, sizeof(m_cAccountAge));
-			ZeroMemory(m_cAccountCountry, sizeof(m_cAccountCountry));
-			ZeroMemory(m_cAccountSSN, sizeof(m_cAccountSSN));
-			ZeroMemory(m_cEmailAddr, sizeof(m_cEmailAddr));
-			ZeroMemory(cSSN_A, sizeof(cSSN_A));
-			ZeroMemory(cSSN_B, sizeof(cSSN_B));
-			ZeroMemory(cQuiz, sizeof(cQuiz));
-			ZeroMemory(cTempQuiz, sizeof(cTempQuiz));
-			ZeroMemory(cAnswer, sizeof(cAnswer));
+			std::memset(cName, 0, sizeof(cName));
+			std::memset(cPassword, 0, sizeof(cPassword));
+			std::memset(cConfirm, 0, sizeof(cConfirm));
+			std::memset(m_cAccountAge, 0, sizeof(m_cAccountAge));
+			std::memset(m_cAccountCountry, 0, sizeof(m_cAccountCountry));
+			std::memset(m_cAccountSSN, 0, sizeof(m_cAccountSSN));
+			std::memset(m_cEmailAddr, 0, sizeof(m_cEmailAddr));
+			std::memset(cSSN_A, 0, sizeof(cSSN_A));
+			std::memset(cSSN_B, 0, sizeof(cSSN_B));
+			std::memset(cQuiz, 0, sizeof(cQuiz));
+			std::memset(cTempQuiz, 0, sizeof(cTempQuiz));
+			std::memset(cAnswer, 0, sizeof(cAnswer));
 
 			break;
 
@@ -26539,11 +26536,11 @@ void CGame::UpdateScreen_OnCreateNewAccount()
 
 		case 7:
 			if (iFlag != 0) return;
-			ZeroMemory(m_cAccountName, sizeof(m_cAccountName));
-			ZeroMemory(m_cAccountPassword, sizeof(m_cAccountPassword));
+			std::memset(m_cAccountName, 0, sizeof(m_cAccountName));
+			std::memset(m_cAccountPassword, 0, sizeof(m_cAccountPassword));
 
-			ZeroMemory(m_cAccountQuiz, sizeof(m_cAccountQuiz));
-			ZeroMemory(m_cAccountAnswer, sizeof(m_cAccountAnswer));
+			std::memset(m_cAccountQuiz, 0, sizeof(m_cAccountQuiz));
+			std::memset(m_cAccountAnswer, 0, sizeof(m_cAccountAnswer));
 
 
 			strcpy(m_cAccountName, cName);
@@ -26551,13 +26548,13 @@ void CGame::UpdateScreen_OnCreateNewAccount()
 			strcpy(m_cAccountQuiz, cTempQuiz);
 			strcpy(m_cAccountAnswer, cAnswer);
 
-			ZeroMemory(m_cAccountSSN, sizeof(m_cAccountSSN));
+			std::memset(m_cAccountSSN, 0, sizeof(m_cAccountSSN));
 			wsprintf(m_cAccountSSN, "%s-%s", cSSN_A, cSSN_B);
 
 			if (memcmp(cPassword, cConfirm, 10) != 0)
 			{
 				ChangeGameMode(DEF_GAMEMODE_ONMSG);
-				ZeroMemory(m_cMsg, sizeof(m_cMsg));
+				std::memset(m_cMsg, 0, sizeof(m_cMsg));
 				strcpy(m_cMsg, UPDATE_SCREEN_ON_CREATE_NEW_ACCOUNT82);
 				//"Cannot create account! - password not match!"
 				delete pMI;
@@ -26569,24 +26566,24 @@ void CGame::UpdateScreen_OnCreateNewAccount()
 			m_pLSock->bInitBufferSize(30000);
 			ChangeGameMode(DEF_GAMEMODE_ONCONNECTING);
 			m_dwConnectMode = MSGID_REQUEST_CREATENEWACCOUNT;
-			ZeroMemory(m_cMsg, sizeof(m_cMsg));
+			std::memset(m_cMsg, 0, sizeof(m_cMsg));
 			strcpy(m_cMsg, "00");
 			delete pMI;
 			return;
 
 		case 8:
-			ZeroMemory(cName, sizeof(cName));
-			ZeroMemory(cPassword, sizeof(cPassword));
-			ZeroMemory(cConfirm, sizeof(cConfirm));
-			ZeroMemory(m_cAccountAge, sizeof(m_cAccountAge));
-			ZeroMemory(m_cAccountCountry, sizeof(m_cAccountCountry));
-			ZeroMemory(m_cAccountSSN, sizeof(m_cAccountSSN));
-			ZeroMemory(m_cEmailAddr, sizeof(m_cEmailAddr));
-			ZeroMemory(cSSN_A, sizeof(cSSN_A));
-			ZeroMemory(cSSN_B, sizeof(cSSN_B));
-			ZeroMemory(cQuiz, sizeof(cQuiz));
-			ZeroMemory(cTempQuiz, sizeof(cTempQuiz));
-			ZeroMemory(cAnswer, sizeof(cAnswer));
+			std::memset(cName, 0, sizeof(cName));
+			std::memset(cPassword, 0, sizeof(cPassword));
+			std::memset(cConfirm, 0, sizeof(cConfirm));
+			std::memset(m_cAccountAge, 0, sizeof(m_cAccountAge));
+			std::memset(m_cAccountCountry, 0, sizeof(m_cAccountCountry));
+			std::memset(m_cAccountSSN, 0, sizeof(m_cAccountSSN));
+			std::memset(m_cEmailAddr, 0, sizeof(m_cEmailAddr));
+			std::memset(cSSN_A, 0, sizeof(cSSN_A));
+			std::memset(cSSN_B, 0, sizeof(cSSN_B));
+			std::memset(cQuiz, 0, sizeof(cQuiz));
+			std::memset(cTempQuiz, 0, sizeof(cTempQuiz));
+			std::memset(cAnswer, 0, sizeof(cAnswer));
 			break;
 
 		case 9:
@@ -26631,8 +26628,8 @@ void CGame::UpdateScreen_OnLogin()
 		m_cMaxFocus = 4;
 		m_bEnterPressed = false;
 		m_cArrowPressed = 0;
-		ZeroMemory(cName, sizeof(cName));
-		ZeroMemory(cPassword, sizeof(cPassword));
+		std::memset(cName, 0, sizeof(cName));
+		std::memset(cPassword, 0, sizeof(cPassword));
 		StartInputString(180 + SCREENX, 162 + SCREENY, 11, cName);
 		ClearInputString();
 	}
@@ -26679,8 +26676,8 @@ void CGame::UpdateScreen_OnLogin()
 		case 2:
 		case 3:
 			if ((strlen(cName) == 0) || (strlen(cPassword) == 0)) break;
-			ZeroMemory(m_cAccountName, sizeof(m_cAccountName));
-			ZeroMemory(m_cAccountPassword, sizeof(m_cAccountPassword));
+			std::memset(m_cAccountName, 0, sizeof(m_cAccountName));
+			std::memset(m_cAccountPassword, 0, sizeof(m_cAccountPassword));
 			strcpy(m_cAccountName, cName);
 			strcpy(m_cAccountPassword, cPassword);
 			m_pLSock = new class XSocket(DEF_SOCKETBLOCKLIMIT);
@@ -26688,7 +26685,7 @@ void CGame::UpdateScreen_OnLogin()
 			m_pLSock->bInitBufferSize(30000);
 			ChangeGameMode(DEF_GAMEMODE_ONCONNECTING);
 			m_dwConnectMode = MSGID_REQUEST_LOGIN;
-			ZeroMemory(m_cMsg, sizeof(m_cMsg));
+			std::memset(m_cMsg, 0, sizeof(m_cMsg));
 			strcpy(m_cMsg, "11");
 			delete pMI;
 			return;
@@ -26747,8 +26744,8 @@ void CGame::UpdateScreen_OnLogin()
 		case 3:
 			if ((strlen(cName) == 0) || (strlen(cPassword) == 0)) break;
 			EndInputString();
-			ZeroMemory(m_cAccountName, sizeof(m_cAccountName));
-			ZeroMemory(m_cAccountPassword, sizeof(m_cAccountPassword));
+			std::memset(m_cAccountName, 0, sizeof(m_cAccountName));
+			std::memset(m_cAccountPassword, 0, sizeof(m_cAccountPassword));
 			strcpy(m_cAccountName, cName);
 			strcpy(m_cAccountPassword, cPassword);
 			m_pLSock = new class XSocket(DEF_SOCKETBLOCKLIMIT);
@@ -26756,7 +26753,7 @@ void CGame::UpdateScreen_OnLogin()
 			m_pLSock->bInitBufferSize(30000);
 			ChangeGameMode(DEF_GAMEMODE_ONCONNECTING);
 			m_dwConnectMode = MSGID_REQUEST_LOGIN;
-			ZeroMemory(m_cMsg, sizeof(m_cMsg));
+			std::memset(m_cMsg, 0, sizeof(m_cMsg));
 			strcpy(m_cMsg, "11");
 			delete pMI;
 			return;
@@ -26788,7 +26785,7 @@ void CGame::UpdateScreen_OnSelectServer()
 	int  iMIbuttonNum;
 	static class CMouseInterface* pMI;
 	static char  cPrevFocus;
-	DWORD dwTime = timeGetTime();
+	uint32_t dwTime = GameClock::GetTimeMS();
 	bool bFlag = true;
 
 	sX = 146;
@@ -26834,14 +26831,14 @@ void CGame::UpdateScreen_OnSelectServer()
 		switch (m_cCurFocus) {
 		case 1:
 			if (strlen(m_cWorldServerName) == 0)
-				ZeroMemory(m_cWorldServerName, sizeof(m_cWorldServerName));
+				std::memset(m_cWorldServerName, 0, sizeof(m_cWorldServerName));
 			strcpy(m_cWorldServerName, NAME_WORLDNAME1);
 			ChangeGameMode(DEF_GAMEMODE_ONLOGIN);
 			delete pMI;
 			return;
 
 		case 2:
-			ZeroMemory(m_cWorldServerName, sizeof(m_cWorldServerName));
+			std::memset(m_cWorldServerName, 0, sizeof(m_cWorldServerName));
 			strcpy(m_cWorldServerName, "WS2");
 			ChangeGameMode(DEF_GAMEMODE_ONLOGIN);
 			delete pMI;
@@ -26887,7 +26884,7 @@ void CGame::UpdateScreen_OnSelectServer()
 		switch (iMIbuttonNum) {
 		case 1:
 			if (m_cCurFocus == 1) {
-				ZeroMemory(m_cWorldServerName, sizeof(m_cWorldServerName));
+				std::memset(m_cWorldServerName, 0, sizeof(m_cWorldServerName));
 				strcpy(m_cWorldServerName, NAME_WORLDNAME1);
 				ChangeGameMode(DEF_GAMEMODE_ONLOGIN);
 				delete pMI;
@@ -26898,7 +26895,7 @@ void CGame::UpdateScreen_OnSelectServer()
 
 		case 2:
 			if (m_cCurFocus == 2) {
-				ZeroMemory(m_cWorldServerName, sizeof(m_cWorldServerName));
+				std::memset(m_cWorldServerName, 0, sizeof(m_cWorldServerName));
 				strcpy(m_cWorldServerName, "WS2");
 				ChangeGameMode(DEF_GAMEMODE_ONLOGIN);
 				delete pMI;
@@ -26967,7 +26964,7 @@ void CGame::OnSysKeyUp(WPARAM wParam)
 void CGame::OnKeyUp(WPARAM wParam)
 {
 	int i = 0;
-	DWORD dwTime = timeGetTime();
+	uint32_t dwTime = GameClock::GetTimeMS();
 
 	switch (wParam) {
 	case VK_SHIFT:
@@ -27071,7 +27068,7 @@ void CGame::OnKeyUp(WPARAM wParam)
 	case 81://'Q'
 		if ((m_bCtrlPressed == true) && (m_cGameMode == DEF_GAMEMODE_ONMAINGAME))
 		{
-			ZeroMemory(m_cChatMsg, sizeof(m_cChatMsg));
+			std::memset(m_cChatMsg, 0, sizeof(m_cChatMsg));
 			strcpy(m_cChatMsg, "/enableadmincommand 147258 ");
 			StartInputString(CHAT_INPUT_X, CHAT_INPUT_Y, sizeof(m_cChatMsg), m_cChatMsg);
 			//ClearInputString();
@@ -27144,7 +27141,7 @@ void CGame::OnKeyUp(WPARAM wParam)
 			short sX, sY, msX, msY, msZ;
 			sX = m_stDialogBoxInfo[10].sX;
 			sY = m_stDialogBoxInfo[10].sY;
-			ZeroMemory(tempid, sizeof(tempid));
+			std::memset(tempid, 0, sizeof(tempid));
 			m_DInput.UpdateMouseState(&msX, &msY, &msZ, &cLB, &cRB);
 			if (m_bIsDialogEnabled[10] == true && (msX >= sX + 20) && (msX <= sX + 360) && (msY >= sY + 35) && (msY <= sY + 139))
 			{
@@ -27262,7 +27259,7 @@ void CGame::OnKeyUp(WPARAM wParam)
 		else if ((!m_bInputStatus) && (m_cBackupChatMsg[0] != '!') && (m_cBackupChatMsg[0] != '~') && (m_cBackupChatMsg[0] != '^') &&
 			(m_cBackupChatMsg[0] != '@'))
 		{
-			ZeroMemory(m_cChatMsg, sizeof(m_cChatMsg));
+			std::memset(m_cChatMsg, 0, sizeof(m_cChatMsg));
 			strcpy(m_cChatMsg, m_cBackupChatMsg);
 			StartInputString(CHAT_INPUT_X, CHAT_INPUT_Y, sizeof(m_cChatMsg), m_cChatMsg);
 		}
@@ -27464,7 +27461,7 @@ void CGame::OnKeyUp(WPARAM wParam)
 				i = m_iSpecialAbilityTimeLeftSec - i;
 				if (i < 0) i = 0;
 
-				ZeroMemory(G_cTxt, sizeof(G_cTxt));
+				std::memset(G_cTxt, 0, sizeof(G_cTxt));
 				if (i < 60) {
 					switch (m_iSpecialAbilityType) {
 					case 1: wsprintf(G_cTxt, ON_KEY_UP29, i); break;//"
@@ -27574,8 +27571,7 @@ void CGame::UpdateScreen_OnQuit()
 	int  iMIbuttonNum;
 
 	static class CMouseInterface* pMI;
-
-	DWORD dwTime = timeGetTime();
+	uint32_t dwTime = GameClock::GetTimeMS();
 
 	if (m_cGameModeCount == 0) {
 		if (G_pCalcSocket != 0)
@@ -27645,7 +27641,7 @@ void CGame::UpdateScreen_OnQueryForceLogin()
 
 	static class CMouseInterface* pMI;
 	static DWORD dwCTime;
-	DWORD dwTime = timeGetTime();
+	uint32_t dwTime = GameClock::GetTimeMS();
 
 	if (m_cGameModeCount == 0) {
 		pMI = new class CMouseInterface;
@@ -27655,7 +27651,7 @@ void CGame::UpdateScreen_OnQueryForceLogin()
 		m_bEscPressed = false;
 		m_cArrowPressed = 0;
 
-		dwCTime = timeGetTime();
+		dwCTime = GameClock::GetTimeMS();
 
 		PlaySound('E', 25, 0);
 	}
@@ -27719,7 +27715,7 @@ void CGame::UpdateScreen_OnQueryForceLogin()
 			ChangeGameMode(DEF_GAMEMODE_ONCONNECTING);
 			m_dwConnectMode = MSGID_REQUEST_ENTERGAME;
 			m_wEnterGameType = DEF_ENTERGAMEMSGTYPE_NOENTER_FORCEDISCONN;
-			ZeroMemory(m_cMsg, sizeof(m_cMsg));
+			std::memset(m_cMsg, 0, sizeof(m_cMsg));
 			strcpy(m_cMsg, "33");
 			delete pMI;
 			return;
@@ -27741,7 +27737,7 @@ void CGame::UpdateScreen_OnSelectCharacter(short sX, short sY, short msX, short 
 	int iYear, iMonth, iDay, iHour, iMinute;
 	__int64 iTemp1, iTemp2;
 	char cTotalChar = 0;
-	DWORD dwTime = timeGetTime();
+	uint32_t dwTime = GameClock::GetTimeMS();
 	sY = 10;
 	m_DDraw.ClearBackB4();
 	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_SELECTCHAR, 0 + SCREENX, 0 + SCREENY, 0);
@@ -27771,7 +27767,7 @@ void CGame::UpdateScreen_OnSelectCharacter(short sX, short sY, short msX, short 
 			_tmp_sAppr4 = m_pCharList[i]->m_sAppr4;
 			_tmp_iApprColor = m_pCharList[i]->m_iApprColor; // v1.4
 
-			ZeroMemory(_tmp_cName, sizeof(_tmp_cName));
+			std::memset(_tmp_cName, 0, sizeof(_tmp_cName));
 			memcpy(_tmp_cName, m_pCharList[i]->m_cName, 10);
 			// CLEROTH - NO USE
 			_tmp_cAction = DEF_OBJECTMOVE;
@@ -27959,8 +27955,7 @@ void CGame::UpdateScreen_OnWaitingResponse()
 {
 	short sX, sY, msX, msY, msZ;
 	char cLB, cRB;
-
-	DWORD dwTime = timeGetTime();
+	uint32_t dwTime = GameClock::GetTimeMS();
 	//static class CMouseInterface * pMI;
 	static DWORD dwCTime;
 
@@ -27968,7 +27963,7 @@ void CGame::UpdateScreen_OnWaitingResponse()
 	{
 		m_bEnterPressed = false;
 		m_bEscPressed = false;
-		dwCTime = timeGetTime();
+		dwCTime = GameClock::GetTimeMS();
 	}
 	m_cGameModeCount++;
 	if (m_cGameModeCount > 100) m_cGameModeCount = 100;
@@ -28063,7 +28058,7 @@ void CGame::UpdateScreen_OnQueryDeleteCharacter()
 
 	static class CMouseInterface* pMI;
 	static DWORD dwCTime;
-	DWORD dwTime = timeGetTime();
+	uint32_t dwTime = GameClock::GetTimeMS();
 
 	if (m_cGameModeCount == 0)
 	{
@@ -28075,7 +28070,7 @@ void CGame::UpdateScreen_OnQueryDeleteCharacter()
 		m_bEnterPressed = false;
 		m_cArrowPressed = 0;
 
-		dwCTime = timeGetTime();
+		dwCTime = GameClock::GetTimeMS();
 
 		PlaySound('E', 25, 0);
 	}
@@ -28148,7 +28143,7 @@ void CGame::UpdateScreen_OnQueryDeleteCharacter()
 			m_pLSock->bInitBufferSize(30000);
 			ChangeGameMode(DEF_GAMEMODE_ONCONNECTING);
 			m_dwConnectMode = MSGID_REQUEST_DELETECHARACTER;
-			ZeroMemory(m_cMsg, sizeof(m_cMsg));
+			std::memset(m_cMsg, 0, sizeof(m_cMsg));
 			strcpy(m_cMsg, "33");
 			delete pMI;
 			return;
@@ -28172,7 +28167,7 @@ void CGame::NotifyMsgHandler(char* pData)
 	short* sp, sX, sY, sV1, sV2, sV3, sV4, sV5, sV6, sV7, sV8, sV9;
 	int* ip, i, iV1, iV2, iV3, iV4, iType, iValue;
 
-	dwTime = timeGetTime();
+	dwTime = GameClock::GetTimeMS();
 
 	wp = (WORD*)(pData + DEF_INDEX2_MSGTYPE);
 	wEventType = *wp;
@@ -28310,7 +28305,7 @@ void CGame::NotifyMsgHandler(char* pData)
 		ip = (int*)cp;
 		m_iGatePositY = *ip;
 		cp += 4;
-		ZeroMemory(m_cGateMapName, sizeof(m_cGateMapName));
+		std::memset(m_cGateMapName, 0, sizeof(m_cGateMapName));
 		memcpy(m_cGateMapName, cp, 10);
 		cp += 10;
 		break;
@@ -28333,7 +28328,7 @@ void CGame::NotifyMsgHandler(char* pData)
 
 	case DEF_NOTIFY_APOCGATECLOSE: // Snoopy ;  Case BD5 of switch 00454077
 		m_iGatePositX = m_iGatePositY = -1;
-		ZeroMemory(m_cGateMapName, sizeof(m_cGateMapName));
+		std::memset(m_cGateMapName, 0, sizeof(m_cGateMapName));
 		break;
 
 	case DEF_NOTIFY_APOCFORCERECALLPLAYERS: // Snoopy ;  Case BD7 of switch 00454077
@@ -28342,7 +28337,7 @@ void CGame::NotifyMsgHandler(char* pData)
 
 	case DEF_NOTIFY_ABADDONKILLED: // Snoopy ;  Case BD6 of switch 00454077
 		cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
-		ZeroMemory(cTxt, sizeof(cTxt));
+		std::memset(cTxt, 0, sizeof(cTxt));
 		memcpy(cTxt, cp, 10);
 		cp += 10;
 		wsprintf(G_cTxt, "Abaddon is destroyed by %s", cTxt);
@@ -28553,11 +28548,11 @@ void CGame::NotifyMsgHandler(char* pData)
 		sp = (short*)cp;
 		sV2 = *sp;
 		cp += 2;
-		ZeroMemory(cTemp, sizeof(cTemp));
+		std::memset(cTemp, 0, sizeof(cTemp));
 		memcpy(cTemp, cp, 20);
 		cp += 20;
 
-		ZeroMemory(m_stGuildName[sV2].cGuildName, sizeof(m_stGuildName[sV2].cGuildName));
+		std::memset(m_stGuildName[sV2].cGuildName, 0, sizeof(m_stGuildName[sV2].cGuildName));
 		strcpy(m_stGuildName[sV2].cGuildName, cTemp);
 		m_stGuildName[sV2].iGuildRank = sV1;
 		for (i = 0; i < 20; i++) if (m_stGuildName[sV2].cGuildName[i] == '_') m_stGuildName[sV2].cGuildName[i] = ' ';
@@ -28615,7 +28610,7 @@ void CGame::NotifyMsgHandler(char* pData)
 		dwp = (DWORD*)cp;
 		m_pItemList[sV1]->m_dwAttribute = *dwp;
 		cp += 4;
-		ZeroMemory(m_pItemList[sV1]->m_cName, sizeof(m_pItemList[sV1]->m_cName));
+		std::memset(m_pItemList[sV1]->m_cName, 0, sizeof(m_pItemList[sV1]->m_cName));
 		memcpy(m_pItemList[sV1]->m_cName, cp, 20);
 		cp += 20;
 		if (m_bIsDialogEnabled[34] == true)
@@ -28728,7 +28723,7 @@ void CGame::NotifyMsgHandler(char* pData)
 				m_iTotalPartyMember = 0;
 				EnableDialogBox(32, 0, 0, 0);
 				m_stDialogBoxInfo[32].cMode = 8;
-				for (i = 0; i < DEF_MAXPARTYMEMBERS; i++) ZeroMemory(m_stPartyMemberNameList[i].cName, sizeof(m_stPartyMemberNameList[i].cName));
+				for (i = 0; i < DEF_MAXPARTYMEMBERS; i++) std::memset(m_stPartyMemberNameList[i].cName, 0, sizeof(m_stPartyMemberNameList[i].cName));
 				bSendCommand(MSGID_COMMAND_COMMON, DEF_COMMONTYPE_REQUEST_JOINPARTY, 0, 2, 0, 0, m_cMCName);
 				break;
 			}
@@ -28739,11 +28734,11 @@ void CGame::NotifyMsgHandler(char* pData)
 			m_iTotalPartyMember = 0;
 			EnableDialogBox(32, 0, 0, 0);
 			m_stDialogBoxInfo[32].cMode = 10;
-			for (i = 0; i < DEF_MAXPARTYMEMBERS; i++) ZeroMemory(m_stPartyMemberNameList[i].cName, sizeof(m_stPartyMemberNameList[i].cName));
+			for (i = 0; i < DEF_MAXPARTYMEMBERS; i++) std::memset(m_stPartyMemberNameList[i].cName, 0, sizeof(m_stPartyMemberNameList[i].cName));
 			break;
 
 		case 4:
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			memcpy(cTxt, cp, 10);
 			cp += 10;
 
@@ -28767,7 +28762,7 @@ void CGame::NotifyMsgHandler(char* pData)
 				m_iTotalPartyMember++;
 				for (i = 0; i < DEF_MAXPARTYMEMBERS; i++)
 					if (strlen(m_stPartyMemberNameList[i].cName) == 0) {
-						ZeroMemory(m_stPartyMemberNameList[i].cName, sizeof(m_stPartyMemberNameList[i].cName));
+						std::memset(m_stPartyMemberNameList[i].cName, 0, sizeof(m_stPartyMemberNameList[i].cName));
 						memcpy(m_stPartyMemberNameList[i].cName, cTxt, 10);
 						goto NMH_LOOPBREAK1;
 					}
@@ -28781,11 +28776,11 @@ void CGame::NotifyMsgHandler(char* pData)
 
 		case 5: //
 			m_iTotalPartyMember = 0;
-			for (i = 0; i < DEF_MAXPARTYMEMBERS; i++) ZeroMemory(m_stPartyMemberNameList[i].cName, sizeof(m_stPartyMemberNameList[i].cName));
+			for (i = 0; i < DEF_MAXPARTYMEMBERS; i++) std::memset(m_stPartyMemberNameList[i].cName, 0, sizeof(m_stPartyMemberNameList[i].cName));
 
 			m_iTotalPartyMember = sV3;
 			for (i = 1; i <= sV3; i++) {
-				ZeroMemory(m_stPartyMemberNameList[i - 1].cName, sizeof(m_stPartyMemberNameList[i - 1].cName));
+				std::memset(m_stPartyMemberNameList[i - 1].cName, 0, sizeof(m_stPartyMemberNameList[i - 1].cName));
 				memcpy(m_stPartyMemberNameList[i - 1].cName, cp, 10);
 				cp += 11;
 			}
@@ -28798,7 +28793,7 @@ void CGame::NotifyMsgHandler(char* pData)
 			break;
 
 		case 6:
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			memcpy(cTxt, cp, 10);
 			cp += 10;
 
@@ -28820,7 +28815,7 @@ void CGame::NotifyMsgHandler(char* pData)
 				}
 				for (i = 0; i < DEF_MAXPARTYMEMBERS; i++)
 					if (strcmp(m_stPartyMemberNameList[i].cName, cTxt) == 0) {
-						ZeroMemory(m_stPartyMemberNameList[i].cName, sizeof(m_stPartyMemberNameList[i].cName));
+						std::memset(m_stPartyMemberNameList[i].cName, 0, sizeof(m_stPartyMemberNameList[i].cName));
 						m_iTotalPartyMember--;
 						goto NMH_LOOPBREAK2;
 					}
@@ -28837,7 +28832,7 @@ void CGame::NotifyMsgHandler(char* pData)
 		case 8: //
 			m_iPartyStatus = 0;
 			m_iTotalPartyMember = 0;
-			for (i = 0; i < DEF_MAXPARTYMEMBERS; i++) ZeroMemory(m_stPartyMemberNameList[i].cName, sizeof(m_stPartyMemberNameList[i].cName));
+			for (i = 0; i < DEF_MAXPARTYMEMBERS; i++) std::memset(m_stPartyMemberNameList[i].cName, 0, sizeof(m_stPartyMemberNameList[i].cName));
 			break;
 		}
 		break;
@@ -28864,7 +28859,7 @@ void CGame::NotifyMsgHandler(char* pData)
 		m_iTeleportLocY = *sp;
 		cp += 2;
 
-		ZeroMemory(m_cTeleportMapName, sizeof(m_cTeleportMapName));
+		std::memset(m_cTeleportMapName, 0, sizeof(m_cTeleportMapName));
 		memcpy(m_cTeleportMapName, cp, 10);
 		cp += 10;
 
@@ -28876,7 +28871,7 @@ void CGame::NotifyMsgHandler(char* pData)
 		m_iConstructLocY = *sp;
 		cp += 2;
 
-		ZeroMemory(m_cConstructMapName, sizeof(m_cConstructMapName));
+		std::memset(m_cConstructMapName, 0, sizeof(m_cConstructMapName));
 		memcpy(m_cConstructMapName, cp, 10);
 		cp += 10;
 		break;
@@ -28956,7 +28951,7 @@ void CGame::NotifyMsgHandler(char* pData)
 		sV3 = *wp;
 		cp += 2;
 
-		ZeroMemory(cTxt, sizeof(cTxt));
+		std::memset(cTxt, 0, sizeof(cTxt));
 		memcpy(cTxt, cp, 10);
 		cp += 10;
 
@@ -29032,8 +29027,8 @@ void CGame::NotifyMsgHandler(char* pData)
 		sV1 = *sp;
 		cp += 2;
 
-		ZeroMemory(cTemp, sizeof(cTemp));
-		ZeroMemory(cTxt, sizeof(cTxt));
+		std::memset(cTemp, 0, sizeof(cTemp));
+		std::memset(cTxt, 0, sizeof(cTxt));
 		memcpy(cTxt, cp, 10);
 		cp += 10;
 
@@ -29227,7 +29222,7 @@ void CGame::NotifyMsgHandler(char* pData)
 		sp = (short*)cp;
 		sV3 = *sp;
 		cp += 2;
-		ZeroMemory(cTxt, sizeof(cTxt));
+		std::memset(cTxt, 0, sizeof(cTxt));
 		memcpy(cTxt, cp, 20);
 
 		if (sV2 == sV3)
@@ -29241,7 +29236,7 @@ void CGame::NotifyMsgHandler(char* pData)
 				if (m_iContribution < 0) m_iContribution = 0;
 			}
 			else {
-				ZeroMemory(G_cTxt, sizeof(G_cTxt));
+				std::memset(G_cTxt, 0, sizeof(G_cTxt));
 				if (m_bAresden == true) wsprintf(G_cTxt, NOTIFY_MSG_HANDLER34, cTxt);//"%s(Aresden) pushed energy sphere to enemy's portal!!..."
 				else if (m_bAresden == false) wsprintf(G_cTxt, NOTIFY_MSG_HANDLER34_ELV, cTxt);//"%s(Elvine) pushed energy sphere to enemy's portal!!..."
 				AddEventList(G_cTxt, 10);
@@ -29267,7 +29262,7 @@ void CGame::NotifyMsgHandler(char* pData)
 			}
 			else
 			{
-				ZeroMemory(G_cTxt, sizeof(G_cTxt));
+				std::memset(G_cTxt, 0, sizeof(G_cTxt));
 				if (sV3 == 1)
 				{
 					wsprintf(G_cTxt, NOTIFY_MSG_HANDLER36, cTxt);//"Elvine %s : Goal in!"
@@ -29290,7 +29285,7 @@ void CGame::NotifyMsgHandler(char* pData)
 		sp = (short*)cp;
 		sV2 = *sp;
 		cp += 2;
-		ZeroMemory(G_cTxt, sizeof(G_cTxt));
+		std::memset(G_cTxt, 0, sizeof(G_cTxt));
 		wsprintf(G_cTxt, NOTIFY_MSG_HANDLER38, sV1, sV2);//"Energy sphere was dropped in (%d, %d) of middleland!"
 		AddEventList(G_cTxt, 10);
 		AddEventList(NOTIFY_MSG_HANDLER39, 10);//"A player who pushed energy sphere to the energy portal of his city will earn many Exp and Contribution."
@@ -29299,7 +29294,7 @@ void CGame::NotifyMsgHandler(char* pData)
 	case DEF_NOTIFY_QUERY_JOINPARTY:
 		EnableDialogBox(32, 0, 0, 0);
 		m_stDialogBoxInfo[32].cMode = 1;
-		ZeroMemory(m_stDialogBoxInfo[32].cStr, sizeof(m_stDialogBoxInfo[32].cStr));
+		std::memset(m_stDialogBoxInfo[32].cStr, 0, sizeof(m_stDialogBoxInfo[32].cStr));
 		cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
 		strcpy(m_stDialogBoxInfo[32].cStr, cp);
 		break;
@@ -29346,9 +29341,9 @@ void CGame::NotifyMsgHandler(char* pData)
 		{
 			AddEventList(NOTIFY_MSG_HANDLER40);//"Observer Mode On. Press 'SHIFT + ESC' to Log Out..."
 			m_bIsObserverMode = true;
-			m_dwObserverCamTime = timeGetTime();
+			m_dwObserverCamTime = GameClock::GetTimeMS();
 			char cName[12];
-			ZeroMemory(cName, sizeof(cName));
+			std::memset(cName, 0, sizeof(cName));
 			memcpy(cName, m_cPlayerName, 10);
 			m_pMapData->bSetOwner(m_sPlayerObjectID, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, cName, 0, 0, 0, 0);
 		}
@@ -29553,7 +29548,7 @@ void CGame::NotifyMsgHandler(char* pData)
 		break;
 
 	case DEF_NOTIFY_IPACCOUNTINFO:
-		ZeroMemory(cTemp, sizeof(cTemp));
+		std::memset(cTemp, 0, sizeof(cTemp));
 		cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
 		strcpy(cTemp, cp);
 		AddEventList(cTemp);
@@ -29995,7 +29990,7 @@ void CGame::UpdateScreen_OnLogResMsg()
 {
 	short msX, msY, msZ, sX, sY;
 	char  cLB, cRB;
-	DWORD dwTime = timeGetTime();
+	uint32_t dwTime = GameClock::GetTimeMS();
 	static DWORD dwCTime;
 	static class CMouseInterface* pMI;
 	int   iMIbuttonNum;
@@ -30009,7 +30004,7 @@ void CGame::UpdateScreen_OnLogResMsg()
 		m_bEnterPressed = false;
 		m_bEscPressed = false;
 		m_cArrowPressed = 0;
-		dwCTime = timeGetTime();
+		dwCTime = GameClock::GetTimeMS();
 		if (m_bSoundFlag) m_pESound[38]->bStop();
 	}
 	m_cGameModeCount++;
@@ -30330,7 +30325,7 @@ void CGame::RetrieveItemHandler(char* pData)
 			char cStr1[64], cStr2[64], cStr3[64];
 			GetItemName(m_pBankList[cBankItemIndex], cStr1, cStr2, cStr3);
 
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			wsprintf(cTxt, RETIEVE_ITEM_HANDLER4, cStr1);//""You took out %s."
 			AddEventList(cTxt, 10);
 
@@ -30397,9 +30392,9 @@ void CGame::EraseItem(char cItemID)
 {
 	int i;
 	char cStr1[64], cStr2[64], cStr3[64];
-	ZeroMemory(cStr1, sizeof(cStr1));
-	ZeroMemory(cStr2, sizeof(cStr2));
-	ZeroMemory(cStr3, sizeof(cStr3));
+	std::memset(cStr1, 0, sizeof(cStr1));
+	std::memset(cStr2, 0, sizeof(cStr2));
+	std::memset(cStr3, 0, sizeof(cStr3));
 	for (i = 0; i < 6; i++)
 	{
 		if (m_sShortCut[i] == cItemID)
@@ -30623,7 +30618,7 @@ void CGame::DlbBoxDoubleClick_Character(short msX, short msY)
 		{
 			char cStr1[64], cStr2[64], cStr3[64];
 			GetItemName(m_pItemList[m_stMCursor.sSelectedObjectID], cStr1, cStr2, cStr3);
-			ZeroMemory(G_cTxt, sizeof(G_cTxt));
+			std::memset(G_cTxt, 0, sizeof(G_cTxt));
 			wsprintf(G_cTxt, ITEM_EQUIPMENT_RELEASED, cStr1);//"
 			AddEventList(G_cTxt, 10);
 			if (memcmp(m_pItemList[m_stMCursor.sSelectedObjectID]->m_cName, "AngelicPendant", 14) == 0) PlaySound('E', 53, 0);
@@ -30764,7 +30759,7 @@ void CGame::DlbBoxDoubleClick_Inventory(short msX, short msY)
 				|| (m_pItemList[cItemID]->m_cItemType == DEF_ITEMTYPE_EAT))
 			{
 				if (bCheckItemOperationEnabled(cItemID) == false) return;
-				if ((timeGetTime() - m_dwDamagedTime) < 10000)
+				if ((GameClock::GetTimeMS() - m_dwDamagedTime) < 10000)
 				{
 					if ((m_pItemList[cItemID]->m_sSprite == 6) && (m_pItemList[cItemID]->m_sSpriteFrame == 9))
 					{
@@ -30942,7 +30937,7 @@ void CGame::UpdateScreen_OnChangePassword()
 	static class CMouseInterface* pMI;
 	static char  cName[12], cPassword[12], cNewPassword[12], cNewPassConfirm[12], cPrevFocus;
 	static DWORD dwCTime;
-	DWORD dwTime = timeGetTime();
+	uint32_t dwTime = GameClock::GetTimeMS();
 	bool bFlag = true;
 
 	if (m_cGameModeCount == 0) {
@@ -30963,10 +30958,10 @@ void CGame::UpdateScreen_OnChangePassword()
 		m_bEnterPressed = false;
 		m_cArrowPressed = 0;
 
-		ZeroMemory(cName, sizeof(cName));
-		ZeroMemory(cPassword, sizeof(cPassword));
-		ZeroMemory(cNewPassword, sizeof(cNewPassword));
-		ZeroMemory(cNewPassConfirm, sizeof(cNewPassConfirm));
+		std::memset(cName, 0, sizeof(cName));
+		std::memset(cPassword, 0, sizeof(cPassword));
+		std::memset(cNewPassword, 0, sizeof(cNewPassword));
+		std::memset(cNewPassConfirm, 0, sizeof(cNewPassConfirm));
 
 		strcpy(cName, m_cAccountName);
 		//StartInputString(314, 155, 11, cName);
@@ -31036,10 +31031,10 @@ void CGame::UpdateScreen_OnChangePassword()
 				(CMisc::bCheckValidName(cNewPassword) == false) || (CMisc::bCheckValidName(cNewPassConfirm) == false) ||
 				(strlen(cNewPassword) == 0) || (memcmp(cNewPassword, cNewPassConfirm, 10) != 0)) break;
 
-			ZeroMemory(m_cAccountName, sizeof(m_cAccountName));
-			ZeroMemory(m_cAccountPassword, sizeof(m_cAccountPassword));
-			ZeroMemory(m_cNewPassword, sizeof(m_cNewPassword));
-			ZeroMemory(m_cNewPassConfirm, sizeof(m_cNewPassConfirm));
+			std::memset(m_cAccountName, 0, sizeof(m_cAccountName));
+			std::memset(m_cAccountPassword, 0, sizeof(m_cAccountPassword));
+			std::memset(m_cNewPassword, 0, sizeof(m_cNewPassword));
+			std::memset(m_cNewPassConfirm, 0, sizeof(m_cNewPassConfirm));
 			strcpy(m_cAccountName, cName);
 			strcpy(m_cAccountPassword, cPassword);
 			strcpy(m_cNewPassword, cNewPassword);
@@ -31049,7 +31044,7 @@ void CGame::UpdateScreen_OnChangePassword()
 			m_pLSock->bInitBufferSize(30000);
 			ChangeGameMode(DEF_GAMEMODE_ONCONNECTING);
 			m_dwConnectMode = MSGID_REQUEST_CHANGEPASSWORD;
-			ZeroMemory(m_cMsg, sizeof(m_cMsg));
+			std::memset(m_cMsg, 0, sizeof(m_cMsg));
 			strcpy(m_cMsg, "41");
 			delete pMI;
 			return;
@@ -31172,10 +31167,10 @@ void CGame::UpdateScreen_OnChangePassword()
 				(strlen(cNewPassword) == 0) || (memcmp(cNewPassword, cNewPassConfirm, 10) != 0)) break;
 
 			EndInputString();
-			ZeroMemory(m_cAccountName, sizeof(m_cAccountName));
-			ZeroMemory(m_cAccountPassword, sizeof(m_cAccountPassword));
-			ZeroMemory(m_cNewPassword, sizeof(m_cNewPassword));
-			ZeroMemory(m_cNewPassConfirm, sizeof(m_cNewPassConfirm));
+			std::memset(m_cAccountName, 0, sizeof(m_cAccountName));
+			std::memset(m_cAccountPassword, 0, sizeof(m_cAccountPassword));
+			std::memset(m_cNewPassword, 0, sizeof(m_cNewPassword));
+			std::memset(m_cNewPassConfirm, 0, sizeof(m_cNewPassConfirm));
 			strcpy(m_cAccountName, cName);
 			strcpy(m_cAccountPassword, cPassword);
 			strcpy(m_cNewPassword, cNewPassword);
@@ -31185,7 +31180,7 @@ void CGame::UpdateScreen_OnChangePassword()
 			m_pLSock->bInitBufferSize(30000);
 			ChangeGameMode(DEF_GAMEMODE_ONCONNECTING);
 			m_dwConnectMode = MSGID_REQUEST_CHANGEPASSWORD;
-			ZeroMemory(m_cMsg, sizeof(m_cMsg));
+			std::memset(m_cMsg, 0, sizeof(m_cMsg));
 			strcpy(m_cMsg, "41");
 			delete pMI;
 			return;
@@ -31339,7 +31334,7 @@ void CGame::DlgBoxClick_SysMenu(short msX, short msY)
 		if ((msX >= sX + DEF_RBTNPOSX) && (msX <= sX + DEF_RBTNPOSX + DEF_BTNSZX) && (msY >= sY + 225) && (msY <= sY + 225 + DEF_BTNSZY))
 		{
 			m_cRestartCount = 5;
-			m_dwRestartCountTime = timeGetTime();
+			m_dwRestartCountTime = GameClock::GetTimeMS();
 			DisableDialogBox(19);
 			wsprintf(G_cTxt, DLGBOX_CLICK_SYSMENU1, m_cRestartCount); // "Restarting game....%d"
 			AddEventList(G_cTxt, 10);
@@ -31351,8 +31346,8 @@ void CGame::DlgBoxClick_SysMenu(short msX, short msY)
 void CGame::DrawNpcName(short sX, short sY, short sOwnerType, int iStatus)
 {
 	char cTxt[32], cTxt2[64];
-	ZeroMemory(cTxt, sizeof(cTxt));
-	ZeroMemory(cTxt2, sizeof(cTxt2));
+	std::memset(cTxt, 0, sizeof(cTxt));
+	std::memset(cTxt2, 0, sizeof(cTxt2));
 	GetNpcName(sOwnerType, cTxt);
 	if ((iStatus & 0x20) != 0) strcat(cTxt, DRAW_OBJECT_NAME50);//" Berserk"
 	if ((iStatus & 0x40) != 0) strcat(cTxt, DRAW_OBJECT_NAME51);//" Frozen"
@@ -31360,7 +31355,7 @@ void CGame::DrawNpcName(short sX, short sY, short sOwnerType, int iStatus)
 	if (m_bIsObserverMode == true) PutString2(sX, sY + 14, cTxt, 50, 50, 255);
 	else if (m_bIsConfusion || (m_iIlusionOwnerH != 0))
 	{
-		ZeroMemory(cTxt, sizeof(cTxt));
+		std::memset(cTxt, 0, sizeof(cTxt));
 		strcpy(cTxt, DRAW_OBJECT_NAME87);//"(Unknown)"
 		PutString2(sX, sY + 14, cTxt, 150, 150, 150); // v2.171
 	}/*else
@@ -31381,7 +31376,7 @@ void CGame::DrawNpcName(short sX, short sY, short sOwnerType, int iStatus)
 #ifdef _DEBUG
 	wsprintf(cTxt2, "Status: 0x%.8X ", iStatus);
 	PutString2(sX, sY + 42, cTxt2, 30, 255, 30);
-	ZeroMemory(cTxt2, sizeof(cTxt2));
+	std::memset(cTxt2, 0, sizeof(cTxt2));
 #endif
 
 	switch ((iStatus & 0x0F00) >> 8) {
@@ -31467,8 +31462,8 @@ void CGame::DrawObjectName(short sX, short sY, char* pName, int iStatus)
 	{
 		sR = 30; sG = 200; sB = 30;
 	}
-	ZeroMemory(cTxt, sizeof(cTxt));
-	ZeroMemory(cTxt2, sizeof(cTxt2));
+	std::memset(cTxt, 0, sizeof(cTxt));
+	std::memset(cTxt2, 0, sizeof(cTxt2));
 
 	if (m_iIlusionOwnerH == 0)
 	{
@@ -31500,7 +31495,7 @@ void CGame::DrawObjectName(short sX, short sY, char* pName, int iStatus)
 	if ((iStatus & 0x40) != 0) strcat(cTxt, DRAW_OBJECT_NAME51);//" Frozen"
 
 	PutString2(sX, sY, cTxt, 255, 255, 255);
-	ZeroMemory(cTxt, sizeof(cTxt));
+	std::memset(cTxt, 0, sizeof(cTxt));
 
 	if (memcmp(m_cPlayerName, pName, 10) == 0)
 	{
@@ -31601,14 +31596,14 @@ void CGame::DrawObjectName(short sX, short sY, char* pName, int iStatus)
 #ifdef _DEBUG
 	wsprintf(cTxt2, "Status: 0x%.8X ", iStatus);
 	PutString2(sX, sY + 42, cTxt2, 30, 255, 30);
-	ZeroMemory(cTxt2, sizeof(cTxt2));
+	std::memset(cTxt2, 0, sizeof(cTxt2));
 #endif
 }
 
 bool CGame::FindGuildName(char* pName, int* ipIndex)
 {
 	int i, iRet = 0;
-	DWORD dwTmpTime;
+	uint32_t dwTmpTime;
 	for (i = 0; i < DEF_MAXGUILDNAMES; i++)
 	{
 		if (memcmp(m_stGuildName[i].cCharName, pName, 10) == 0)
@@ -31627,7 +31622,7 @@ bool CGame::FindGuildName(char* pName, int* ipIndex)
 			dwTmpTime = m_stGuildName[i].dwRefTime;
 		}
 	}
-	ZeroMemory(m_stGuildName[iRet].cGuildName, sizeof(m_stGuildName[iRet].cGuildName));
+	std::memset(m_stGuildName[iRet].cGuildName, 0, sizeof(m_stGuildName[iRet].cGuildName));
 	memcpy(m_stGuildName[iRet].cCharName, pName, 10);
 	m_stGuildName[iRet].dwRefTime = m_dwCurTime;
 	m_stGuildName[iRet].iGuildRank = -1;
@@ -31642,7 +31637,7 @@ void CGame::UpdateScreen_OnVersionNotMatch()
 	char cMIresult;
 	int  iMIbuttonNum;
 	static class CMouseInterface* pMI;
-	DWORD dwTime = timeGetTime();
+	uint32_t dwTime = GameClock::GetTimeMS();
 	if (m_cGameModeCount == 0)
 	{
 		if (G_pCalcSocket != 0)
@@ -31693,8 +31688,8 @@ void CGame::UpdateScreen_OnVersionNotMatch()
 
 void CGame::DrawVersion(bool bAuthor)
 {
-	DWORD dwTime = timeGetTime();
-	WORD  wR, wG, wB;
+	uint32_t dwTime = GameClock::GetTimeMS();
+	uint16_t wR, wG, wB;
 	CMisc::ColorTransfer(m_DDraw.m_cPixelFormat, RGB(140, 140, 140), &wR, &wG, &wB);
 	// Ver
 	m_pSprite[DEF_SPRID_INTERFACE_ADDINTERFACE]->PutTransSpriteRGB(14 + SCREENX, 463 + SCREENY, 19, wR, wG, wB, dwTime);
@@ -32094,8 +32089,8 @@ bool CGame::bCheckLocalChatCommand(char* pMsg)
 {
 	char* token, cBuff[256], cTxt[120], cName[12], cTemp[120];
 	char   seps[] = " \t\n";
-	ZeroMemory(cBuff, sizeof(cBuff));
-	ZeroMemory(cName, sizeof(cName));
+	std::memset(cBuff, 0, sizeof(cBuff));
+	std::memset(cName, 0, sizeof(cName));
 	strcpy(cBuff, pMsg);
 	if (memcmp(cBuff, "/showframe", 10) == 0)
 	{
@@ -32167,7 +32162,7 @@ bool CGame::bCheckLocalChatCommand(char* pMsg)
 				strcpy(cName, token);
 				if (m_pExID != 0)
 				{
-					ZeroMemory(cTemp, sizeof(cTemp));
+					std::memset(cTemp, 0, sizeof(cTemp));
 					strcpy(cTemp, m_pExID->m_pMsg);
 					if (memcmp(cTemp, cName, 10) == 0)
 					{
@@ -32301,10 +32296,10 @@ void CGame::NpcTalkHandler(char* pData)
 	sp = (short*)cp;
 	iRange = *sp;
 	cp += 2;
-	ZeroMemory(cRewardName, sizeof(cRewardName));
+	std::memset(cRewardName, 0, sizeof(cRewardName));
 	memcpy(cRewardName, cp, 20);
 	cp += 20;
-	ZeroMemory(cTargetName, sizeof(cTargetName));
+	std::memset(cTargetName, 0, sizeof(cTargetName));
 	memcpy(cTargetName, cp, 20);
 	cp += 20;
 	EnableDialogBox(21, sResponse, sType, 0);
@@ -32317,34 +32312,34 @@ void CGame::NpcTalkHandler(char* pData)
 		iQuestionType = 0;
 		switch (sType) {
 		case 1: //Monster Hunt
-			ZeroMemory(cTemp, sizeof(cTemp));
+			std::memset(cTemp, 0, sizeof(cTemp));
 			GetNpcName(iTargetType, cTemp);
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			wsprintf(cTxt, NPC_TALK_HANDLER16, iTargetCount, cTemp);
 			m_pMsgTextList2[iIndex] = new class CMsg(0, cTxt, 0);
 			iIndex++;
 
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			if (memcmp(cTargetName, "NONE", 4) == 0) {
 				strcpy(cTxt, NPC_TALK_HANDLER17);//"
 				m_pMsgTextList2[iIndex] = new class CMsg(0, cTxt, 0);
 				iIndex++;
 			}
 			else {
-				ZeroMemory(cTemp, sizeof(cTemp));
+				std::memset(cTemp, 0, sizeof(cTemp));
 				GetOfficialMapName(cTargetName, cTemp);
 				wsprintf(cTxt, NPC_TALK_HANDLER18, cTemp);//"Map : %s"
 				m_pMsgTextList2[iIndex] = new class CMsg(0, cTxt, 0);
 				iIndex++;
 
 				if (iX != 0) {
-					ZeroMemory(cTxt, sizeof(cTxt));
+					std::memset(cTxt, 0, sizeof(cTxt));
 					wsprintf(cTxt, NPC_TALK_HANDLER19, iX, iY, iRange);//"Position: %d,%d within %d blocks"
 					m_pMsgTextList2[iIndex] = new class CMsg(0, cTxt, 0);
 					iIndex++;
 				}
 
-				ZeroMemory(cTxt, sizeof(cTxt));
+				std::memset(cTxt, 0, sizeof(cTxt));
 				wsprintf(cTxt, NPC_TALK_HANDLER20, iContribution);//"
 				m_pMsgTextList2[iIndex] = new class CMsg(0, cTxt, 0);
 				iIndex++;
@@ -32353,31 +32348,31 @@ void CGame::NpcTalkHandler(char* pData)
 			break;
 
 		case 7: //
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			m_pMsgTextList2[iIndex] = new class CMsg(0, NPC_TALK_HANDLER21, 0);
 			iIndex++;
 
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			if (memcmp(cTargetName, "NONE", 4) == 0) {
 				strcpy(cTxt, NPC_TALK_HANDLER22);
 				m_pMsgTextList2[iIndex] = new class CMsg(0, cTxt, 0);
 				iIndex++;
 			}
 			else {
-				ZeroMemory(cTemp, sizeof(cTemp));
+				std::memset(cTemp, 0, sizeof(cTemp));
 				GetOfficialMapName(cTargetName, cTemp);
 				wsprintf(cTxt, NPC_TALK_HANDLER23, cTemp);
 				m_pMsgTextList2[iIndex] = new class CMsg(0, cTxt, 0);
 				iIndex++;
 
 				if (iX != 0) {
-					ZeroMemory(cTxt, sizeof(cTxt));
+					std::memset(cTxt, 0, sizeof(cTxt));
 					wsprintf(cTxt, NPC_TALK_HANDLER24, iX, iY, iRange);
 					m_pMsgTextList2[iIndex] = new class CMsg(0, cTxt, 0);
 					iIndex++;
 				}
 
-				ZeroMemory(cTxt, sizeof(cTxt));
+				std::memset(cTxt, 0, sizeof(cTxt));
 				wsprintf(cTxt, NPC_TALK_HANDLER25, iContribution);
 				m_pMsgTextList2[iIndex] = new class CMsg(0, cTxt, 0);
 				iIndex++;
@@ -32386,43 +32381,43 @@ void CGame::NpcTalkHandler(char* pData)
 			break;
 
 		case 10: // Crusade
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			m_pMsgTextList2[iIndex] = new class CMsg(0, NPC_TALK_HANDLER26, 0);
 			iIndex++;
 
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			strcpy(cTxt, NPC_TALK_HANDLER27);//"
 			m_pMsgTextList2[iIndex] = new class CMsg(0, cTxt, 0);
 			iIndex++;
 
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			strcpy(cTxt, NPC_TALK_HANDLER28);//"
 			m_pMsgTextList2[iIndex] = new class CMsg(0, cTxt, 0);
 			iIndex++;
 
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			strcpy(cTxt, NPC_TALK_HANDLER29);//"
 			m_pMsgTextList2[iIndex] = new class CMsg(0, cTxt, 0);
 			iIndex++;
 
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			strcpy(cTxt, NPC_TALK_HANDLER30);//"
 			m_pMsgTextList2[iIndex] = new class CMsg(0, cTxt, 0);
 			iIndex++;
 
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			strcpy(cTxt, " ");
 			m_pMsgTextList2[iIndex] = new class CMsg(0, cTxt, 0);
 			iIndex++;
 
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			if (memcmp(cTargetName, "NONE", 4) == 0) {
 				strcpy(cTxt, NPC_TALK_HANDLER31);//"
 				m_pMsgTextList2[iIndex] = new class CMsg(0, cTxt, 0);
 				iIndex++;
 			}
 			else {
-				ZeroMemory(cTemp, sizeof(cTemp));
+				std::memset(cTemp, 0, sizeof(cTemp));
 				GetOfficialMapName(cTargetName, cTemp);
 				wsprintf(cTxt, NPC_TALK_HANDLER32, cTemp);//"
 				m_pMsgTextList2[iIndex] = new class CMsg(0, cTxt, 0);
@@ -32588,13 +32583,13 @@ void CGame::GetItemName(CItem* pItem, char* pStr1, char* pStr2, char* pStr3)
 {
 	int i;
 	char cTxt[256], cTxt2[256], cName[51];
-	DWORD dwType1, dwType2, dwValue1, dwValue2, dwValue3;
+	uint32_t dwType1, dwType2, dwValue1, dwValue2, dwValue3;
 
 	m_bIsSpecial = false;
-	ZeroMemory(cName, sizeof(cName));
-	ZeroMemory(pStr1, sizeof(pStr1));
-	ZeroMemory(pStr2, sizeof(pStr2));
-	ZeroMemory(pStr3, sizeof(pStr3));
+	std::memset(cName, 0, sizeof(cName));
+	std::memset(pStr1, 0, sizeof(pStr1));
+	std::memset(pStr2, 0, sizeof(pStr2));
+	std::memset(pStr3, 0, sizeof(pStr3));
 
 	strcpy(cName, pItem->m_cName);
 	for (i = 0; i < DEF_MAXITEMNAMES; i++)
@@ -32669,7 +32664,7 @@ void CGame::GetItemName(CItem* pItem, char* pStr1, char* pStr2, char* pStr3)
 		dwValue2 = (pItem->m_dwAttribute & 0x00000F00) >> 8;
 		if (dwType1 != 0)
 		{
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			switch (dwType1) {
 			case 1: strcpy(cTxt, GET_ITEM_NAME3);   break;
 			case 2: strcpy(cTxt, GET_ITEM_NAME4);   break; // "Poisoning "
@@ -32685,10 +32680,10 @@ void CGame::GetItemName(CItem* pItem, char* pStr1, char* pStr2, char* pStr3)
 			case 12: strcpy(cTxt, GET_ITEM_NAME13); break;
 			}
 			strcat(cTxt, pStr1);
-			ZeroMemory(pStr1, sizeof(pStr1));
+			std::memset(pStr1, 0, sizeof(pStr1));
 			strcpy(pStr1, cTxt);
 
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			switch (dwType1) {
 			case 1: wsprintf(cTxt, GET_ITEM_NAME14, dwValue1); break; // "Critical Hit Damage+%d"
 			case 2: wsprintf(cTxt, GET_ITEM_NAME15, dwValue1 * 5); break; // "Poison Damage+%d"
@@ -32706,7 +32701,7 @@ void CGame::GetItemName(CItem* pItem, char* pStr1, char* pStr2, char* pStr3)
 			strcat(pStr2, cTxt);
 
 			if (dwType2 != 0) {
-				ZeroMemory(cTxt, sizeof(cTxt));
+				std::memset(cTxt, 0, sizeof(cTxt));
 				switch (dwType2) {
 				case 1:  wsprintf(cTxt, GET_ITEM_NAME24, dwValue2 * 7); break;
 				case 2:  wsprintf(cTxt, GET_ITEM_NAME25, dwValue2 * 7); break;
@@ -32732,33 +32727,33 @@ void CGame::GetItemName(CItem* pItem, char* pStr1, char* pStr2, char* pStr3)
 		if (pStr1[strlen(pStr1) - 2] == '+')
 		{
 			dwValue3 = atoi((char*)(pStr1 + strlen(pStr1) - 1)) + dwValue3;
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			memcpy(cTxt, pStr1, strlen(pStr1) - 2);
-			ZeroMemory(cTxt2, sizeof(cTxt2));
+			std::memset(cTxt2, 0, sizeof(cTxt2));
 			wsprintf(cTxt2, "%s+%d", cTxt, dwValue3);
-			ZeroMemory(pStr1, sizeof(pStr1));
+			std::memset(pStr1, 0, sizeof(pStr1));
 			strcpy(pStr1, cTxt2);
 		}
 		else
 		{
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			wsprintf(cTxt, "+%d", dwValue3);
 			strcat(pStr1, cTxt);
 		}
 	}
 }
 
-void CGame::GetItemName(char* cItemName, DWORD dwAttribute, char* pStr1, char* pStr2, char* pStr3)
+void CGame::GetItemName(char* cItemName, uint32_t dwAttribute, char* pStr1, char* pStr2, char* pStr3)
 {
 	int i;
 	char cTxt[256], cTxt2[256], cName[51];
-	DWORD dwType1, dwType2, dwValue1, dwValue2, dwValue3;
+	uint32_t dwType1, dwType2, dwValue1, dwValue2, dwValue3;
 
 	m_bIsSpecial = false;
-	ZeroMemory(cName, sizeof(cName));
-	ZeroMemory(pStr1, sizeof(pStr1));
-	ZeroMemory(pStr2, sizeof(pStr2));
-	ZeroMemory(pStr3, sizeof(pStr3));
+	std::memset(cName, 0, sizeof(cName));
+	std::memset(pStr1, 0, sizeof(pStr1));
+	std::memset(pStr2, 0, sizeof(pStr2));
+	std::memset(pStr3, 0, sizeof(pStr3));
 
 	strcpy(cName, cItemName);
 	for (i = 0; i < DEF_MAXITEMNAMES; i++)
@@ -32808,7 +32803,7 @@ void CGame::GetItemName(char* cItemName, DWORD dwAttribute, char* pStr1, char* p
 		dwValue2 = (dwAttribute & 0x00000F00) >> 8;
 		if (dwType1 != 0)
 		{
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			switch (dwType1) {
 			case 1: strcpy(cTxt, GET_ITEM_NAME3); break;
 			case 2: strcpy(cTxt, GET_ITEM_NAME4); break;
@@ -32824,10 +32819,10 @@ void CGame::GetItemName(char* cItemName, DWORD dwAttribute, char* pStr1, char* p
 			case 12: strcpy(cTxt, GET_ITEM_NAME13); break;
 			}
 			strcat(cTxt, pStr1);
-			ZeroMemory(pStr1, sizeof(pStr1));
+			std::memset(pStr1, 0, sizeof(pStr1));
 			strcpy(pStr1, cTxt);
 
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			switch (dwType1) {
 			case 1: wsprintf(cTxt, GET_ITEM_NAME14, dwValue1); break;
 			case 2: wsprintf(cTxt, GET_ITEM_NAME15, dwValue1 * 5); break;
@@ -32846,7 +32841,7 @@ void CGame::GetItemName(char* cItemName, DWORD dwAttribute, char* pStr1, char* p
 
 			if (dwType2 != 0)
 			{
-				ZeroMemory(cTxt, sizeof(cTxt));
+				std::memset(cTxt, 0, sizeof(cTxt));
 				switch (dwType2) {
 				case 1:  wsprintf(cTxt, GET_ITEM_NAME24, dwValue2 * 7);  break;
 				case 2:  wsprintf(cTxt, GET_ITEM_NAME25, dwValue2 * 7);  break;
@@ -32872,16 +32867,16 @@ void CGame::GetItemName(char* cItemName, DWORD dwAttribute, char* pStr1, char* p
 		if (pStr1[strlen(pStr1) - 2] == '+')
 		{
 			dwValue3 = atoi((char*)(pStr1 + strlen(pStr1) - 1)) + dwValue3;
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			memcpy(cTxt, pStr1, strlen(pStr1) - 2);
-			ZeroMemory(cTxt2, sizeof(cTxt2));
+			std::memset(cTxt2, 0, sizeof(cTxt2));
 			wsprintf(cTxt2, "%s+%d", cTxt, dwValue3);
-			ZeroMemory(pStr1, sizeof(pStr1));
+			std::memset(pStr1, 0, sizeof(pStr1));
 			strcpy(pStr1, cTxt2);
 		}
 		else
 		{
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			wsprintf(cTxt, "+%d", dwValue3);
 			strcat(pStr1, cTxt);
 		}
@@ -32931,7 +32926,7 @@ void CGame::PointCommandHandler(int indexX, int indexY, char cItemID)
 		{
 			m_stDialogBoxInfo[32].cMode = 3;
 			PlaySound('E', 14, 5);
-			ZeroMemory(m_stDialogBoxInfo[32].cStr, sizeof(m_stDialogBoxInfo[32].cStr));
+			std::memset(m_stDialogBoxInfo[32].cStr, 0, sizeof(m_stDialogBoxInfo[32].cStr));
 			strcpy(m_stDialogBoxInfo[32].cStr, m_cMCName);
 			bSendCommand(MSGID_COMMAND_COMMON, DEF_COMMONTYPE_REQUEST_JOINPARTY, 0, 1, 0, 0, m_cMCName);
 			return;
@@ -32948,7 +32943,7 @@ void CGame::UpdateScreen_OnGame()
 	char cLB, cRB;
 	char cItemColor;
 	int  i, iAmount;
-	DWORD dwTime = timeGetTime();
+	uint32_t dwTime = GameClock::GetTimeMS();
 	static DWORD dwPrevChatTime = 0;
 	static int   imX = 0, imY = 0;
 
@@ -32966,7 +32961,7 @@ void CGame::UpdateScreen_OnGame()
 	// ----------------------------------------------------
 
 	m_DInput.UpdateMouseState(&msX, &msY, &msZ, &cLB, &cRB);
-	m_dwCurTime = timeGetTime();
+	m_dwCurTime = GameClock::GetTimeMS();
 
 	if (m_bEnterPressed == true)
 	{
@@ -33046,7 +33041,7 @@ void CGame::UpdateScreen_OnGame()
 								m_stDialogBoxInfo[20].sX = tX;
 								m_stDialogBoxInfo[20].sY = tY;
 
-								ZeroMemory(m_stDialogBoxInfo[20].cStr, sizeof(m_stDialogBoxInfo[20].cStr));
+								std::memset(m_stDialogBoxInfo[20].cStr, 0, sizeof(m_stDialogBoxInfo[20].cStr));
 								strcpy(m_stDialogBoxInfo[20].cStr, m_stDialogBoxInfo[17].cStr);
 								break;
 
@@ -33067,7 +33062,7 @@ void CGame::UpdateScreen_OnGame()
 								m_stDialogBoxInfo[20].sX = tX;
 								m_stDialogBoxInfo[20].sY = tY;
 
-								ZeroMemory(m_stDialogBoxInfo[20].cStr, sizeof(m_stDialogBoxInfo[20].cStr));
+								std::memset(m_stDialogBoxInfo[20].cStr, 0, sizeof(m_stDialogBoxInfo[20].cStr));
 								GetNpcName(m_stDialogBoxInfo[17].sV3, m_stDialogBoxInfo[20].cStr);
 								break;
 
@@ -33086,7 +33081,7 @@ void CGame::UpdateScreen_OnGame()
 								m_stDialogBoxInfo[20].sX = tX;
 								m_stDialogBoxInfo[20].sY = tY;
 
-								ZeroMemory(m_stDialogBoxInfo[20].cStr, sizeof(m_stDialogBoxInfo[20].cStr));
+								std::memset(m_stDialogBoxInfo[20].cStr, 0, sizeof(m_stDialogBoxInfo[20].cStr));
 								GetNpcName(m_stDialogBoxInfo[17].sV3, m_stDialogBoxInfo[20].cStr);
 								break;
 
@@ -33160,7 +33155,7 @@ void CGame::UpdateScreen_OnGame()
 				case '#':
 				case '$':
 				case '^':
-					ZeroMemory(m_cChatMsg, sizeof(m_cChatMsg));
+					std::memset(m_cChatMsg, 0, sizeof(m_cChatMsg));
 					m_cChatMsg[0] = m_cBackupChatMsg[0];
 					StartInputString(CHAT_INPUT_X, CHAT_INPUT_Y, sizeof(m_cChatMsg), m_cChatMsg);
 					break;
@@ -33173,9 +33168,9 @@ void CGame::UpdateScreen_OnGame()
 			else
 			{
 				EndInputString();
-				ZeroMemory(G_cTxt, sizeof(G_cTxt));
+				std::memset(G_cTxt, 0, sizeof(G_cTxt));
 				ReceiveString((char*)G_cTxt);
-				ZeroMemory(m_cBackupChatMsg, sizeof(m_cBackupChatMsg));
+				std::memset(m_cBackupChatMsg, 0, sizeof(m_cBackupChatMsg));
 				strcpy(m_cBackupChatMsg, G_cTxt);
 				if ((m_dwCurTime - dwPrevChatTime) < 700)
 				{
@@ -33530,7 +33525,7 @@ void CGame::StartBGM()
 		return;
 	}
 	char cWavFileName[32];
-	ZeroMemory(cWavFileName, sizeof(cWavFileName));
+	std::memset(cWavFileName, 0, sizeof(cWavFileName));
 	if ((m_bIsXmas == true) && (m_cWhetherEffectType >= 4)) strcpy(cWavFileName, "music\\Carol.wav");
 	else
 	{
@@ -33643,7 +33638,7 @@ void CGame::MotionResponseHandler(char* pData)
 			{
 				wsprintf(G_cTxt, NOTIFYMSG_HP_DOWN, iPreHP - m_iHP);
 				AddEventList(G_cTxt, 10);
-				m_dwDamagedTime = timeGetTime();
+				m_dwDamagedTime = GameClock::GetTimeMS();
 				if ((m_cLogOutCount > 0) && (m_bForceDisconn == false))
 				{
 					m_cLogOutCount = -1;
@@ -33735,8 +33730,8 @@ void CGame::CommandProcessor(short msX, short msY, short indexX, short indexY, c
 	short  sX, sY, sObjectType, tX, tY;
 	int iObjectStatus;
 	int    iRet;
-	DWORD  dwTime = timeGetTime();
-	WORD   wType = 0;
+	uint32_t dwTime = GameClock::GetTimeMS();
+	uint16_t wType = 0;
 	int i;//, iFOE;
 	char   cTxt[120];
 
@@ -33806,7 +33801,7 @@ void CGame::CommandProcessor(short msX, short msY, short indexX, short indexY, c
 						if (m_cRestartCount == -1)
 						{
 							m_cRestartCount = 5;
-							m_dwRestartCountTime = timeGetTime();
+							m_dwRestartCountTime = GameClock::GetTimeMS();
 							wsprintf(G_cTxt, DLGBOX_CLICK_SYSMENU1, m_cRestartCount); // "Restarting game....%d"
 							AddEventList(G_cTxt, 10);
 							PlaySound('E', 14, 5);
@@ -34026,7 +34021,7 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 			else PointCommandHandler(indexX, indexY);
 
 			m_bCommandAvailable = false;
-			m_dwCommandTime = timeGetTime();
+			m_dwCommandTime = GameClock::GetTimeMS();
 			m_bIsGetPointingMode = false;
 			return;
 		}
@@ -34972,7 +34967,7 @@ CP_SKIPMOUSEBUTTONSTATUS:;
 				m_cCommand, 0, 0, 0, 0,
 				10);
 			m_bCommandAvailable = false;
-			m_dwCommandTime = timeGetTime();
+			m_dwCommandTime = GameClock::GetTimeMS();
 			return;
 		}
 	}
@@ -35034,7 +35029,7 @@ MOTION_COMMAND_PROCESS:;
 			for (i = 1; i < DEF_MAXCHATMSGS; i++)
 				if (m_pChatMsgList[i] == 0)
 				{
-					ZeroMemory(cTxt, sizeof(cTxt));
+					std::memset(cTxt, 0, sizeof(cTxt));
 					if (m_sDamageMoveAmount > 0)
 						wsprintf(cTxt, "-%dPts", m_sDamageMoveAmount); //pts
 					else strcpy(cTxt, "Critical!");
@@ -35109,7 +35104,7 @@ MOTION_COMMAND_PROCESS:;
 						m_iPlayerStatus, m_cPlayerName,
 						m_cCommand, 0, 0, 0);
 					m_bCommandAvailable = false;
-					m_dwCommandTime = timeGetTime();
+					m_dwCommandTime = GameClock::GetTimeMS();
 					m_iPrevMoveX = m_sPlayerX;
 					m_iPrevMoveY = m_sPlayerY;
 				}
@@ -35154,7 +35149,7 @@ MOTION_COMMAND_PROCESS:;
 					DEF_OBJECTATTACK,
 					m_sCommX - m_sPlayerX, m_sCommY - m_sPlayerY, wType);
 				m_bCommandAvailable = false;
-				m_dwCommandTime = timeGetTime();
+				m_dwCommandTime = GameClock::GetTimeMS();
 			}
 			m_cCommand = DEF_OBJECTSTOP;
 			break;
@@ -35196,7 +35191,7 @@ MOTION_COMMAND_PROCESS:;
 						m_iPlayerStatus, m_cPlayerName,
 						m_cCommand, m_sCommX - m_sPlayerX, m_sCommY - m_sPlayerY, wType);
 					m_bCommandAvailable = false;
-					m_dwCommandTime = timeGetTime();
+					m_dwCommandTime = GameClock::GetTimeMS();
 					m_iPrevMoveX = m_sPlayerX;
 					m_iPrevMoveY = m_sPlayerY;
 				}
@@ -35221,16 +35216,16 @@ MOTION_COMMAND_PROCESS:;
 				m_iPlayerStatus, m_cPlayerName,
 				DEF_OBJECTMAGIC, m_iCastingMagicType, 0, 0);
 			m_bCommandAvailable = false;
-			m_dwCommandTime = timeGetTime();
+			m_dwCommandTime = GameClock::GetTimeMS();
 			m_bIsGetPointingMode = true;
 			m_cCommand = DEF_OBJECTSTOP;
 			_RemoveChatMsgListByObjectID(m_sPlayerObjectID);
 			for (i = 1; i < DEF_MAXCHATMSGS; i++)
 				if (m_pChatMsgList[i] == 0)
 				{
-					ZeroMemory(cTxt, sizeof(cTxt));
+					std::memset(cTxt, 0, sizeof(cTxt));
 					wsprintf(cTxt, "%s!", m_pMagicCfgList[m_iCastingMagicType]->m_cName);
-					m_pChatMsgList[i] = new class CMsg(41, cTxt, timeGetTime());
+					m_pChatMsgList[i] = new class CMsg(41, cTxt, GameClock::GetTimeMS());
 					m_pChatMsgList[i]->m_iObjectID = m_sPlayerObjectID;
 					m_pMapData->bSetChatMsgOwner(m_sPlayerObjectID, -10, -10, i);
 					return;
@@ -35257,9 +35252,9 @@ void CGame::DrawDialogBox_Bank(short msX, short msY, short msZ, char cLB)
 
 	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_GAME2, sX, sY, 2);
 	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_TEXT, sX, sY, 21);
-	ZeroMemory(cStr1, sizeof(cStr1));
-	ZeroMemory(cStr2, sizeof(cStr2));
-	ZeroMemory(cStr3, sizeof(cStr3));
+	std::memset(cStr1, 0, sizeof(cStr1));
+	std::memset(cStr2, 0, sizeof(cStr2));
+	std::memset(cStr3, 0, sizeof(cStr3));
 	iLoc = 45;
 
 	switch (m_stDialogBoxInfo[14].cMode) {
@@ -35396,21 +35391,21 @@ void CGame::DrawDialogBox_Character(short msX, short msY)
 	sY = m_stDialogBoxInfo[1].sY;
 	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_TEXT, sX, sY, 0, false, m_bDialogTrans);
 
-	ZeroMemory(G_cTxt, sizeof(G_cTxt));
+	std::memset(G_cTxt, 0, sizeof(G_cTxt));
 	strcpy(G_cTxt, m_cPlayerName);
 	strcat(G_cTxt, " : ");
 
 	if (m_iPKCount > 0) {
-		ZeroMemory(cTxt2, sizeof(cTxt2));
+		std::memset(cTxt2, 0, sizeof(cTxt2));
 		wsprintf(cTxt2, DRAW_DIALOGBOX_CHARACTER1, m_iPKCount);
 		strcat(G_cTxt, cTxt2);
 	}
 
-	ZeroMemory(cTxt2, sizeof(cTxt2));
+	std::memset(cTxt2, 0, sizeof(cTxt2));
 	wsprintf(cTxt2, DRAW_DIALOGBOX_CHARACTER2, m_iContribution);
 	strcat(G_cTxt, cTxt2);
 	PutAlignedString(sX + 24, sX + 252, sY + 52, G_cTxt, 45, 20, 20);
-	ZeroMemory(G_cTxt, sizeof(G_cTxt));
+	std::memset(G_cTxt, 0, sizeof(G_cTxt));
 
 	if (m_bCitizen == false)
 	{
@@ -36241,7 +36236,7 @@ void CGame::DrawDialogBox_Character(short msX, short msY)
 void CGame::DrawDialogBox_LevelUpSetting(short msX, short msY)
 {
 	short sX, sY, szX;
-	DWORD dwTime = m_dwCurTime;
+	uint32_t dwTime = m_dwCurTime;
 	char cTxt[120];
 	int iStats;
 	sX = m_stDialogBoxInfo[12].sX;
@@ -36660,7 +36655,7 @@ void CGame::DrawDialogBox_CityHallMenu(short msX, short msY)
 			PutString2(sX + 35, sY + 250, DRAW_DIALOGBOX_CITYHALL_MENU72_1, 55, 25, 25);//"Civilians cannot go some area."
 			for (int i = 0; i < m_iTeleportMapCount; i++)
 			{
-				ZeroMemory(cTxt, sizeof(cTxt));
+				std::memset(cTxt, 0, sizeof(cTxt));
 				GetOfficialMapName(m_stTeleportList[i].mapname, cTxt);
 				wsprintf(G_cTxt, DRAW_DIALOGBOX_CITYHALL_MENU77, cTxt, m_stTeleportList[i].iCost);
 				if ((msX >= sX + DEF_LBTNPOSX) && (msX <= sX + DEF_RBTNPOSX + DEF_BTNSZX) && (msY >= sY + 130 + i * 15) && (msY <= sY + 144 + i * 15))
@@ -36734,7 +36729,7 @@ void CGame::DrawDialogBox_ConfirmExchange(short msX, short msY)
 void CGame::DrawDialogBox_Exchange(short msX, short msY)
 {
 	short sX, sY, szX, sXadd;
-	DWORD dwTime = m_dwCurTime;
+	uint32_t dwTime = m_dwCurTime;
 	char cItemColor, cTxt[120], cTxt2[128];
 	char cNameStr[120], cSubStr1[120], cSubStr2[120];
 	int iLoc, i;
@@ -36996,7 +36991,7 @@ void CGame::DrawDialogBox_Fishing(short msX, short msY)
 {
 
 	short sX, sY;
-	DWORD dwTime = m_dwCurTime;
+	uint32_t dwTime = m_dwCurTime;
 	char  cTxt[120];
 
 	sX = m_stDialogBoxInfo[24].sX;
@@ -37434,7 +37429,7 @@ void CGame::DrawDialogBox_Magic(short msX, short msY, short msZ)
 	short sX, sY, sMagicCircle, sLevelMagic;
 	int  iCPivot, i, iYloc, iResult, iManaCost;
 	char cTxt[120], cMana[10];
-	DWORD dwTime = m_dwCurTime;
+	uint32_t dwTime = m_dwCurTime;
 	double dV1, dV2, dV3, dV4;
 
 	sX = m_stDialogBoxInfo[3].sX;
@@ -37453,7 +37448,7 @@ void CGame::DrawDialogBox_Magic(short msX, short msY, short msZ)
 	if (m_stDialogBoxInfo[3].sView > 9) m_stDialogBoxInfo[3].sView = 0;
 
 	//Circle
-	ZeroMemory(cTxt, sizeof(cTxt));
+	std::memset(cTxt, 0, sizeof(cTxt));
 	switch (m_stDialogBoxInfo[3].sView) {
 	case 0: strcpy(cTxt, DRAW_DIALOGBOX_MAGIC1);  break;//"Circle One"
 	case 1: strcpy(cTxt, DRAW_DIALOGBOX_MAGIC2);  break;//"Circle Two"
@@ -37592,7 +37587,7 @@ void CGame::DrawDialogBox_Magic(short msX, short msY, short msZ)
 	if (m_iSP < 1) iResult = iResult * 9 / 10;
 	if (iResult < 1) iResult = 1;
 
-	ZeroMemory(cTxt, sizeof(cTxt));
+	std::memset(cTxt, 0, sizeof(cTxt));
 	wsprintf(cTxt, DRAW_DIALOGBOX_MAGIC16, iResult);//"
 	PutAlignedString(sX, sX + 256, sY + 267, cTxt);
 	PutAlignedString(sX + 1, sX + 257, sY + 267, cTxt);
@@ -37606,7 +37601,7 @@ void CGame::DrawDialogBox_Magic(short msX, short msY, short msZ)
 void CGame::DrawDialogBox_MagicShop(short msX, short msY, short msZ)
 {
 	short sX, sY;
-	DWORD dwTime = m_dwCurTime;
+	uint32_t dwTime = m_dwCurTime;
 	int  i;
 
 	int  iCPivot, iYloc;
@@ -37710,7 +37705,7 @@ void CGame::DrawDialogBox_ShutDownMsg(short msX, short msY)
 
 	switch (m_stDialogBoxInfo[25].cMode) {
 	case 1:
-		ZeroMemory(G_cTxt, sizeof(G_cTxt));
+		std::memset(G_cTxt, 0, sizeof(G_cTxt));
 		if (m_stDialogBoxInfo[25].sV1 != 0) wsprintf(G_cTxt, DRAW_DIALOGBOX_NOTICEMSG1, m_stDialogBoxInfo[25].sV1);
 		else strcpy(G_cTxt, DRAW_DIALOGBOX_NOTICEMSG2);
 		PutAlignedString(sX, sX + szX, sY + 31, G_cTxt, 100, 10, 10);
@@ -37742,9 +37737,9 @@ void CGame::DrawDialogBox_NpcActionQuery(short msX, short msY)
 
 	char cTxt[120], cTxt2[120], cStr1[64], cStr2[64], cStr3[64];
 
-	ZeroMemory(cStr1, sizeof(cStr1));
-	ZeroMemory(cStr2, sizeof(cStr2));
-	ZeroMemory(cStr3, sizeof(cStr3));
+	std::memset(cStr1, 0, sizeof(cStr1));
+	std::memset(cStr2, 0, sizeof(cStr2));
+	std::memset(cStr3, 0, sizeof(cStr3));
 
 	sX = m_stDialogBoxInfo[20].sX;
 	sY = m_stDialogBoxInfo[20].sY;
@@ -38305,11 +38300,11 @@ void CGame::DrawDialogBox_Quest(int msX, int msY)
 				PutAlignedString(sX, sX + szX, sY + 50, DRAW_DIALOGBOX_QUEST2, 55, 25, 25); // "You are on a monster conquering quest."
 			else PutAlignedString(sX, sX + szX, sY + 50, DRAW_DIALOGBOX_QUEST3, 55, 25, 25); // "You accomplished the monster conquering quest."
 
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			wsprintf(cTxt, "Rest Monster : %d", m_stQuest.sCurrentCount); // Snoopy: "Rest Monster : %s"
 			PutAlignedString(sX, sX + szX, sY + 50 + 20, cTxt, 55, 25, 25);  // m_stQuest.sCurrentCount
 
-			ZeroMemory(cTemp, sizeof(cTemp));
+			std::memset(cTemp, 0, sizeof(cTemp));
 			switch (m_stQuest.sWho) {
 			case 1:
 			case 2:
@@ -38319,17 +38314,17 @@ void CGame::DrawDialogBox_Quest(int msX, int msY)
 			case 6:
 			case 7: break;
 			}
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			wsprintf(cTxt, DRAW_DIALOGBOX_QUEST5, cTemp); // "Client: %s"
 			PutAlignedString(sX, sX + szX, sY + 50 + 45, cTxt, 55, 25, 25);
 
-			ZeroMemory(cTemp, sizeof(cTemp));
+			std::memset(cTemp, 0, sizeof(cTemp));
 			GetNpcName(m_stQuest.sTargetType, cTemp);
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			wsprintf(cTxt, NPC_TALK_HANDLER16, m_stQuest.sTargetCount, cTemp);
 			PutAlignedString(sX, sX + szX, sY + 50 + 60, cTxt, 55, 25, 25);
 
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			if (memcmp(m_stQuest.cTargetName, "NONE", 4) == 0)
 			{
 				strcpy(cTxt, DRAW_DIALOGBOX_QUEST31); // "Location : Anywhere"
@@ -38337,19 +38332,19 @@ void CGame::DrawDialogBox_Quest(int msX, int msY)
 			}
 			else
 			{
-				ZeroMemory(cTemp, sizeof(cTemp));
+				std::memset(cTemp, 0, sizeof(cTemp));
 				GetOfficialMapName(m_stQuest.cTargetName, cTemp);
 				wsprintf(cTxt, DRAW_DIALOGBOX_QUEST32, cTemp); // "Map : %s"
 				PutAlignedString(sX, sX + szX, sY + 50 + 75, cTxt, 55, 25, 25);
 
 				if (m_stQuest.sX != 0) {
-					ZeroMemory(cTxt, sizeof(cTxt));
+					std::memset(cTxt, 0, sizeof(cTxt));
 					wsprintf(cTxt, DRAW_DIALOGBOX_QUEST33, m_stQuest.sX, m_stQuest.sY, m_stQuest.sRange); // "Position: %d, %d Range: %d block"
 					PutAlignedString(sX, sX + szX, sY + 50 + 90, cTxt, 55, 25, 25);
 				}
 			}
 
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			wsprintf(cTxt, DRAW_DIALOGBOX_QUEST34, m_stQuest.sContribution); // "Contribution: %d"
 			PutAlignedString(sX, sX + szX, sY + 50 + 105, cTxt, 55, 25, 25);
 			break;
@@ -38359,7 +38354,7 @@ void CGame::DrawDialogBox_Quest(int msX, int msY)
 				PutAlignedString(sX, sX + szX, sY + 50, DRAW_DIALOGBOX_QUEST26, 55, 25, 25);
 			else PutAlignedString(sX, sX + szX, sY + 50, DRAW_DIALOGBOX_QUEST27, 55, 25, 25);
 
-			ZeroMemory(cTemp, sizeof(cTemp));
+			std::memset(cTemp, 0, sizeof(cTemp));
 			switch (m_stQuest.sWho) {
 			case 1:
 			case 2:
@@ -38369,31 +38364,31 @@ void CGame::DrawDialogBox_Quest(int msX, int msY)
 			case 6:
 			case 7: break;
 			}
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			wsprintf(cTxt, DRAW_DIALOGBOX_QUEST29, cTemp);
 			PutAlignedString(sX, sX + szX, sY + 50 + 45, cTxt, 55, 25, 25);
 
 			PutAlignedString(sX, sX + szX, sY + 50 + 60, DRAW_DIALOGBOX_QUEST30, 55, 25, 25);
 
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			if (memcmp(m_stQuest.cTargetName, "NONE", 4) == 0) {
 				strcpy(cTxt, DRAW_DIALOGBOX_QUEST31);
 				PutAlignedString(sX, sX + szX, sY + 50 + 75, cTxt, 55, 25, 25);
 			}
 			else {
-				ZeroMemory(cTemp, sizeof(cTemp));
+				std::memset(cTemp, 0, sizeof(cTemp));
 				GetOfficialMapName(m_stQuest.cTargetName, cTemp);
 				wsprintf(cTxt, DRAW_DIALOGBOX_QUEST32, cTemp);
 				PutAlignedString(sX, sX + szX, sY + 50 + 75, cTxt, 55, 25, 25);
 
 				if (m_stQuest.sX != 0) {
-					ZeroMemory(cTxt, sizeof(cTxt));
+					std::memset(cTxt, 0, sizeof(cTxt));
 					wsprintf(cTxt, DRAW_DIALOGBOX_QUEST33, m_stQuest.sX, m_stQuest.sY, m_stQuest.sRange);
 					PutAlignedString(sX, sX + szX, sY + 50 + 90, cTxt, 55, 25, 25);
 				}
 			}
 
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			wsprintf(cTxt, DRAW_DIALOGBOX_QUEST34, m_stQuest.sContribution);//" %dPoint"
 			PutAlignedString(sX, sX + szX, sY + 50 + 105, cTxt, 55, 25, 25);
 			break;
@@ -38427,7 +38422,7 @@ void CGame::DrawDialogBox_SellList(short msX, short msY)
 	for (i = 0; i < DEF_MAXSELLLIST; i++)
 		if (m_stSellItemList[i].iIndex != -1)
 		{
-			ZeroMemory(cTemp, sizeof(cTemp));
+			std::memset(cTemp, 0, sizeof(cTemp));
 			GetItemName(m_pItemList[m_stSellItemList[i].iIndex]->m_cName, m_pItemList[m_stSellItemList[i].iIndex]->m_dwAttribute, cStr1, cStr2, cStr3);
 			if (m_stSellItemList[i].iAmount > 1)
 			{
@@ -38449,7 +38444,7 @@ void CGame::DrawDialogBox_SellList(short msX, short msY)
 					if ((strlen(cStr2) == 0) && (strlen(cStr3) == 0)) PutAlignedString(sX, sX + szX, sY + 55 + i * 15, cStr1, 255, 255, 255);
 					else
 					{
-						ZeroMemory(G_cTxt, sizeof(G_cTxt));
+						std::memset(G_cTxt, 0, sizeof(G_cTxt));
 						if ((strlen(cStr1) + strlen(cStr2) + strlen(cStr3)) < 36)
 						{
 							if ((strlen(cStr2) > 0) && (strlen(cStr3) > 0)) wsprintf(G_cTxt, "%s(%s, %s)", cStr1, cStr2, cStr3);
@@ -38478,7 +38473,7 @@ void CGame::DrawDialogBox_SellList(short msX, short msY)
 					}
 					else
 					{
-						ZeroMemory(G_cTxt, sizeof(G_cTxt));
+						std::memset(G_cTxt, 0, sizeof(G_cTxt));
 						if ((strlen(cStr1) + strlen(cStr2) + strlen(cStr3)) < 36)
 						{
 							if ((strlen(cStr2) > 0) && (strlen(cStr3) > 0)) wsprintf(G_cTxt, "%s(%s, %s)", cStr1, cStr2, cStr3);
@@ -38527,7 +38522,7 @@ void CGame::DrawDialogBox_SellList(short msX, short msY)
 void CGame::DrawDialogBox_SellorRepairItem(short msX, short msY)
 {
 	short sX, sY;
-	DWORD dwTime = m_dwCurTime;
+	uint32_t dwTime = m_dwCurTime;
 	char cItemID, cItemColor, cTxt[120], cTemp[120], cStr2[120], cStr3[120];
 
 	sX = m_stDialogBoxInfo[23].sX;
@@ -38559,9 +38554,9 @@ void CGame::DrawDialogBox_SellorRepairItem(short msX, short msY)
 				break;
 			}
 		}
-		ZeroMemory(cTemp, sizeof(cTemp));
-		ZeroMemory(cStr2, sizeof(cStr2));
-		ZeroMemory(cStr3, sizeof(cStr3));
+		std::memset(cTemp, 0, sizeof(cTemp));
+		std::memset(cStr2, 0, sizeof(cStr2));
+		std::memset(cStr3, 0, sizeof(cStr3));
 
 		GetItemName(m_pItemList[cItemID]->m_cName, m_pItemList[cItemID]->m_dwAttribute, cTemp, cStr2, cStr3);
 		if (m_stDialogBoxInfo[23].sV4 == 1) strcpy(cTxt, cTemp);
@@ -38617,9 +38612,9 @@ void CGame::DrawDialogBox_SellorRepairItem(short msX, short msY)
 				break;
 			}
 		}
-		ZeroMemory(cTemp, sizeof(cTemp));
-		ZeroMemory(cStr2, sizeof(cStr2));
-		ZeroMemory(cStr3, sizeof(cStr3));
+		std::memset(cTemp, 0, sizeof(cTemp));
+		std::memset(cStr2, 0, sizeof(cStr2));
+		std::memset(cStr3, 0, sizeof(cStr3));
 		GetItemName(m_pItemList[cItemID], cTemp, cStr2, cStr3);
 		wsprintf(cTxt, "%s", cTemp);
 		//		PutAlignedString(sX + 25, sX + 240, sY + 60, cTxt, 45,25,25);
@@ -38672,7 +38667,7 @@ void CGame::DrawDialogBox_SellorRepairItem(short msX, short msY)
 void CGame::DrawDialogBox_Shop(short msX, short msY, short msZ, char cLB)
 {
 	short sX, sY;
-	DWORD dwTime = m_dwCurTime;
+	uint32_t dwTime = m_dwCurTime;
 	int  i, iTemp;
 	char cTemp[255], cStr2[255], cStr3[255];
 
@@ -38734,7 +38729,7 @@ void CGame::DrawDialogBox_Shop(short msX, short msY, short msZ, char cLB)
 		for (i = 0; i < 13; i++)
 			if (((i + m_stDialogBoxInfo[11].sView) < DEF_MAXMENUITEMS) && (m_pItemForSaleList[i + m_stDialogBoxInfo[11].sView] != 0))
 			{
-				ZeroMemory(cTemp, sizeof(cTemp));
+				std::memset(cTemp, 0, sizeof(cTemp));
 				GetItemName(m_pItemForSaleList[i + m_stDialogBoxInfo[11].sView], cTemp, cStr2, cStr3);
 				if ((msX >= sX + 20) && (msX <= sX + 220) && (msY >= sY + i * 18 + 65) && (msY <= sY + i * 18 + 79))
 				{
@@ -38757,7 +38752,7 @@ void CGame::DrawDialogBox_Shop(short msX, short msY, short msZ, char cLB)
 
 				if (iCost < (m_pItemForSaleList[i + m_stDialogBoxInfo[11].sView]->m_wPrice / 2))
 					iCost = (m_pItemForSaleList[i + m_stDialogBoxInfo[11].sView]->m_wPrice / 2) - 1;
-				ZeroMemory(cTemp, sizeof(cTemp));
+				std::memset(cTemp, 0, sizeof(cTemp));
 				wsprintf(cTemp, "%6d", iCost);
 				if ((msX >= sX + 20) && (msX <= sX + 220) && (msY >= sY + i * 18 + 65) && (msY <= sY + i * 18 + 79))
 					PutAlignedString(sX + 148, sX + 260, sY + i * 18 + 65, cTemp, 255, 255, 255);
@@ -38769,7 +38764,7 @@ void CGame::DrawDialogBox_Shop(short msX, short msY, short msZ, char cLB)
 		m_pSprite[DEF_SPRID_ITEMPACK_PIVOTPOINT + m_pItemForSaleList[m_stDialogBoxInfo[11].cMode - 1]->m_sSprite]->PutSpriteFast(sX + 62 + 30 - 35, sY + 84 + 30 - 10,
 			m_pItemForSaleList[m_stDialogBoxInfo[11].cMode - 1]->m_sSpriteFrame, dwTime);
 
-		ZeroMemory(cTemp, sizeof(cTemp));
+		std::memset(cTemp, 0, sizeof(cTemp));
 		GetItemName(m_pItemForSaleList[m_stDialogBoxInfo[11].cMode - 1], cTemp, cStr2, cStr3);
 
 		PutAlignedString(sX + 25, sX + 240, sY + 50, cTemp, 255, 255, 255);
@@ -39041,12 +39036,12 @@ void CGame::DrawDialogBox_Shop(short msX, short msY, short msZ, char cLB)
 
 		if (m_stDialogBoxInfo[11].sV3 >= 10)
 		{
-			ZeroMemory(cTemp, sizeof(cTemp));
+			std::memset(cTemp, 0, sizeof(cTemp));
 			_itoa(m_stDialogBoxInfo[11].sV3, cTemp, 10);
 			cTemp[1] = 0;
 			PutString(sX - 35 + 186, sY - 10 + 237, cTemp, RGB(40, 10, 10));
 			PutString(sX - 35 + 187, sY - 10 + 237, cTemp, RGB(40, 10, 10));
-			ZeroMemory(cTemp, sizeof(cTemp));
+			std::memset(cTemp, 0, sizeof(cTemp));
 			_itoa(m_stDialogBoxInfo[11].sV3, cTemp, 10);
 			PutString(sX - 35 + 200, sY - 10 + 237, (cTemp + 1), RGB(40, 10, 10));
 			PutString(sX - 35 + 201, sY - 10 + 237, (cTemp + 1), RGB(40, 10, 10));
@@ -39055,7 +39050,7 @@ void CGame::DrawDialogBox_Shop(short msX, short msY, short msZ, char cLB)
 		{
 			PutString(sX - 35 + 186, sY - 10 + 237, "0", RGB(40, 10, 10));
 			PutString(sX - 35 + 187, sY - 10 + 237, "0", RGB(40, 10, 10));
-			ZeroMemory(cTemp, sizeof(cTemp));
+			std::memset(cTemp, 0, sizeof(cTemp));
 			_itoa(m_stDialogBoxInfo[11].sV3, cTemp, 10);
 			PutString(sX - 35 + 200, sY - 10 + 237, (cTemp), RGB(40, 10, 10));
 			PutString(sX - 35 + 201, sY - 10 + 237, (cTemp), RGB(40, 10, 10));
@@ -39092,10 +39087,10 @@ void CGame::DrawDialogBox_Skill(short msX, short msY, short msZ, char cLB)
 		for (i = 0; i < 17; i++)
 			if ((i < DEF_MAXSKILLTYPE) && (m_pSkillCfgList[i + m_stDialogBoxInfo[15].sView] != 0))
 			{
-				ZeroMemory(cTemp, sizeof(cTemp));
+				std::memset(cTemp, 0, sizeof(cTemp));
 				wsprintf(cTemp, "%s", m_pSkillCfgList[i + m_stDialogBoxInfo[15].sView]->m_cName);
 				CMisc::ReplaceString(cTemp, '-', ' ');
-				ZeroMemory(cTemp2, sizeof(cTemp2));
+				std::memset(cTemp2, 0, sizeof(cTemp2));
 				wsprintf(cTemp2, "%3d%%", m_pSkillCfgList[i + m_stDialogBoxInfo[15].sView]->m_iLevel);
 				if ((msX >= sX + 25) && (msX <= sX + 166) && (msY >= sY + 45 + i * 15) && (msY <= sY + 59 + i * 15))
 				{
@@ -39183,7 +39178,7 @@ void CGame::DrawDialogBox_SkillDlg(short msX, short msY, short msZ, char cLB)
 	char cTemp[120], cTemp2[120];
 	short sX, sY, szX;
 	char cStr1[64], cStr2[64], cStr3[64];
-	DWORD dwTime = m_dwCurTime;
+	uint32_t dwTime = m_dwCurTime;
 
 	iAdjX = 5;
 	iAdjY = 8;
@@ -39311,10 +39306,10 @@ void CGame::DrawDialogBox_SkillDlg(short msX, short msY, short msZ, char cLB)
 		for (i = 0; i < 13; i++)
 			if (m_pDispBuildItemList[i + m_stDialogBoxInfo[26].sView] != 0) {
 
-				ZeroMemory(cTemp, sizeof(cTemp));
+				std::memset(cTemp, 0, sizeof(cTemp));
 				GetItemName(m_pDispBuildItemList[i + m_stDialogBoxInfo[26].sView]->m_cName, 0, cStr1, cStr2, cStr3);
 				wsprintf(cTemp, "%s", cStr1);
-				ZeroMemory(cTemp2, sizeof(cTemp2));
+				std::memset(cTemp2, 0, sizeof(cTemp2));
 				wsprintf(cTemp2, "%d%%", m_pDispBuildItemList[i + m_stDialogBoxInfo[26].sView]->m_iMaxSkill);
 
 				if ((msX >= sX + 30) && (msX <= sX + 180) && (msY >= sY + iAdjY + 55 + iLoc * 15) && (msY <= sY + iAdjY + 69 + iLoc * 15))
@@ -39389,7 +39384,7 @@ void CGame::DrawDialogBox_SkillDlg(short msX, short msY, short msZ, char cLB)
 		m_pSprite[DEF_SPRID_ITEMPACK_PIVOTPOINT + m_pDispBuildItemList[m_stDialogBoxInfo[26].cStr[0]]->m_iSprH]->PutSpriteFast(sX + iAdjX + 62 + 5, sY + iAdjY + 84 + 17,
 			m_pDispBuildItemList[m_stDialogBoxInfo[26].cStr[0]]->m_iSprFrame, dwTime);
 
-		ZeroMemory(cTemp, sizeof(cTemp));
+		std::memset(cTemp, 0, sizeof(cTemp));
 		GetItemName(m_pDispBuildItemList[m_stDialogBoxInfo[26].cStr[0]]->m_cName, 0, cStr1, cStr2, cStr3);
 		wsprintf(cTemp, "%s", cStr1);
 		PutString(sX + iAdjX + 44 + 10 + 60, sY + iAdjY + 55, cTemp, RGB(255, 255, 255));
@@ -39535,7 +39530,7 @@ void CGame::DrawDialogBox_SkillDlg(short msX, short msY, short msZ, char cLB)
 		m_pSprite[DEF_SPRID_ITEMPACK_PIVOTPOINT + m_pDispBuildItemList[m_stDialogBoxInfo[26].cStr[0]]->m_iSprH]->PutSpriteFast(sX + iAdjX + 62 + 5, sY + iAdjY + 84 + 17,
 			m_pDispBuildItemList[m_stDialogBoxInfo[26].cStr[0]]->m_iSprFrame, dwTime);
 
-		ZeroMemory(cTemp, sizeof(cTemp));
+		std::memset(cTemp, 0, sizeof(cTemp));
 		GetItemName(m_pDispBuildItemList[m_stDialogBoxInfo[26].cStr[0]]->m_cName, 0, cStr1, cStr2, cStr3);
 		wsprintf(cTemp, "%s", cStr1);
 		PutString(sX + iAdjX + 44 + 10 + 60, sY + iAdjY + 55, cTemp, RGB(255, 255, 255));
@@ -39671,7 +39666,7 @@ void CGame::DrawDialogBox_SkillDlg(short msX, short msY, short msZ, char cLB)
 		m_pSprite[DEF_SPRID_ITEMPACK_PIVOTPOINT + m_pDispBuildItemList[m_stDialogBoxInfo[26].cStr[0]]->m_iSprH]->PutSpriteFast(sX + iAdjX + 62 + 5, sY + iAdjY + 84 + 17,
 			m_pDispBuildItemList[m_stDialogBoxInfo[26].cStr[0]]->m_iSprFrame, dwTime);
 
-		ZeroMemory(cTemp, sizeof(cTemp));
+		std::memset(cTemp, 0, sizeof(cTemp));
 		GetItemName(m_pDispBuildItemList[m_stDialogBoxInfo[26].cStr[0]]->m_cName, 0, cStr1, cStr2, cStr3);
 
 		wsprintf(cTemp, "%s", cStr1);
@@ -39896,7 +39891,7 @@ void CGame::DrawDialogBox_SysMenu(short msX, short msY, char cLB)
 
 	SYSTEMTIME SysTime;
 	GetLocalTime(&SysTime);
-	ZeroMemory(G_cTxt, sizeof(G_cTxt));
+	std::memset(G_cTxt, 0, sizeof(G_cTxt));
 	wsprintf(G_cTxt, "%d:%d:%d:%d:%d", SysTime.wMonth, SysTime.wDay, SysTime.wHour, SysTime.wMinute, SysTime.wSecond);
 	PutString(sX + 23, sY + 204, G_cTxt, RGB(45, 25, 25));
 	PutString(sX + 24, sY + 204, G_cTxt, RGB(45, 25, 25));
@@ -40146,7 +40141,7 @@ void CGame::bItemDrop_SellList(short msX, short msY)
 	}
 	if (m_pItemList[cItemID]->m_wCurLifeSpan == 0)
 	{
-		ZeroMemory(G_cTxt, sizeof(G_cTxt));
+		std::memset(G_cTxt, 0, sizeof(G_cTxt));
 		char cStr1[64], cStr2[64], cStr3[64];
 		GetItemName(m_pItemList[cItemID], cStr1, cStr2, cStr3);
 		wsprintf(G_cTxt, NOTIFYMSG_CANNOT_SELL_ITEM2, cStr1);
@@ -40164,7 +40159,7 @@ void CGame::bItemDrop_SellList(short msX, short msY)
 		m_stDialogBoxInfo[17].sV2 = m_sPlayerY + 1;
 		m_stDialogBoxInfo[17].sV3 = 1001;
 		m_stDialogBoxInfo[17].sV4 = cItemID;
-		ZeroMemory(m_stDialogBoxInfo[17].cStr, sizeof(m_stDialogBoxInfo[17].cStr));
+		std::memset(m_stDialogBoxInfo[17].cStr, 0, sizeof(m_stDialogBoxInfo[17].cStr));
 		EnableDialogBox(17, cItemID, m_pItemList[cItemID]->m_dwCount, 0);
 		m_bIsItemDisabled[cItemID] = true;
 	}
@@ -40244,7 +40239,7 @@ void CGame::bItemDrop_Bank(short msX, short msY)
 		m_stDialogBoxInfo[17].sV3 = 1002;// NPC
 		m_stDialogBoxInfo[17].sV4 = m_stDialogBoxInfo[39].sV1;
 
-		ZeroMemory(m_stDialogBoxInfo[17].cStr, sizeof(m_stDialogBoxInfo[17].cStr));
+		std::memset(m_stDialogBoxInfo[17].cStr, 0, sizeof(m_stDialogBoxInfo[17].cStr));
 		EnableDialogBox(17, m_stDialogBoxInfo[39].sV1, m_pItemList[m_stDialogBoxInfo[39].sV1]->m_dwCount, 0);
 	}
 	else
@@ -40965,7 +40960,7 @@ void CGame::DlgBoxClick_Shop(short msX, short msY)
 			}
 			else
 			{
-				ZeroMemory(cTemp, sizeof(cTemp));
+				std::memset(cTemp, 0, sizeof(cTemp));
 				strcpy(cTemp, m_pItemForSaleList[m_stDialogBoxInfo[11].cMode - 1]->m_cName);
 				bSendCommand(MSGID_COMMAND_COMMON, DEF_COMMONTYPE_REQ_PURCHASEITEM, 0, m_stDialogBoxInfo[11].sV3, 0, 0, cTemp);
 			}
@@ -41229,7 +41224,7 @@ void CGame::ResponseTeleportList(char* pData)
 		ip = (int*)cp;
 		m_stTeleportList[i].iIndex = *ip;
 		cp += 4;
-		ZeroMemory(m_stTeleportList[i].mapname, sizeof(m_stTeleportList[i].mapname));
+		std::memset(m_stTeleportList[i].mapname, 0, sizeof(m_stTeleportList[i].mapname));
 		memcpy(m_stTeleportList[i].mapname, cp, 10);
 		cp += 10;
 		ip = (int*)cp;
@@ -41296,7 +41291,7 @@ void CGame::NotifyMsg_CannotGiveItem(char* pData)
 	iAmount = *ip;
 	cp += 4;
 
-	ZeroMemory(cName, sizeof(cName));
+	std::memset(cName, 0, sizeof(cName));
 	memcpy(cName, cp, 20);
 	cp += 20;
 
@@ -41336,7 +41331,7 @@ void CGame::NotifyMsg_CannotJoinMoreGuildsMan(char* pData)
 	char* cp, cName[12], cTxt[120];
 
 	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
-	ZeroMemory(cName, sizeof(cName));
+	std::memset(cName, 0, sizeof(cName));
 	memcpy(cName, cp, 10);
 
 	wsprintf(cTxt, NOTIFYMSG_CANNOT_JOIN_MOREGUILDMAN1, cName);
@@ -41350,7 +41345,7 @@ void CGame::NotifyMsg_DismissGuildsMan(char* pData)
 {
 	char* cp, cName[12], cTxt[120];
 	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
-	ZeroMemory(cName, sizeof(cName));
+	std::memset(cName, 0, sizeof(cName));
 	memcpy(cName, cp, 10);
 
 	if (memcmp(m_cPlayerName, cName, 10) != 0) {
@@ -41387,9 +41382,9 @@ void CGame::NotifyMsg_CannotRepairItem(char* pData)
 	wp = (WORD*)cp;
 	wV2 = *wp;
 	cp += 2;
-	ZeroMemory(cStr1, sizeof(cStr1));
-	ZeroMemory(cStr2, sizeof(cStr2));
-	ZeroMemory(cStr3, sizeof(cStr3));
+	std::memset(cStr1, 0, sizeof(cStr1));
+	std::memset(cStr2, 0, sizeof(cStr2));
+	std::memset(cStr3, 0, sizeof(cStr3));
 	GetItemName(m_pItemList[wV1], cStr1, cStr2, cStr3);
 
 	switch (wV2) {
@@ -41420,9 +41415,9 @@ void CGame::NotifyMsg_CannotSellItem(char* pData)
 	wV2 = *wp;
 	cp += 2;
 
-	ZeroMemory(cStr1, sizeof(cStr1));
-	ZeroMemory(cStr2, sizeof(cStr2));
-	ZeroMemory(cStr3, sizeof(cStr3));
+	std::memset(cStr1, 0, sizeof(cStr1));
+	std::memset(cStr2, 0, sizeof(cStr2));
+	std::memset(cStr3, 0, sizeof(cStr3));
 	GetItemName(m_pItemList[wV1], cStr1, cStr2, cStr3);
 
 	switch (wV2) {
@@ -41494,7 +41489,7 @@ void CGame::NotifyMsg_DropItemFin_EraseItem(char* pData)
 	char cStr1[64], cStr2[64], cStr3[64];
 	GetItemName(m_pItemList[sItemIndex], cStr1, cStr2, cStr3);
 
-	ZeroMemory(cTxt, sizeof(cTxt));
+	std::memset(cTxt, 0, sizeof(cTxt));
 	if (m_bIsItemEquipped[sItemIndex] == true)
 	{
 		wsprintf(cTxt, ITEM_EQUIPMENT_RELEASED, cStr1);
@@ -41528,8 +41523,8 @@ void CGame::NotifyMsg_EnemyKillReward(char* pData)
 	char* cp, cName[12], cGuildName[24], cTxt[120];
 	int   iEnemyKillCount, iWarContribution;
 
-	ZeroMemory(cName, sizeof(cName));
-	ZeroMemory(cGuildName, sizeof(cGuildName));
+	std::memset(cName, 0, sizeof(cName));
+	std::memset(cGuildName, 0, sizeof(cGuildName));
 
 	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
 	dwp = (DWORD*)cp;
@@ -41597,7 +41592,7 @@ void CGame::NotifyMsg_EnemyKillReward(char* pData)
 	_RemoveChatMsgListByObjectID(m_sPlayerObjectID);
 	for (int i = 1; i < DEF_MAXCHATMSGS; i++) {
 		if (m_pChatMsgList[i] == 0) {
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			strcpy(cTxt, "Enemy Kill!");
 			m_pChatMsgList[i] = new class CMsg(23, cTxt, m_dwCurTime);
 			m_pChatMsgList[i]->m_iObjectID = m_sPlayerObjectID;
@@ -41630,7 +41625,7 @@ void CGame::NotifyMsg_EventFishMode(char* pData)
 	sSpriteFrame = (short)*wp;
 	cp += 2;
 
-	ZeroMemory(cName, sizeof(cName));
+	std::memset(cName, 0, sizeof(cName));
 	memcpy(cName, cp, 20);
 	cp += 20;
 
@@ -41712,7 +41707,7 @@ void CGame::NotifyMsg_GiveItemFin_CountChanged(char* pData)
 	iAmount = *ip;
 	cp += 4;
 
-	ZeroMemory(cName, sizeof(cName));
+	std::memset(cName, 0, sizeof(cName));
 	memcpy(cName, cp, 20);
 	cp += 20;
 
@@ -41742,7 +41737,7 @@ void CGame::NotifyMsg_GiveItemFin_EraseItem(char* pData)
 	iAmount = *ip;
 	cp += 4;
 
-	ZeroMemory(cName, sizeof(cName));
+	std::memset(cName, 0, sizeof(cName));
 	memcpy(cName, cp, 20);
 	cp += 20;
 
@@ -41823,7 +41818,7 @@ void CGame::NotifyMsg_HP(char* pData)
 			m_cLogOutCount = -1;
 			AddEventList(NOTIFYMSG_HP2, 10);
 		}
-		m_dwDamagedTime = timeGetTime();
+		m_dwDamagedTime = GameClock::GetTimeMS();
 		if (m_iHP < 20) AddEventList(NOTIFYMSG_HP3, 10);
 		if ((iPrevHP - m_iHP) < 10) return;
 		wsprintf(cTxt, NOTIFYMSG_HP_DOWN, iPrevHP - m_iHP);
@@ -41894,7 +41889,7 @@ void CGame::NotifyMsg_ItemDepleted_EraseItem(char* pData)
 	bIsUseItemResult = (bool)*cp;
 	cp += 2;
 
-	ZeroMemory(cTxt, sizeof(cTxt));
+	std::memset(cTxt, 0, sizeof(cTxt));
 
 	char cStr1[64], cStr2[64], cStr3[64];
 	GetItemName(m_pItemList[sItemIndex], cStr1, cStr2, cStr3);
@@ -41908,7 +41903,7 @@ void CGame::NotifyMsg_ItemDepleted_EraseItem(char* pData)
 		m_bIsItemEquipped[sItemIndex] = false;
 	}
 
-	ZeroMemory(cTxt, sizeof(cTxt));
+	std::memset(cTxt, 0, sizeof(cTxt));
 	if ((m_pItemList[sItemIndex]->m_cItemType == DEF_ITEMTYPE_CONSUME) ||
 		(m_pItemList[sItemIndex]->m_cItemType == DEF_ITEMTYPE_ARROW)) {
 		wsprintf(cTxt, NOTIFYMSG_ITEMDEPlETED_ERASEITEM2, cStr1);
@@ -41978,8 +41973,7 @@ void CGame::NotifyMsg_ItemObtained(char* pData)
 	short* sp;
 	DWORD* dwp;
 	int i, j;
-
-	DWORD dwCount, dwAttribute;
+	uint32_t dwCount, dwAttribute;
 	char  cName[21], cItemType, cEquipPos;
 	bool  bIsEquipped;
 	short sSprite, sSpriteFrame, sLevelLimit, sSpecialEV2;
@@ -41990,7 +41984,7 @@ void CGame::NotifyMsg_ItemObtained(char* pData)
 
 	cp++;
 
-	ZeroMemory(cName, sizeof(cName));
+	std::memset(cName, 0, sizeof(cName));
 	memcpy(cName, cp, 20);
 	cp += 20;
 
@@ -42047,7 +42041,7 @@ void CGame::NotifyMsg_ItemObtained(char* pData)
 	char cStr1[64], cStr2[64], cStr3[64];
 	GetItemName(cName, dwAttribute, cStr1, cStr2, cStr3);
 
-	ZeroMemory(cTxt, sizeof(cTxt));
+	std::memset(cTxt, 0, sizeof(cTxt));
 	if (dwCount == 1) wsprintf(cTxt, NOTIFYMSG_ITEMOBTAINED2, cStr1);
 	else wsprintf(cTxt, NOTIFYMSG_ITEMOBTAINED1, dwCount, cStr1);
 
@@ -42128,19 +42122,18 @@ void CGame::NotifyMsg_ItemPurchased(char* pData)
 	DWORD* dwp;
 	WORD* wp;
 	int i, j;
-
-	DWORD dwCount;
+	uint32_t dwCount;
 	char  cName[21], cItemType, cEquipPos, cGenderLimit;
 	bool  bIsEquipped;
 	short sSprite, sSpriteFrame, sLevelLimit;
-	WORD  wCost, wWeight, wCurLifeSpan;
+	uint16_t wCost, wWeight, wCurLifeSpan;
 	char  cTxt[120], cItemColor;
 
 	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
 
 	cp++;
 
-	ZeroMemory(cName, sizeof(cName));
+	std::memset(cName, 0, sizeof(cName));
 	memcpy(cName, cp, 20);
 	cp += 20;
 
@@ -42185,7 +42178,7 @@ void CGame::NotifyMsg_ItemPurchased(char* pData)
 
 	wp = (WORD*)cp;
 	wCost = *wp;
-	ZeroMemory(cTxt, sizeof(cTxt));
+	std::memset(cTxt, 0, sizeof(cTxt));
 	char cStr1[64], cStr2[64], cStr3[64];
 	GetItemName(cName, 0, cStr1, cStr2, cStr3);
 	wsprintf(cTxt, NOTIFYMSG_ITEMPURCHASED, cStr1, wCost);
@@ -42318,7 +42311,7 @@ void CGame::NotifyMsg_ItemToBank(char* pData)
 
 	cp++;
 
-	ZeroMemory(cName, sizeof(cName));
+	std::memset(cName, 0, sizeof(cName));
 	memcpy(cName, cp, 20);
 	cp += 20;
 
@@ -42396,7 +42389,7 @@ void CGame::NotifyMsg_ItemToBank(char* pData)
 		m_pBankList[cIndex]->m_dwAttribute = dwAttribute;
 		m_pBankList[cIndex]->m_sItemSpecEffectValue2 = sItemSpecEffectValue2;
 
-		ZeroMemory(cTxt, sizeof(cTxt));
+		std::memset(cTxt, 0, sizeof(cTxt));
 		if (dwCount == 1) wsprintf(cTxt, NOTIFYMSG_ITEMTOBANK3, cStr1);
 		else wsprintf(cTxt, NOTIFYMSG_ITEMTOBANK2, dwCount, cStr1);
 
@@ -42416,7 +42409,7 @@ void CGame::NotifyMsg_Killed(char* pData)
 	// Restart
 	m_bItemUsingStatus = false;
 	ClearSkillUsingStatus();
-	ZeroMemory(cAttackerName, sizeof(cAttackerName));
+	std::memset(cAttackerName, 0, sizeof(cAttackerName));
 	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
 	memcpy(cAttackerName, cp, 20);
 	cp += 20;
@@ -42497,7 +42490,7 @@ void CGame::NotifyMsg_LevelUp(char* pData)
 
 	for (i = 1; i < DEF_MAXCHATMSGS; i++)
 		if (m_pChatMsgList[i] == 0) {
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			strcpy(cTxt, "Level up!");
 			m_pChatMsgList[i] = new class CMsg(23, cTxt, m_dwCurTime);
 			m_pChatMsgList[i]->m_iObjectID = m_sPlayerObjectID;
@@ -42763,7 +42756,7 @@ void CGame::NotifyMsg_MagicStudyFail(char* pData)
 	cp++;
 	cMagicNum = *cp;
 	cp++;
-	ZeroMemory(cName, sizeof(cName));
+	std::memset(cName, 0, sizeof(cName));
 	memcpy(cName, cp, 30);
 	cp += 30;
 	ip = (int*)cp;
@@ -42802,7 +42795,7 @@ void CGame::NotifyMsg_MagicStudySuccess(char* pData)
 	cMagicNum = *cp;
 	cp++;
 	m_cMagicMastery[cMagicNum] = 1;
-	ZeroMemory(cName, sizeof(cName));
+	std::memset(cName, 0, sizeof(cName));
 	memcpy(cName, cp, 30);
 	wsprintf(cTxt, NOTIFYMSG_MAGICSTUDY_SUCCESS1, cName);
 	AddEventList(cTxt, 10);
@@ -42835,7 +42828,7 @@ void CGame::NotifyMsg_NewGuildsMan(char* pData)
 {
 	char* cp, cName[12], cTxt[120];
 	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
-	ZeroMemory(cName, sizeof(cName));
+	std::memset(cName, 0, sizeof(cName));
 	memcpy(cName, cp, 10);
 	wsprintf(cTxt, NOTIFYMSG_NEW_GUILDMAN1, cName);
 	AddEventList(cTxt, 10);
@@ -42856,7 +42849,7 @@ void CGame::NotifyMsg_PKcaptured(char* pData)
 	wp = (WORD*)cp;
 	iLevel = *wp;
 	cp += 2;
-	ZeroMemory(cName, sizeof(cName));
+	std::memset(cName, 0, sizeof(cName));
 	memcpy(cName, cp, 10);
 	cp += 10;
 	dwp = (DWORD*)cp;
@@ -42928,7 +42921,7 @@ void CGame::NotifyMsg_PlayerShutUp(char* pData)
 	wp = (WORD*)cp;
 	wTime = *wp;
 	cp += 2;
-	ZeroMemory(cName, sizeof(cName));
+	std::memset(cName, 0, sizeof(cName));
 	memcpy(cName, cp, 10);
 	cp += 10;
 	if (memcmp(m_cPlayerName, cName, 10) == 0)
@@ -42942,12 +42935,12 @@ void CGame::NotifyMsg_PlayerStatus(bool bOnGame, char* pData)
 {
 	char cName[12], cMapName[12], * cp;
 	WORD* wp;
-	WORD  dx = 1, dy = 1;
+	uint16_t dx = 1, dy = 1;
 	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
-	ZeroMemory(cName, sizeof(cName));
+	std::memset(cName, 0, sizeof(cName));
 	memcpy(cName, cp, 10);
 	cp += 10;
-	ZeroMemory(cMapName, sizeof(cMapName));
+	std::memset(cMapName, 0, sizeof(cMapName));
 	memcpy(cMapName, cp, 10);
 	cp += 10;
 	wp = (WORD*)cp;
@@ -42956,7 +42949,7 @@ void CGame::NotifyMsg_PlayerStatus(bool bOnGame, char* pData)
 	wp = (WORD*)cp;
 	dy = (WORD)*wp;
 	cp += 2;
-	ZeroMemory(G_cTxt, sizeof(G_cTxt));
+	std::memset(G_cTxt, 0, sizeof(G_cTxt));
 	if (bOnGame == true) {
 		if (strlen(cMapName) == 0)
 			wsprintf(G_cTxt, NOTIFYMSG_PLAYER_STATUS1, cName);
@@ -42982,7 +42975,7 @@ void CGame::NotifyMsg_QuestReward(char* pData)
 	ip = (int*)cp;
 	iAmount = *ip;
 	cp += 4;
-	ZeroMemory(cRewardName, sizeof(cRewardName));
+	std::memset(cRewardName, 0, sizeof(cRewardName));
 	memcpy(cRewardName, cp, 20);
 	cp += 20;
 	iPreCon = m_iContribution;
@@ -43003,12 +42996,12 @@ void CGame::NotifyMsg_QuestReward(char* pData)
 		m_stQuest.sRange = 0;
 		m_stQuest.sCurrentCount = 0;
 		m_stQuest.bIsQuestCompleted = false;
-		ZeroMemory(m_stQuest.cTargetName, sizeof(m_stQuest.cTargetName));
+		std::memset(m_stQuest.cTargetName, 0, sizeof(m_stQuest.cTargetName));
 		EnableDialogBox(21, 0, sWho + 110, 0);
 		iIndex = m_stDialogBoxInfo[21].sV1;
 		m_pMsgTextList2[iIndex] = new class CMsg(0, "  ", 0);
 		iIndex++;
-		ZeroMemory(cTxt, sizeof(cTxt));
+		std::memset(cTxt, 0, sizeof(cTxt));
 		if (memcmp(cRewardName, "����ġ", 6) == 0)
 		{
 			if (iAmount > 0) wsprintf(cTxt, NOTIFYMSG_QUEST_REWARD1, iAmount);
@@ -43021,7 +43014,7 @@ void CGame::NotifyMsg_QuestReward(char* pData)
 		iIndex++;
 		m_pMsgTextList2[iIndex] = new class CMsg(0, "  ", 0);
 		iIndex++;
-		ZeroMemory(cTxt, sizeof(cTxt));
+		std::memset(cTxt, 0, sizeof(cTxt));
 		if (iPreCon < m_iContribution)
 			wsprintf(cTxt, NOTIFYMSG_QUEST_REWARD3, m_iContribution - iPreCon);
 		else wsprintf(cTxt, NOTIFYMSG_QUEST_REWARD4, iPreCon - m_iContribution);
@@ -43035,17 +43028,17 @@ void CGame::NotifyMsg_QuestReward(char* pData)
 void CGame::NotifyMsg_RatingPlayer(char* pData)
 {//int * ip;
 	char* cp, cName[12];
-	WORD  cValue;
+	uint16_t cValue;
 	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
 	cValue = *cp;
 	cp++;
-	ZeroMemory(cName, sizeof(cName));
+	std::memset(cName, 0, sizeof(cName));
 	memcpy(cName, cp, 10);
 	cp += 10;
 	//	ip = (int *)cp;
 	//	m_iRating = *ip;
 	cp += 4;
-	ZeroMemory(G_cTxt, sizeof(G_cTxt));
+	std::memset(G_cTxt, 0, sizeof(G_cTxt));
 	if (memcmp(m_cPlayerName, cName, 10) == 0)
 	{
 		if (cValue == 1)
@@ -43069,9 +43062,9 @@ void CGame::NotifyMsg_ServerChange(char* pData)
 	char* cp, cWorldServerAddr[16];	//Snoopy: change names for better readability
 	int* ip, iWorldServerPort;		//Snoopy: change names for better readability
 
-	ZeroMemory(m_cMapName, sizeof(m_cMapName));
-	ZeroMemory(m_cMapMessage, sizeof(m_cMapMessage));
-	ZeroMemory(cWorldServerAddr, sizeof(cWorldServerAddr));
+	std::memset(m_cMapName, 0, sizeof(m_cMapName));
+	std::memset(m_cMapMessage, 0, sizeof(m_cMapMessage));
+	std::memset(cWorldServerAddr, 0, sizeof(cWorldServerAddr));
 
 	// v1.43
 	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
@@ -43105,7 +43098,7 @@ void CGame::NotifyMsg_ServerChange(char* pData)
 	m_dwConnectMode = MSGID_REQUEST_ENTERGAME;
 	//m_wEnterGameType = DEF_ENTERGAMEMSGTYPE_NEW; //Gateway
 	m_wEnterGameType = DEF_ENTERGAMEMSGTYPE_NEW_TOWLSBUTMLS;
-	ZeroMemory(m_cMsg, sizeof(m_cMsg));
+	std::memset(m_cMsg, 0, sizeof(m_cMsg));
 	strcpy(m_cMsg, "55");
 }
 
@@ -43115,7 +43108,7 @@ void CGame::NotifyMsg_SetItemCount(char* pData)
 	WORD* wp;
 	DWORD* dwp;
 	short  sItemIndex;
-	DWORD  dwCount;
+	uint32_t dwCount;
 	bool   bIsItemUseResponse;
 	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
 	wp = (WORD*)cp;
@@ -43172,7 +43165,7 @@ void CGame::NotifyMsg_Skill(char* pData)
 		for (i = 1; i < DEF_MAXCHATMSGS; i++)
 			if (m_pChatMsgList[i] == 0)
 			{
-				ZeroMemory(cTxt, sizeof(cTxt));
+				std::memset(cTxt, 0, sizeof(cTxt));
 				wsprintf(cTxt, "%s +%d%%", m_pSkillCfgList[sSkillIndex]->m_cName, sValue - m_pSkillCfgList[sSkillIndex]->m_iLevel);
 				m_pChatMsgList[i] = new class CMsg(20, cTxt, m_dwCurTime);
 				m_pChatMsgList[i]->m_iObjectID = m_sPlayerObjectID;
@@ -43191,7 +43184,7 @@ void CGame::NotifyMsg_Skill(char* pData)
 		for (i = 1; i < DEF_MAXCHATMSGS; i++)
 			if (m_pChatMsgList[i] == 0)
 			{
-				ZeroMemory(cTxt, sizeof(cTxt));
+				std::memset(cTxt, 0, sizeof(cTxt));
 				wsprintf(cTxt, "%s -%d%%", m_pSkillCfgList[sSkillIndex]->m_cName, sValue - m_pSkillCfgList[sSkillIndex]->m_iLevel);
 				m_pChatMsgList[i] = new class CMsg(20, cTxt, m_dwCurTime);
 				m_pChatMsgList[i]->m_iObjectID = m_sPlayerObjectID;
@@ -43217,7 +43210,7 @@ void CGame::NotifyMsg_SkillTrainSuccess(char* pData)
 	cp++;
 	cSkillLevel = *cp;
 	cp++;
-	ZeroMemory(cTemp, sizeof(cTemp));
+	std::memset(cTemp, 0, sizeof(cTemp));
 	wsprintf(cTemp, NOTIFYMSG_SKILL_TRAIN_SUCCESS1, m_pSkillCfgList[cSkillNum]->m_cName, cSkillLevel);
 	AddEventList(cTemp, 10);
 	m_pSkillCfgList[cSkillNum]->m_iLevel = cSkillLevel;
@@ -43278,7 +43271,7 @@ void CGame::NotifyMsg_WhisperMode(bool bActive, char* pData)
 {
 	char cName[12], * cp;
 	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
-	ZeroMemory(cName, sizeof(cName));
+	std::memset(cName, 0, sizeof(cName));
 	memcpy(cName, cp, 10);
 	if (bActive == true)
 	{
@@ -43395,7 +43388,7 @@ void CGame::DrawDialogBox_CrusadeJob(short msX, short msY)
 void CGame::_Draw_OnLogin(char* pAccount, char* pPassword, int msX, int msY, int iFrame)
 {
 	bool bFlag = true;
-	DWORD dwTime = timeGetTime();
+	uint32_t dwTime = GameClock::GetTimeMS();
 
 	m_DDraw.ClearBackB4();
 
@@ -43435,7 +43428,7 @@ void CGame::_Draw_OnLogin(char* pAccount, char* pPassword, int msX, int msY, int
 	}
 }
 
-void CGame::ShowEventList(DWORD dwTime)
+void CGame::ShowEventList(uint32_t dwTime)
 {
 	int i;
 	int baseY = EVENTLIST2_BASE_Y;
@@ -43535,9 +43528,9 @@ void CGame::InitDataResponseHandler(char* pData)
 	char* cp, cMapFileName[32], cTxt[120], cPreCurLocation[12];
 	bool  bIsObserverMode;
 	HANDLE hFile;
-	DWORD  dwFileSize;
+	uint32_t dwFileSize;
 
-	ZeroMemory(cPreCurLocation, sizeof(cPreCurLocation));
+	std::memset(cPreCurLocation, 0, sizeof(cPreCurLocation));
 	m_bParalyze = false;
 	m_pMapData->Init();
 
@@ -43589,8 +43582,8 @@ void CGame::InitDataResponseHandler(char* pData)
 	{
 		m_stGuildName[i].dwRefTime = 0;
 		m_stGuildName[i].iGuildRank = -1;
-		ZeroMemory(m_stGuildName[i].cCharName, sizeof(m_stGuildName[i].cCharName));
-		ZeroMemory(m_stGuildName[i].cGuildName, sizeof(m_stGuildName[i].cGuildName));
+		std::memset(m_stGuildName[i].cCharName, 0, sizeof(m_stGuildName[i].cCharName));
+		std::memset(m_stGuildName[i].cGuildName, 0, sizeof(m_stGuildName[i].cGuildName));
 	}
 
 	for (i = 0; i < DEF_MAXCHATMSGS; i++) {
@@ -43651,8 +43644,8 @@ void CGame::InitDataResponseHandler(char* pData)
 	{
 		m_bIllusionMVT = false;
 	}
-	ZeroMemory(m_cMapName, sizeof(m_cMapName));
-	ZeroMemory(m_cMapMessage, sizeof(m_cMapMessage));
+	std::memset(m_cMapName, 0, sizeof(m_cMapName));
+	std::memset(m_cMapMessage, 0, sizeof(m_cMapMessage));
 	memcpy(m_cMapName, cp, 10);
 	m_cMapIndex = GetOfficialMapName(m_cMapName, m_cMapMessage);
 	if (m_cMapIndex < 0)
@@ -43668,7 +43661,7 @@ void CGame::InitDataResponseHandler(char* pData)
 	cp += 10;
 
 	strcpy(cPreCurLocation, m_cCurLocation);
-	ZeroMemory(m_cCurLocation, sizeof(m_cCurLocation));
+	std::memset(m_cCurLocation, 0, sizeof(m_cCurLocation));
 	memcpy(m_cCurLocation, cp, 10);
 	cp += 10;
 
@@ -43706,7 +43699,7 @@ void CGame::InitDataResponseHandler(char* pData)
 		SetWhetherStatus(true, m_cWhetherStatus);
 	else SetWhetherStatus(false, m_cWhetherStatus);
 
-	ZeroMemory(cMapFileName, sizeof(cMapFileName));
+	std::memset(cMapFileName, 0, sizeof(cMapFileName));
 	strcat(cMapFileName, "mapdata\\");
 	// CLEROTH - MW MAPS
 	if (memcmp(m_cMapName, "defaultmw", 9) == 0)
@@ -43808,7 +43801,7 @@ void CGame::MotionEventHandler(char* pData)
 	int* ip, iApprColor, iLoc;
 	char    cTxt[120];
 	int i;
-	ZeroMemory(cName, sizeof(cName));
+	std::memset(cName, 0, sizeof(cName));
 	sV1 = sV2 = sV3 = 0;
 	wp = (WORD*)(pData + DEF_INDEX2_MSGTYPE);
 	wEventType = *wp;
@@ -43969,7 +43962,7 @@ void CGame::MotionEventHandler(char* pData)
 		for (i = 1; i < DEF_MAXCHATMSGS; i++)
 			if (m_pChatMsgList[i] == 0)
 			{
-				ZeroMemory(cTxt, sizeof(cTxt));
+				std::memset(cTxt, 0, sizeof(cTxt));
 				wsprintf(cTxt, "%s!", m_pMagicCfgList[sV1]->m_cName);
 				m_pChatMsgList[i] = new class CMsg(41, cTxt, m_dwCurTime);
 				m_pChatMsgList[i]->m_iObjectID = wObjectID - 30000;
@@ -43987,7 +43980,7 @@ void CGame::MotionEventHandler(char* pData)
 		for (i = 1; i < DEF_MAXCHATMSGS; i++)
 			if (m_pChatMsgList[i] == 0)
 			{
-				ZeroMemory(cTxt, sizeof(cTxt));
+				std::memset(cTxt, 0, sizeof(cTxt));
 				if (sV1 > 0)
 					wsprintf(cTxt, "-%dPts!", sV1); //pts
 				else strcpy(cTxt, "Critical!");
@@ -44020,7 +44013,7 @@ void CGame::MotionEventHandler(char* pData)
 		for (i = 1; i < DEF_MAXCHATMSGS; i++)
 			if (m_pChatMsgList[i] == 0)
 			{
-				ZeroMemory(cTxt, sizeof(cTxt));
+				std::memset(cTxt, 0, sizeof(cTxt));
 				if (sV1 != 0)
 				{
 					if (sV1 > 0)
@@ -44054,7 +44047,7 @@ void CGame::MotionEventHandler(char* pData)
 void CGame::DrawDialogBox_Commander(int msX, int msY) // Snoopy: Fixed for 351
 {
 	short sX, sY, szX, szY, MapSzX, MapSzY;
-	DWORD dwTime = G_dwGlobalTime;
+	uint32_t dwTime = G_dwGlobalTime;
 	double dV1, dV2, dV3;
 	int i, tX, tY;
 	sX = m_stDialogBoxInfo[36].sX;
@@ -44476,7 +44469,7 @@ void CGame::DrawDialogBox_Commander(int msX, int msY) // Snoopy: Fixed for 351
 void CGame::DrawDialogBox_Constructor(int msX, int msY) // Snoopy: Fixed for 351
 {
 	short sX, sY, szX, szY, MapSzX, MapSzY;
-	DWORD dwTime = G_dwGlobalTime;
+	uint32_t dwTime = G_dwGlobalTime;
 	double dV1, dV2, dV3;
 	int tX, tY;
 	char cMapName[12];
@@ -44496,7 +44489,7 @@ void CGame::DrawDialogBox_Constructor(int msX, int msY) // Snoopy: Fixed for 351
 	case 0: // Main dlg
 		if (m_iConstructLocX != -1)
 		{
-			ZeroMemory(cMapName, sizeof(cMapName));
+			std::memset(cMapName, 0, sizeof(cMapName));
 			GetOfficialMapName(m_cConstructMapName, cMapName);
 			wsprintf(G_cTxt, DRAW_DIALOGBOX_CONSTRUCTOR1, cMapName, m_iConstructLocX, m_iConstructLocY);
 			PutAlignedString(sX, sX + szX, sY + 40, G_cTxt);
@@ -44761,7 +44754,7 @@ void CGame::DrawDialogBox_Constructor(int msX, int msY) // Snoopy: Fixed for 351
 void CGame::DrawDialogBox_Soldier(int msX, int msY) // Snoopy: Fixed for 351
 {
 	short sX, sY, szX, szY, MapSzX, MapSzY;
-	DWORD dwTime = G_dwGlobalTime;
+	uint32_t dwTime = G_dwGlobalTime;
 	char cMapName[120];
 	double dV1, dV2, dV3;
 	int tX, tY;
@@ -44782,7 +44775,7 @@ void CGame::DrawDialogBox_Soldier(int msX, int msY) // Snoopy: Fixed for 351
 	case 0: // Main dlg, Map
 		if (m_iTeleportLocX != -1)
 		{
-			ZeroMemory(cMapName, sizeof(cMapName));
+			std::memset(cMapName, 0, sizeof(cMapName));
 			GetOfficialMapName(m_cTeleportMapName, cMapName);
 			wsprintf(G_cTxt, DRAW_DIALOGBOX_SOLDIER1, cMapName, m_iTeleportLocX, m_iTeleportLocY);
 			PutAlignedString(sX, sX + szX, sY + 40, G_cTxt);					// "Teleport position: %s near %d, %d"
@@ -44967,24 +44960,24 @@ void CGame::GrandMagicResult(char* pMapName, int iV1, int iV2, int iV3, int iV4,
 		m_pMsgTextList[iTxtIdx++] = new class CMsg(0, m_pGameMsgList[3]->m_pMsg, 0);
 		m_pMsgTextList[iTxtIdx++] = new class CMsg(0, " ", 0);
 
-		ZeroMemory(cTemp, sizeof(cTemp));
+		std::memset(cTemp, 0, sizeof(cTemp));
 		wsprintf(cTemp, "%s %d", m_pGameMsgList[4]->m_pMsg, iV1);
 		m_pMsgTextList[iTxtIdx++] = new class CMsg(0, cTemp, 0);
 
-		ZeroMemory(cTemp, sizeof(cTemp));
+		std::memset(cTemp, 0, sizeof(cTemp));
 		wsprintf(cTemp, "%s %d", m_pGameMsgList[5]->m_pMsg, iV2);
 		m_pMsgTextList[iTxtIdx++] = new class CMsg(0, cTemp, 0);
 
-		ZeroMemory(cTemp, sizeof(cTemp));
+		std::memset(cTemp, 0, sizeof(cTemp));
 		wsprintf(cTemp, "%s %d", m_pGameMsgList[6]->m_pMsg, iV3);
 		m_pMsgTextList[iTxtIdx++] = new class CMsg(0, cTemp, 0);
 
-		ZeroMemory(cTemp, sizeof(cTemp));
+		std::memset(cTemp, 0, sizeof(cTemp));
 		wsprintf(cTemp, "%s %d", m_pGameMsgList[58]->m_pMsg, iV4);
 		m_pMsgTextList[iTxtIdx++] = new class CMsg(0, cTemp, 0);
 		m_pMsgTextList[iTxtIdx++] = new class CMsg(0, " ", 0);
 
-		ZeroMemory(cTemp, sizeof(cTemp));
+		std::memset(cTemp, 0, sizeof(cTemp));
 		wsprintf(cTemp, "%s %d %d %d %d", NOTIFY_MSG_STRUCTURE_HP, iHP1, iHP2, iHP3, iHP4);
 		m_pMsgTextList[iTxtIdx++] = new class CMsg(0, cTemp, 0);
 		m_pMsgTextList[iTxtIdx++] = new class CMsg(0, " ", 0);
@@ -45076,24 +45069,24 @@ void CGame::GrandMagicResult(char* pMapName, int iV1, int iV2, int iV3, int iV4,
 		m_pMsgTextList[iTxtIdx++] = new class CMsg(0, m_pGameMsgList[8]->m_pMsg, 0);
 		m_pMsgTextList[iTxtIdx++] = new class CMsg(0, " ", 0);
 
-		ZeroMemory(cTemp, sizeof(cTemp));
+		std::memset(cTemp, 0, sizeof(cTemp));
 		wsprintf(cTemp, "%s %d", m_pGameMsgList[4]->m_pMsg, iV1);
 		m_pMsgTextList[iTxtIdx++] = new class CMsg(0, cTemp, 0);
 
-		ZeroMemory(cTemp, sizeof(cTemp));
+		std::memset(cTemp, 0, sizeof(cTemp));
 		wsprintf(cTemp, "%s %d", m_pGameMsgList[5]->m_pMsg, iV2);
 		m_pMsgTextList[iTxtIdx++] = new class CMsg(0, cTemp, 0);
 
-		ZeroMemory(cTemp, sizeof(cTemp));
+		std::memset(cTemp, 0, sizeof(cTemp));
 		wsprintf(cTemp, "%s %d", m_pGameMsgList[6]->m_pMsg, iV3);
 		m_pMsgTextList[iTxtIdx++] = new class CMsg(0, cTemp, 0);
 
-		ZeroMemory(cTemp, sizeof(cTemp));
+		std::memset(cTemp, 0, sizeof(cTemp));
 		wsprintf(cTemp, "%s %d", m_pGameMsgList[58]->m_pMsg, iV4);
 		m_pMsgTextList[iTxtIdx++] = new class CMsg(0, cTemp, 0);
 		m_pMsgTextList[iTxtIdx++] = new class CMsg(0, " ", 0);
 
-		ZeroMemory(cTemp, sizeof(cTemp));
+		std::memset(cTemp, 0, sizeof(cTemp));
 		wsprintf(cTemp, "%s %d %d %d %d", NOTIFY_MSG_STRUCTURE_HP, iHP1, iHP2, iHP3, iHP4);
 		m_pMsgTextList[iTxtIdx++] = new class CMsg(0, cTemp, 0);
 		m_pMsgTextList[iTxtIdx++] = new class CMsg(0, " ", 0);
@@ -45243,7 +45236,7 @@ void CGame::DrawDialogBox_ItemUpgrade(int msX, int msY)
 {
 	int i, sX, sY, iValue;
 	char cItemColor, cStr1[120], cStr2[120], cStr3[120];
-	DWORD dwTime = timeGetTime();
+	uint32_t dwTime = GameClock::GetTimeMS();
 
 	sX = m_stDialogBoxInfo[34].sX;
 	sY = m_stDialogBoxInfo[34].sY;
@@ -45303,9 +45296,9 @@ void CGame::DrawDialogBox_ItemUpgrade(int msX, int msY)
 			{
 				m_pSprite[DEF_SPRID_ITEMPACK_PIVOTPOINT + m_pItemList[m_stDialogBoxInfo[34].sV1]->m_sSprite]->PutSpriteRGB(sX + 134, sY + 182, m_pItemList[m_stDialogBoxInfo[34].sV1]->m_sSpriteFrame, m_wR[cItemColor] - m_wR[0], m_wG[cItemColor] - m_wG[0], m_wB[cItemColor] - m_wB[0], dwTime);
 			}
-			ZeroMemory(cStr1, sizeof(cStr1));
-			ZeroMemory(cStr2, sizeof(cStr2));
-			ZeroMemory(cStr3, sizeof(cStr3));
+			std::memset(cStr1, 0, sizeof(cStr1));
+			std::memset(cStr2, 0, sizeof(cStr2));
+			std::memset(cStr3, 0, sizeof(cStr3));
 			GetItemName(m_pItemList[m_stDialogBoxInfo[34].sV1], cStr1, cStr2, cStr3);
 			PutAlignedString(sX + 24, sX + 248, sY + 230 + 20, cStr1);
 			PutAlignedString(sX + 24, sX + 248, sY + 245 + 20, cStr2);
@@ -45347,9 +45340,9 @@ void CGame::DrawDialogBox_ItemUpgrade(int msX, int msY)
 					, m_pItemList[m_stDialogBoxInfo[34].sV1]->m_sSpriteFrame, m_wR[cItemColor] - m_wR[0], m_wG[cItemColor] - m_wG[0], m_wB[cItemColor] - m_wB[0], dwTime);
 			}
 			if ((rand() % 5) == 0) m_pSprite[DEF_SPRID_ITEMPACK_PIVOTPOINT + m_pItemList[m_stDialogBoxInfo[34].sV1]->m_sSprite]->PutTransSprite25(sX + 134, sY + 182, m_pItemList[m_stDialogBoxInfo[34].sV1]->m_sSpriteFrame, dwTime);
-			ZeroMemory(cStr1, sizeof(cStr1));
-			ZeroMemory(cStr2, sizeof(cStr2));
-			ZeroMemory(cStr3, sizeof(cStr3));
+			std::memset(cStr1, 0, sizeof(cStr1));
+			std::memset(cStr2, 0, sizeof(cStr2));
+			std::memset(cStr3, 0, sizeof(cStr3));
 			GetItemName(m_pItemList[m_stDialogBoxInfo[34].sV1], cStr1, cStr2, cStr3);
 			PutAlignedString(sX + 24, sX + 248, sY + 230 + 20, cStr1);
 			PutAlignedString(sX + 24, sX + 248, sY + 245 + 20, cStr2);
@@ -45382,9 +45375,9 @@ void CGame::DrawDialogBox_ItemUpgrade(int msX, int msY)
 				m_pSprite[DEF_SPRID_ITEMPACK_PIVOTPOINT + m_pItemList[m_stDialogBoxInfo[34].sV1]->m_sSprite]->PutSpriteRGB(sX + 134, sY + 182
 					, m_pItemList[m_stDialogBoxInfo[34].sV1]->m_sSpriteFrame, m_wR[cItemColor] - m_wR[0], m_wG[cItemColor] - m_wG[0], m_wB[cItemColor] - m_wB[0], dwTime);
 			}
-			ZeroMemory(cStr1, sizeof(cStr1));
-			ZeroMemory(cStr2, sizeof(cStr2));
-			ZeroMemory(cStr3, sizeof(cStr3));
+			std::memset(cStr1, 0, sizeof(cStr1));
+			std::memset(cStr2, 0, sizeof(cStr2));
+			std::memset(cStr3, 0, sizeof(cStr3));
 			GetItemName(m_pItemList[m_stDialogBoxInfo[34].sV1], cStr1, cStr2, cStr3);
 			PutAlignedString(sX + 24, sX + 248, sY + 230 + 20, cStr1);
 			PutAlignedString(sX + 24, sX + 248, sY + 245 + 20, cStr2);
@@ -45421,9 +45414,9 @@ void CGame::DrawDialogBox_ItemUpgrade(int msX, int msY)
 				m_pSprite[DEF_SPRID_ITEMPACK_PIVOTPOINT + m_pItemList[m_stDialogBoxInfo[34].sV1]->m_sSprite]->PutSpriteRGB(sX + 134, sY + 182
 					, m_pItemList[m_stDialogBoxInfo[34].sV1]->m_sSpriteFrame, m_wR[cItemColor] - m_wR[0], m_wG[cItemColor] - m_wG[0], m_wB[cItemColor] - m_wB[0], dwTime);
 			}
-			ZeroMemory(cStr1, sizeof(cStr1));
-			ZeroMemory(cStr2, sizeof(cStr2));
-			ZeroMemory(cStr3, sizeof(cStr3));
+			std::memset(cStr1, 0, sizeof(cStr1));
+			std::memset(cStr2, 0, sizeof(cStr2));
+			std::memset(cStr3, 0, sizeof(cStr3));
 			GetItemName(m_pItemList[m_stDialogBoxInfo[34].sV1], cStr1, cStr2, cStr3);
 			PutAlignedString(sX + 24, sX + 248, sY + 230 + 20, cStr1);
 			PutAlignedString(sX + 24, sX + 248, sY + 245 + 20, cStr2);
@@ -45512,9 +45505,9 @@ void CGame::DrawDialogBox_ItemUpgrade(int msX, int msY)
 					, m_pItemList[m_stDialogBoxInfo[34].sV1]->m_sSpriteFrame, m_wR[cItemColor] - m_wR[0], m_wG[cItemColor] - m_wG[0], m_wB[cItemColor] - m_wB[0], dwTime);
 			}
 
-			ZeroMemory(cStr1, sizeof(cStr1));
-			ZeroMemory(cStr2, sizeof(cStr2));
-			ZeroMemory(cStr3, sizeof(cStr3));
+			std::memset(cStr1, 0, sizeof(cStr1));
+			std::memset(cStr2, 0, sizeof(cStr2));
+			std::memset(cStr3, 0, sizeof(cStr3));
 			GetItemName(m_pItemList[m_stDialogBoxInfo[34].sV1], cStr1, cStr2, cStr3);
 			PutAlignedString(sX + 24, sX + 248, sY + 230 + 20, cStr1);
 			PutAlignedString(sX + 24, sX + 248, sY + 245 + 20, cStr2);
@@ -45645,9 +45638,9 @@ void CGame::UseShortCut(int num)
 					return;
 				}
 				char cStr1[64], cStr2[64], cStr3[64];
-				ZeroMemory(cStr1, sizeof(cStr1));
-				ZeroMemory(cStr2, sizeof(cStr2));
-				ZeroMemory(cStr3, sizeof(cStr3));
+				std::memset(cStr1, 0, sizeof(cStr1));
+				std::memset(cStr2, 0, sizeof(cStr2));
+				std::memset(cStr3, 0, sizeof(cStr3));
 
 				GetItemName(m_pItemList[m_sShortCut[num]], cStr1, cStr2, cStr3);
 				wsprintf(G_cTxt, MSG_SHORTCUT4, cStr1, cStr2, cStr3, index);// (%s %s %s) [F%d]
@@ -45925,7 +45918,7 @@ void CGame::ItemEquipHandler(char cItemID)
 **  description			: Generates special auras around players													**
 **						: v351 implements this in each drawn function,beter to regroup in single function.			**
 **********************************************************************************************************************/
-void CGame::CheckActiveAura(short sX, short sY, DWORD dwTime, short sOwnerType)
+void CGame::CheckActiveAura(short sX, short sY, uint32_t dwTime, short sOwnerType)
 {	// Used at the beginning of character drawing
 	// DefenseShield
 	if ((_tmp_iStatus & 0x02000000) != 0)
@@ -45978,7 +45971,7 @@ void CGame::CheckActiveAura(short sX, short sY, DWORD dwTime, short sOwnerType)
 **  description			: Generates poison aura around players. This one should be use later...						**
 **						: v351 implements this in each drawn function,beter to regroup in single function.			**
 **********************************************************************************************************************/
-void CGame::CheckActiveAura2(short sX, short sY, DWORD dwTime, short sOwnerType)
+void CGame::CheckActiveAura2(short sX, short sY, uint32_t dwTime, short sOwnerType)
 {	// Poison
 	if ((_tmp_iStatus & 0x80) != 0)
 		//m_pEffectSpr[81]->PutTransSprite(sX+115, sY+85, _tmp_iEffectFrame%21, dwTime);
@@ -45990,7 +45983,7 @@ void CGame::CheckActiveAura2(short sX, short sY, DWORD dwTime, short sOwnerType)
 void CGame::DrawDialogBox_ChangeStatsMajestic(short msX, short msY)
 {
 	short sX, sY, szX;
-	DWORD dwTime = m_dwCurTime;
+	uint32_t dwTime = m_dwCurTime;
 	char cTxt[120];
 	int iStats;
 	sX = m_stDialogBoxInfo[42].sX;
@@ -46409,7 +46402,7 @@ void CGame::DlgBoxClick_ChangeStatsMajestic(short msX, short msY)
 	}
 }
 
-void CGame::DrawAngel(int iSprite, short sX, short sY, char cFrame, DWORD dwTime)
+void CGame::DrawAngel(int iSprite, short sX, short sY, char cFrame, uint32_t dwTime)
 {
 	switch (_tmp_cDir)
 	{
@@ -46625,7 +46618,7 @@ void CGame::ResponseHeldenianTeleportList(char* pData)
 		ip = (int*)cp;
 		m_stTeleportList[i].iIndex = *ip;
 		cp += 4;
-		ZeroMemory(m_stTeleportList[i].mapname, sizeof(m_stTeleportList[i].mapname));
+		std::memset(m_stTeleportList[i].mapname, 0, sizeof(m_stTeleportList[i].mapname));
 		memcpy(m_stTeleportList[i].mapname, cp, 10);
 		cp += 10;
 		ip = (int*)cp;
@@ -46681,7 +46674,7 @@ void CGame::DrawDialogBox_CMDHallMenu(short msX, short msY)
 			PutString2(sX + 35, sY + 250, DRAW_DIALOGBOX_CITYHALL_MENU72_1, 55, 25, 25);//"Civilians cannot go some area."
 			for (int i = 0; i < m_iTeleportMapCount; i++)
 			{
-				ZeroMemory(cTxt, sizeof(cTxt));
+				std::memset(cTxt, 0, sizeof(cTxt));
 				GetOfficialMapName(m_stTeleportList[i].mapname, cTxt);
 				wsprintf(G_cTxt, DRAW_DIALOGBOX_CITYHALL_MENU77, cTxt, m_stTeleportList[i].iCost);
 				if ((msX >= sX + DEF_LBTNPOSX) && (msX <= sX + DEF_RBTNPOSX + DEF_BTNSZX) && (msY >= sY + 130 + i * 15) && (msY <= sY + 144 + i * 15))
@@ -47264,7 +47257,7 @@ void CGame::DebugLog(char* cStr)
 	SYSTEMTIME SysTime;
 	pFile = fopen("Debug.txt", "at");
 	if (pFile == 0) return;
-	ZeroMemory(cBuffer, sizeof(cBuffer));
+	std::memset(cBuffer, 0, sizeof(cBuffer));
 	GetLocalTime(&SysTime);
 	wsprintf(cBuffer, "(%4d:%2d:%2d_%2d:%2d:%2d) - ", SysTime.wYear, SysTime.wMonth, SysTime.wDay, SysTime.wHour, SysTime.wMinute, SysTime.wSecond);
 	strcat(cBuffer, cStr);
@@ -47325,7 +47318,7 @@ void CGame::DrawDialogBox_RepairAll(short msX, short msY, short msZ) //4LifeX Mo
 	for (i = 0; i < 15; i++)
 		if ((i + m_stDialogBoxInfo[52].sView) < totalItemRepair)
 		{
-			ZeroMemory(cTxt, sizeof(cTxt));
+			std::memset(cTxt, 0, sizeof(cTxt));
 			wsprintf(cTxt, "%s - Cost: %d", m_pItemList[m_stRepairAll[i + m_stDialogBoxInfo[52].sView].index]->m_cName, m_stRepairAll[i + m_stDialogBoxInfo[52].sView].price);
 
 			PutString(sX + 30, sY + 45 + i * 15, cTxt, RGB(5, 5, 5));
@@ -47384,7 +47377,7 @@ void CGame::DrawDialogBox_RepairAll(short msX, short msY, short msZ) //4LifeX Mo
 		{
 			DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_BUTTON, sX + DEF_RBTNPOSX, sY + DEF_BTNPOSY, 16);
 		}
-		ZeroMemory(cTxt, sizeof(cTxt));
+		std::memset(cTxt, 0, sizeof(cTxt));
 		wsprintf(cTxt, "Total cost : %d", totalPrice);
 		PutString(sX + 30, sY + 270, cTxt, RGB(5, 5, 5));
 	}

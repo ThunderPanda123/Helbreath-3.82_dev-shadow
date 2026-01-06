@@ -4,6 +4,7 @@
 #define _WINSOCKAPI_
 
 #include "MapData.h"
+#include "CommonTypes.h"
 #include "Benchmark.h"
 
 //////////////////////////////////////////////////////////////////////
@@ -14,9 +15,9 @@ CMapData::CMapData(class CGame* pGame)
 {
 	int i;
 	m_pGame = pGame;
-	ZeroMemory(m_iObjectIDcacheLocX, sizeof(m_iObjectIDcacheLocX));
-	ZeroMemory(m_iObjectIDcacheLocY, sizeof(m_iObjectIDcacheLocY));
-	m_dwDOframeTime = m_dwFrameTime = timeGetTime();
+	std::memset(m_iObjectIDcacheLocX, 0, sizeof(m_iObjectIDcacheLocX));
+	std::memset(m_iObjectIDcacheLocY, 0, sizeof(m_iObjectIDcacheLocY));
+	m_dwDOframeTime = m_dwFrameTime = GameClock::GetTimeMS();
 
 	for (i = 0; i < DEF_TOTALCHARACTERS; i++)
 	{
@@ -792,7 +793,7 @@ CMapData::CMapData(class CGame* pGame)
 void CMapData::Init()
 {
 	int x, y;
-	m_dwFrameCheckTime = timeGetTime();
+	m_dwFrameCheckTime = GameClock::GetTimeMS();
 	m_dwFrameAdjustTime = 0;
 	m_sPivotX = -1;
 	m_sPivotY = -1;
@@ -814,10 +815,10 @@ CMapData::~CMapData()
 void CMapData::OpenMapDataFile(char* cFn)
 {
 	HANDLE hFileRead;
-	DWORD  nCount;
+	DWORD nCount;
 	char cHeader[260];
 	char* cp, * cpMapData;
-	ZeroMemory(cHeader, sizeof(cHeader));
+	std::memset(cHeader, 0, sizeof(cHeader));
 	hFileRead = CreateFile(cFn, GENERIC_READ, 0, 0, OPEN_EXISTING, 0, 0);
 	if (hFileRead == INVALID_HANDLE_VALUE) return;
 	SetFilePointer(hFileRead, 0, 0, FILE_BEGIN);
@@ -1019,16 +1020,16 @@ bool CMapData::bIsTeleportLoc(short sX, short sY)
 	return true;
 }
 
-bool __fastcall CMapData::bSetOwner(WORD wObjectID, int sX, int sY, int sType, int cDir, short sAppr1, short sAppr2, short sAppr3, short sAppr4, int iApprColor, int iStatus, char* pName, short sAction, short sV1, short sV2, short sV3, int iPreLoc, int iFrame)
+bool __fastcall CMapData::bSetOwner(uint16_t wObjectID, int sX, int sY, int sType, int cDir, short sAppr1, short sAppr2, short sAppr3, short sAppr4, int iApprColor, int iStatus, char* pName, short sAction, short sV1, short sV2, short sV3, int iPreLoc, int iFrame)
 {
 	int   iX, iY, dX, dY;
 	int   iChatIndex, iAdd;
 	char  cTmpName[12];
-	DWORD dwTime;
+	uint32_t dwTime;
 	int   iEffectType, iEffectFrame, iEffectTotalFrame;
 
 	if ((m_sPivotX == -1) || (m_sPivotY == -1)) return false;
-	ZeroMemory(cTmpName, sizeof(cTmpName));
+	std::memset(cTmpName, 0, sizeof(cTmpName));
 	strcpy(cTmpName, pName);
 	dwTime = m_dwFrameTime;
 	iEffectType = iEffectFrame = iEffectTotalFrame = 0;
@@ -1050,8 +1051,8 @@ bool __fastcall CMapData::bSetOwner(WORD wObjectID, int sX, int sY, int sType, i
 			if (m_pData[iX][iY].m_wObjectID == wObjectID)
 			{
 				m_pData[iX][iY].m_sOwnerType = 0;
-				ZeroMemory(m_pData[iX][iY].m_cOwnerName, sizeof(m_pData[iX][iY].m_cOwnerName));
-				ZeroMemory(pName, strlen(pName));
+				std::memset(m_pData[iX][iY].m_cOwnerName, 0, sizeof(m_pData[iX][iY].m_cOwnerName));
+				std::memset(pName, 0, strlen(pName));
 
 				if (m_pGame->m_pChatMsgList[m_pData[iX][iY].m_iChatMsg] != 0)
 				{
@@ -1078,7 +1079,7 @@ bool __fastcall CMapData::bSetOwner(WORD wObjectID, int sX, int sY, int sType, i
 			if ((m_pData[iX][iY].m_cDeadOwnerFrame == -1) && (m_pData[iX][iY].m_wDeadObjectID == wObjectID))
 			{
 				m_pData[iX][iY].m_cDeadOwnerFrame = 0;
-				ZeroMemory(pName, strlen(pName));
+				std::memset(pName, 0, strlen(pName));
 				if (m_pGame->m_pChatMsgList[m_pData[iX][iY].m_iDeadChatMsg] != 0)
 				{
 					delete m_pGame->m_pChatMsgList[m_pData[iX][iY].m_iDeadChatMsg];
@@ -1098,8 +1099,8 @@ bool __fastcall CMapData::bSetOwner(WORD wObjectID, int sX, int sY, int sType, i
 				if (m_pData[iX][iY].m_wObjectID == wObjectID)
 				{
 					m_pData[iX][iY].m_sOwnerType = 0;
-					ZeroMemory(m_pData[iX][iY].m_cOwnerName, sizeof(m_pData[iX][iY].m_cOwnerName));
-					ZeroMemory(pName, strlen(pName));
+					std::memset(m_pData[iX][iY].m_cOwnerName, 0, sizeof(m_pData[iX][iY].m_cOwnerName));
+					std::memset(pName, 0, strlen(pName));
 					if (m_pGame->m_pChatMsgList[m_pData[iX][iY].m_iChatMsg] != 0)
 					{
 						delete m_pGame->m_pChatMsgList[m_pData[iX][iY].m_iChatMsg];
@@ -1115,7 +1116,7 @@ bool __fastcall CMapData::bSetOwner(WORD wObjectID, int sX, int sY, int sType, i
 				if ((m_pData[iX][iY].m_cDeadOwnerFrame == -1) && (m_pData[iX][iY].m_wDeadObjectID == wObjectID))
 				{
 					m_pData[iX][iY].m_cDeadOwnerFrame = 0;
-					ZeroMemory(pName, strlen(pName));
+					std::memset(pName, 0, strlen(pName));
 					if (m_pGame->m_pChatMsgList[m_pData[iX][iY].m_iDeadChatMsg] != 0)
 					{
 						delete m_pGame->m_pChatMsgList[m_pData[iX][iY].m_iDeadChatMsg];
@@ -1127,7 +1128,7 @@ bool __fastcall CMapData::bSetOwner(WORD wObjectID, int sX, int sY, int sType, i
 					return false;
 				}
 			}
-		ZeroMemory(pName, strlen(pName));
+		std::memset(pName, 0, strlen(pName));
 		m_pGame->RequestFullObjectData(wObjectID);
 		return false;
 	}
@@ -1135,7 +1136,7 @@ bool __fastcall CMapData::bSetOwner(WORD wObjectID, int sX, int sY, int sType, i
 
 	if ((wObjectID < 30000) && (sAction != DEF_OBJECTNULLACTION))
 	{
-		ZeroMemory(cTmpName, sizeof(cTmpName));
+		std::memset(cTmpName, 0, sizeof(cTmpName));
 		strcpy(cTmpName, pName);
 		dX = sX - m_sPivotX;
 		dY = sY - m_sPivotY;
@@ -1160,7 +1161,7 @@ bool __fastcall CMapData::bSetOwner(WORD wObjectID, int sX, int sY, int sType, i
 				m_pData[iX][iY].m_wObjectID = 0; //-1; v1.41
 				m_pData[iX][iY].m_iChatMsg = 0; // v1.4
 				m_pData[iX][iY].m_sOwnerType = 0;
-				ZeroMemory(m_pData[iX][iY].m_cOwnerName, sizeof(m_pData[iX][iY].m_cOwnerName));
+				std::memset(m_pData[iX][iY].m_cOwnerName, 0, sizeof(m_pData[iX][iY].m_cOwnerName));
 				m_iObjectIDcacheLocX[wObjectID] = sX;
 				m_iObjectIDcacheLocY[wObjectID] = sY;
 				goto EXIT_SEARCH_LOOP;
@@ -1210,7 +1211,7 @@ bool __fastcall CMapData::bSetOwner(WORD wObjectID, int sX, int sY, int sType, i
 					m_pData[iX - m_sPivotX][iY - m_sPivotY].m_iChatMsg = 0;
 					m_pData[iX - m_sPivotX][iY - m_sPivotY].m_sOwnerType = 0;
 					m_pData[iX - m_sPivotX][iY - m_sPivotY].m_iEffectType = 0;
-					ZeroMemory(m_pData[iX - m_sPivotX][iY - m_sPivotY].m_cOwnerName, sizeof(m_pData[iX - m_sPivotX][iY - m_sPivotY].m_cOwnerName));
+					std::memset(m_pData[iX - m_sPivotX][iY - m_sPivotY].m_cOwnerName, 0, sizeof(m_pData[iX - m_sPivotX][iY - m_sPivotY].m_cOwnerName));
 					m_iObjectIDcacheLocX[wObjectID] = sX;
 					m_iObjectIDcacheLocY[wObjectID] = sY;
 					goto EXIT_SEARCH_LOOP;
@@ -1226,7 +1227,7 @@ bool __fastcall CMapData::bSetOwner(WORD wObjectID, int sX, int sY, int sType, i
 					m_pData[iX - m_sPivotX][iY - m_sPivotY].m_wDeadObjectID = 0; //-1; v1.41
 					m_pData[iX - m_sPivotX][iY - m_sPivotY].m_iDeadChatMsg = 0;
 					m_pData[iX - m_sPivotX][iY - m_sPivotY].m_sDeadOwnerType = 0;
-					ZeroMemory(m_pData[iX - m_sPivotX][iY - m_sPivotY].m_cDeadOwnerName, sizeof(m_pData[iX - m_sPivotX][iY - m_sPivotY].m_cDeadOwnerName));
+					std::memset(m_pData[iX - m_sPivotX][iY - m_sPivotY].m_cDeadOwnerName, 0, sizeof(m_pData[iX - m_sPivotX][iY - m_sPivotY].m_cDeadOwnerName));
 					m_iObjectIDcacheLocX[wObjectID] = -1 * sX;
 					m_iObjectIDcacheLocY[wObjectID] = -1 * sY;
 					goto EXIT_SEARCH_LOOP;
@@ -1278,7 +1279,7 @@ bool __fastcall CMapData::bSetOwner(WORD wObjectID, int sX, int sY, int sType, i
 					&& (m_pData[dX][dY].m_sOwnerType != 0) && (m_pData[dX][dY].m_wObjectID != wObjectID))
 				{
 					m_pGame->RequestFullObjectData(wObjectID);
-					ZeroMemory(pName, strlen(pName));
+					std::memset(pName, 0, strlen(pName));
 					return false;
 				}
 				iChatIndex = m_pData[iX][iY].m_iChatMsg;
@@ -1295,15 +1296,15 @@ bool __fastcall CMapData::bSetOwner(WORD wObjectID, int sX, int sY, int sType, i
 					iEffectFrame = m_pData[iX][iY].m_iEffectFrame;
 					iEffectTotalFrame = m_pData[iX][iY].m_iEffectTotalFrame;
 				}
-				ZeroMemory(cTmpName, sizeof(cTmpName));
+				std::memset(cTmpName, 0, sizeof(cTmpName));
 				memcpy(cTmpName, m_pData[iX][iY].m_cOwnerName, 10);
-				ZeroMemory(pName, sizeof(pName));
+				std::memset(pName, 0, sizeof(pName));
 				memcpy(pName, m_pData[iX][iY].m_cOwnerName, 10);
 				m_pData[iX][iY].m_wObjectID = 0; //-1; v1.41
 				m_pData[iX][iY].m_iChatMsg = 0;
 				m_pData[iX][iY].m_sOwnerType = 0;
 				m_pData[iX][iY].m_iEffectType = 0;
-				ZeroMemory(m_pData[iX][iY].m_cOwnerName, sizeof(m_pData[iX][iY].m_cOwnerName));
+				std::memset(m_pData[iX][iY].m_cOwnerName, 0, sizeof(m_pData[iX][iY].m_cOwnerName));
 				m_iObjectIDcacheLocX[wObjectID] = dX + m_sPivotX;
 				m_iObjectIDcacheLocY[wObjectID] = dY + m_sPivotY;
 				goto EXIT_SEARCH_LOOP;
@@ -1346,7 +1347,7 @@ bool __fastcall CMapData::bSetOwner(WORD wObjectID, int sX, int sY, int sType, i
 					(m_pData[dX][dY].m_sOwnerType != 0) && (m_pData[dX][dY].m_wObjectID != wObjectID))
 				{
 					m_pGame->RequestFullObjectData(wObjectID);
-					ZeroMemory(pName, strlen(pName));
+					std::memset(pName, 0, strlen(pName));
 					return false;
 				}
 				iChatIndex = m_pData[iX][iY].m_iDeadChatMsg;
@@ -1359,14 +1360,14 @@ bool __fastcall CMapData::bSetOwner(WORD wObjectID, int sX, int sY, int sType, i
 					iApprColor = m_pData[iX][iY].m_iDeadApprColor;
 					iStatus = m_pData[iX][iY].m_iDeadStatus;
 				}
-				ZeroMemory(cTmpName, sizeof(cTmpName));
+				std::memset(cTmpName, 0, sizeof(cTmpName));
 				memcpy(cTmpName, m_pData[iX][iY].m_cDeadOwnerName, 10);
-				ZeroMemory(pName, sizeof(pName));
+				std::memset(pName, 0, sizeof(pName));
 				memcpy(pName, m_pData[iX][iY].m_cDeadOwnerName, 10);
 				m_pData[iX][iY].m_wDeadObjectID = 0; // -1; v1.41
 				m_pData[iX][iY].m_iDeadChatMsg = 0;
 				m_pData[iX][iY].m_sDeadOwnerType = 0;
-				ZeroMemory(m_pData[iX][iY].m_cDeadOwnerName, sizeof(m_pData[iX][iY].m_cDeadOwnerName));
+				std::memset(m_pData[iX][iY].m_cDeadOwnerName, 0, sizeof(m_pData[iX][iY].m_cDeadOwnerName));
 				m_iObjectIDcacheLocX[wObjectID] = -1 * (dX + m_sPivotX);
 				m_iObjectIDcacheLocY[wObjectID] = -1 * (dY + m_sPivotY);
 				goto EXIT_SEARCH_LOOP;
@@ -1403,7 +1404,7 @@ bool __fastcall CMapData::bSetOwner(WORD wObjectID, int sX, int sY, int sType, i
 						&& (m_pData[dX][dY].m_sOwnerType != 0) && (m_pData[dX][dY].m_wObjectID != wObjectID))
 					{
 						m_pGame->RequestFullObjectData(wObjectID);
-						ZeroMemory(pName, strlen(pName));
+						std::memset(pName, 0, strlen(pName));
 						return false;
 					}
 					iChatIndex = m_pData[iX][iY].m_iChatMsg;
@@ -1419,15 +1420,15 @@ bool __fastcall CMapData::bSetOwner(WORD wObjectID, int sX, int sY, int sType, i
 						iEffectFrame = m_pData[iX][iY].m_iEffectFrame;
 						iEffectTotalFrame = m_pData[iX][iY].m_iEffectTotalFrame;
 					}
-					ZeroMemory(cTmpName, sizeof(cTmpName));
+					std::memset(cTmpName, 0, sizeof(cTmpName));
 					memcpy(cTmpName, m_pData[iX][iY].m_cOwnerName, 10);
-					ZeroMemory(pName, sizeof(pName));
+					std::memset(pName, 0, sizeof(pName));
 					memcpy(pName, m_pData[iX][iY].m_cOwnerName, 10);
 					m_pData[iX][iY].m_wObjectID = 0; //-1; v1.41
 					m_pData[iX][iY].m_iChatMsg = 0;
 					m_pData[iX][iY].m_sOwnerType = 0;
 					m_pData[iX][iY].m_iEffectType = 0;
-					ZeroMemory(m_pData[iX][iY].m_cOwnerName, sizeof(m_pData[iX][iY].m_cOwnerName));
+					std::memset(m_pData[iX][iY].m_cOwnerName, 0, sizeof(m_pData[iX][iY].m_cOwnerName));
 					m_iObjectIDcacheLocX[wObjectID] = dX + m_sPivotX;
 					m_iObjectIDcacheLocY[wObjectID] = dY + m_sPivotY;
 					goto EXIT_SEARCH_LOOP;
@@ -1459,7 +1460,7 @@ bool __fastcall CMapData::bSetOwner(WORD wObjectID, int sX, int sY, int sType, i
 						(m_pData[dX][dY].m_sOwnerType != 0) && (m_pData[dX][dY].m_wObjectID != wObjectID))
 					{
 						m_pGame->RequestFullObjectData(wObjectID);
-						ZeroMemory(pName, strlen(pName));
+						std::memset(pName, 0, strlen(pName));
 						return false;
 					}
 					iChatIndex = m_pData[iX][iY].m_iDeadChatMsg;
@@ -1472,22 +1473,22 @@ bool __fastcall CMapData::bSetOwner(WORD wObjectID, int sX, int sY, int sType, i
 						iApprColor = m_pData[iX][iY].m_iDeadApprColor; // v1.4
 						iStatus = m_pData[iX][iY].m_iDeadStatus;
 					}
-					ZeroMemory(cTmpName, sizeof(cTmpName));
+					std::memset(cTmpName, 0, sizeof(cTmpName));
 					memcpy(cTmpName, m_pData[iX][iY].m_cDeadOwnerName, 10);
-					ZeroMemory(pName, sizeof(pName));
+					std::memset(pName, 0, sizeof(pName));
 					memcpy(pName, m_pData[iX][iY].m_cDeadOwnerName, 10);
 					m_pData[iX][iY].m_wDeadObjectID = 0; //-1; v1.41
 					m_pData[iX][iY].m_iDeadChatMsg = 0;
 					m_pData[iX][iY].m_sDeadOwnerType = 0;
 					m_pData[iX][iY].m_iEffectType = 0;
-					ZeroMemory(m_pData[iX][iY].m_cDeadOwnerName, sizeof(m_pData[iX][iY].m_cDeadOwnerName));
+					std::memset(m_pData[iX][iY].m_cDeadOwnerName, 0, sizeof(m_pData[iX][iY].m_cDeadOwnerName));
 					m_iObjectIDcacheLocX[wObjectID] = -1 * (dX + m_sPivotX);
 					m_iObjectIDcacheLocY[wObjectID] = -1 * (dY + m_sPivotY);
 					goto EXIT_SEARCH_LOOP;
 				}
 			}
 		m_pGame->RequestFullObjectData(wObjectID);
-		ZeroMemory(pName, strlen(pName));
+		std::memset(pName, 0, strlen(pName));
 		return false;
 	}
 
@@ -1518,7 +1519,7 @@ EXIT_SEARCH_LOOP:;
 			m_pData[dX][dY].m_wObjectID = 0;
 			m_pData[dX][dY].m_sOwnerType = 0;
 			m_pData[dX][dY].m_iChatMsg = 0;
-			ZeroMemory(m_pData[dX][dY].m_cOwnerName, sizeof(m_pData[dX][dY].m_cOwnerName));
+			std::memset(m_pData[dX][dY].m_cOwnerName, 0, sizeof(m_pData[dX][dY].m_cOwnerName));
 			m_iObjectIDcacheLocX[m_pData[dX][dY].m_wDeadObjectID] = -1 * m_iObjectIDcacheLocX[m_pData[dX][dY].m_wDeadObjectID];//dX; // v1.4
 			m_iObjectIDcacheLocY[m_pData[dX][dY].m_wDeadObjectID] = -1 * m_iObjectIDcacheLocY[m_pData[dX][dY].m_wDeadObjectID];//dY;
 
@@ -1563,7 +1564,7 @@ EXIT_SEARCH_LOOP:;
 		m_pData[dX][dY].m_iEffectType = iEffectType;
 		m_pData[dX][dY].m_iEffectFrame = iEffectFrame;
 		m_pData[dX][dY].m_iEffectTotalFrame = iEffectTotalFrame;
-		ZeroMemory(m_pData[dX][dY].m_cOwnerName, sizeof(m_pData[dX][dY].m_cOwnerName));
+		std::memset(m_pData[dX][dY].m_cOwnerName, 0, sizeof(m_pData[dX][dY].m_cOwnerName));
 		strcpy(m_pData[dX][dY].m_cOwnerName, cTmpName);
 		if ((sAction != DEF_OBJECTNULLACTION) && (sAction != DEF_MSGTYPE_CONFIRM) && (sAction != DEF_MSGTYPE_REJECT))
 		{
@@ -1601,7 +1602,7 @@ EXIT_SEARCH_LOOP:;
 		m_pData[dX][dY].m_sDeadAppr4 = sAppr4;
 		m_pData[dX][dY].m_iDeadApprColor = iApprColor; // v1.4
 		m_pData[dX][dY].m_iDeadStatus = iStatus;
-		ZeroMemory(m_pData[dX][dY].m_cDeadOwnerName, sizeof(m_pData[dX][dY].m_cDeadOwnerName));
+		std::memset(m_pData[dX][dY].m_cDeadOwnerName, 0, sizeof(m_pData[dX][dY].m_cDeadOwnerName));
 		strcpy(m_pData[dX][dY].m_cDeadOwnerName, cTmpName);
 		m_pData[dX][dY].m_dwDeadOwnerTime = dwTime;
 		m_pData[dX][dY].m_iDeadChatMsg = iChatIndex;
@@ -1633,7 +1634,7 @@ bool __fastcall CMapData::bGetOwner(short sX, short sY, short* pOwnerType, char*
 
 	if ((sX < m_sPivotX) || (sX > m_sPivotX + MAPDATASIZEX) ||
 		(sY < m_sPivotY) || (sY > m_sPivotY + MAPDATASIZEY)) {
-		ZeroMemory(pName, sizeof(pName));
+		std::memset(pName, 0, sizeof(pName));
 		return false;
 	}
 
@@ -1666,7 +1667,7 @@ bool __fastcall CMapData::bGetDeadOwner(short sX, short sY, short* pOwnerType, c
 	if ((sX < m_sPivotX) || (sX > m_sPivotX + MAPDATASIZEX) ||
 		(sY < m_sPivotY) || (sY > m_sPivotY + MAPDATASIZEY)) {
 
-		ZeroMemory(pName, sizeof(pName));
+		std::memset(pName, 0, sizeof(pName));
 		*pItemSprite = 0;
 		return false;
 	}
@@ -1692,18 +1693,18 @@ bool __fastcall CMapData::bGetDeadOwner(short sX, short sY, short* pOwnerType, c
 int CMapData::iObjectFrameCounter(char* cPlayerName, short sViewPointX, short sViewPointY)
 {
 	int dX, dY, sVal;
-	DWORD dwTime, dwRealTime, dwFrameTime;
+	uint32_t dwTime, dwRealTime, dwFrameTime;
 	int  iDelay;
 	int  iRet, iSoundIndex, iSkipFrame;
 	int  cDir, cTotalFrame, cFrameMoveDots;
-	static DWORD S_dwUpdateTime = timeGetTime();
+	static DWORD S_dwUpdateTime = GameClock::GetTimeMS();
 	int   sWeaponType, sCenterX, sCenterY, sDist;//, sAbsX, sAbsY;
 	bool  bAutoUpdate = false, dynObjsNeedUpdate = false;
 	short dx, dy;
 	long  lPan;
 
 	iRet = 0;
-	dwTime = dwRealTime = timeGetTime();
+	dwTime = dwRealTime = GameClock::GetTimeMS();
 	if ((dwTime - m_dwFrameTime) >= 1)
 		m_dwFrameTime = dwTime;
 
@@ -1899,7 +1900,7 @@ int CMapData::iObjectFrameCounter(char* cPlayerName, short sViewPointX, short sV
 					{
 						m_pData[dX][dY].m_wDeadObjectID = 0;
 						m_pData[dX][dY].m_sDeadOwnerType = 0;
-						ZeroMemory(m_pData[dX][dY].m_cDeadOwnerName, sizeof(m_pData[dX][dY].m_cDeadOwnerName));
+						std::memset(m_pData[dX][dY].m_cDeadOwnerName, 0, sizeof(m_pData[dX][dY].m_cDeadOwnerName));
 					}
 				}
 
@@ -1976,7 +1977,7 @@ int CMapData::iObjectFrameCounter(char* cPlayerName, short sViewPointX, short sV
 								memcpy(m_pData[dX][dY].m_cDeadOwnerName, m_pData[dX][dY].m_cOwnerName, 11);
 								m_pData[dX][dY].m_wObjectID = 0;
 								m_pData[dX][dY].m_sOwnerType = 0;
-								ZeroMemory(m_pData[dX][dY].m_cOwnerName, sizeof(m_pData[dX][dY].m_cOwnerName));
+								std::memset(m_pData[dX][dY].m_cOwnerName, 0, sizeof(m_pData[dX][dY].m_cOwnerName));
 								m_iObjectIDcacheLocX[m_pData[dX][dY].m_wDeadObjectID] = -1 * m_iObjectIDcacheLocX[m_pData[dX][dY].m_wDeadObjectID]; //dX; // v1.4
 								m_iObjectIDcacheLocY[m_pData[dX][dY].m_wDeadObjectID] = -1 * m_iObjectIDcacheLocY[m_pData[dX][dY].m_wDeadObjectID]; //dY;
 							}
@@ -1996,7 +1997,7 @@ int CMapData::iObjectFrameCounter(char* cPlayerName, short sViewPointX, short sV
 						{
 							m_pData[dX][dY].m_wObjectID = 0;
 							m_pData[dX][dY].m_sOwnerType = 0;
-							ZeroMemory(m_pData[dX][dY].m_cOwnerName, sizeof(m_pData[dX][dY].m_cOwnerName));
+							std::memset(m_pData[dX][dY].m_cOwnerName, 0, sizeof(m_pData[dX][dY].m_cOwnerName));
 							if (m_pGame->m_pChatMsgList[m_pData[dX][dY].m_iChatMsg] != 0)
 							{
 								delete m_pGame->m_pChatMsgList[m_pData[dX][dY].m_iChatMsg];
@@ -3865,7 +3866,7 @@ int CMapData::iObjectFrameCounter(char* cPlayerName, short sViewPointX, short sV
 }
 
 
-bool CMapData::bSetItem(short sX, short sY, short sIDnum, char cItemColor, DWORD dwItemAttr, bool bDropEffect)
+bool CMapData::bSetItem(short sX, short sY, short sIDnum, char cItemColor, uint32_t dwItemAttr, bool bDropEffect)
 {
 	int dX, dY;
 	int sAbsX, sAbsY, sDist;
@@ -3902,13 +3903,13 @@ bool CMapData::bSetItem(short sX, short sY, short sIDnum, char cItemColor, DWORD
 	return true;
 }
 
-bool __fastcall CMapData::bSetDeadOwner(WORD wObjectID, short sX, short sY, short sType, char cDir, short sAppr1, short sAppr2, short sAppr3, short sAppr4, int iApprColor, int iStatus, char* pName)
+bool __fastcall CMapData::bSetDeadOwner(uint16_t wObjectID, short sX, short sY, short sType, char cDir, short sAppr1, short sAppr2, short sAppr3, short sAppr4, int iApprColor, int iStatus, char* pName)
 {
 	int  dX, dY;
 	char pTmpName[12];
 	bool bEraseFlag = false;
 
-	ZeroMemory(pTmpName, sizeof(pTmpName));
+	std::memset(pTmpName, 0, sizeof(pTmpName));
 	if (pName != 0) strcpy(pTmpName, pName);
 	if ((sX < m_sPivotX) || (sX >= m_sPivotX + MAPDATASIZEX) ||
 		(sY < m_sPivotY) || (sY >= m_sPivotY + MAPDATASIZEY))
@@ -3919,7 +3920,7 @@ bool __fastcall CMapData::bSetDeadOwner(WORD wObjectID, short sX, short sY, shor
 				if (memcmp(m_pData[dX][dY].m_cDeadOwnerName, pTmpName, 10) == 0)
 				{
 					m_pData[dX][dY].m_sDeadOwnerType = 0;
-					ZeroMemory(m_pData[dX][dY].m_cDeadOwnerName, sizeof(m_pData[dX][dY].m_cDeadOwnerName));
+					std::memset(m_pData[dX][dY].m_cDeadOwnerName, 0, sizeof(m_pData[dX][dY].m_cDeadOwnerName));
 				}
 			}
 		return false;
@@ -3938,7 +3939,7 @@ bool __fastcall CMapData::bSetDeadOwner(WORD wObjectID, short sX, short sY, shor
 			if (memcmp(m_pData[dX - m_sPivotX][dY - m_sPivotY].m_cDeadOwnerName, pTmpName, 10) == 0)
 			{
 				m_pData[dX - m_sPivotX][dY - m_sPivotY].m_sDeadOwnerType = 0;
-				ZeroMemory(m_pData[dX - m_sPivotX][dY - m_sPivotY].m_cDeadOwnerName, sizeof(m_pData[dX - m_sPivotX][dY - m_sPivotY].m_cDeadOwnerName));
+				std::memset(m_pData[dX - m_sPivotX][dY - m_sPivotY].m_cDeadOwnerName, 0, sizeof(m_pData[dX - m_sPivotX][dY - m_sPivotY].m_cDeadOwnerName));
 				bEraseFlag = true;
 			}
 		}
@@ -3949,7 +3950,7 @@ bool __fastcall CMapData::bSetDeadOwner(WORD wObjectID, short sX, short sY, shor
 
 				if (memcmp(m_pData[dX][dY].m_cDeadOwnerName, pTmpName, 10) == 0) {
 					m_pData[dX][dY].m_sDeadOwnerType = 0;
-					ZeroMemory(m_pData[dX][dY].m_cDeadOwnerName, sizeof(m_pData[dX][dY].m_cDeadOwnerName));
+					std::memset(m_pData[dX][dY].m_cDeadOwnerName, 0, sizeof(m_pData[dX][dY].m_cDeadOwnerName));
 				}
 
 			}
@@ -3978,7 +3979,7 @@ bool __fastcall CMapData::bSetDeadOwner(WORD wObjectID, short sX, short sY, shor
 	return true;
 }
 
-bool __fastcall CMapData::bSetChatMsgOwner(WORD wObjectID, short sX, short sY, int iIndex)
+bool __fastcall CMapData::bSetChatMsgOwner(uint16_t wObjectID, short sX, short sY, int iIndex)
 {
 	int dX, dY;
 
@@ -4043,13 +4044,13 @@ void CMapData::ClearDeadChatMsg(short sX, short sY)
 	m_pData[sX - m_sPivotX][sY - m_sPivotY].m_iDeadChatMsg = 0;
 }
 
-bool __fastcall CMapData::bGetOwner(short sX, short sY, char* pName, short* pOwnerType, int* pOwnerStatus, WORD* pObjectID)
+bool __fastcall CMapData::bGetOwner(short sX, short sY, char* pName, short* pOwnerType, int* pOwnerStatus, uint16_t* pObjectID)
 {
 	int dX, dY;
 
 	if ((sX < m_sPivotX) || (sX > m_sPivotX + MAPDATASIZEX) ||
 		(sY < m_sPivotY) || (sY > m_sPivotY + MAPDATASIZEY)) {
-		ZeroMemory(pName, sizeof(pName));
+		std::memset(pName, 0, sizeof(pName));
 		return false;
 	}
 
@@ -4064,7 +4065,7 @@ bool __fastcall CMapData::bGetOwner(short sX, short sY, char* pName, short* pOwn
 	return true;
 }
 
-bool CMapData::bSetDynamicObject(short sX, short sY, WORD wID, short sType, bool bIsEvent)
+bool CMapData::bSetDynamicObject(short sX, short sY, uint16_t wID, short sType, bool bIsEvent)
 {
 	int dX, dY, sPrevType;
 
@@ -4081,7 +4082,7 @@ bool CMapData::bSetDynamicObject(short sX, short sY, WORD wID, short sType, bool
 
 	m_pData[dX][dY].m_sDynamicObjectType = sType;
 	m_pData[dX][dY].m_cDynamicObjectFrame = rand() % 5;
-	m_pData[dX][dY].m_dwDynamicObjectTime = timeGetTime();
+	m_pData[dX][dY].m_dwDynamicObjectTime = GameClock::GetTimeMS();
 
 	m_pData[dX][dY].m_cDynamicObjectData1 = 0;
 	m_pData[dX][dY].m_cDynamicObjectData2 = 0;
@@ -4101,7 +4102,7 @@ bool CMapData::bSetDynamicObject(short sX, short sY, WORD wID, short sType, bool
 		{
 			m_pData[dX][dY].m_sDynamicObjectType = DEF_DYNAMICOBJECT_PCLOUD_END;
 			m_pData[dX][dY].m_cDynamicObjectFrame = 0;
-			m_pData[dX][dY].m_dwDynamicObjectTime = timeGetTime();
+			m_pData[dX][dY].m_dwDynamicObjectTime = GameClock::GetTimeMS();
 		}
 		break;
 
@@ -4132,7 +4133,7 @@ bool CMapData::bSetDynamicObject(short sX, short sY, WORD wID, short sType, bool
 	return true;
 }
 
-void CMapData::GetOwnerStatusByObjectID(WORD wObjectID, char* pOwnerType, char* pDir, short* pAppr1, short* pAppr2, short* pAppr3, short* pAppr4, int* pStatus, int* pColor, char* pName)
+void CMapData::GetOwnerStatusByObjectID(uint16_t wObjectID, char* pOwnerType, char* pDir, short* pAppr1, short* pAppr2, short* pAppr3, short* pAppr4, int* pStatus, int* pColor, char* pName)
 {
 	int iX, iY;
 	for (iX = 0; iX < MAPDATASIZEX; iX++)

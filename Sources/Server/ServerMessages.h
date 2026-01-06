@@ -1,4 +1,5 @@
 #pragma once
+#include "CommonTypes.h"
 
 // ServerMessages.h - Server-Only Network Messages
 //
