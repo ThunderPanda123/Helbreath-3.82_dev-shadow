@@ -724,7 +724,6 @@ void LoginServer::RequestEnterGame(int h, char* pData)
 	memcpy(cp2, sv_name, 20);
 	cp2 += 20;
 
-	PutLogList("Send DEF_ENTERGAMERESTYPE_CONFIRM");
 	SendLoginMsg(DEF_ENTERGAMERESTYPE_CONFIRM, DEF_ENTERGAMERESTYPE_CONFIRM, cData, 38, h);
 }
 

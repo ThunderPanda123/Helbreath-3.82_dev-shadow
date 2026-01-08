@@ -1027,12 +1027,22 @@ bool __fastcall CMapData::bSetOwner(uint16_t wObjectID, int sX, int sY, int sTyp
 	char  cTmpName[12];
 	uint32_t dwTime;
 	int   iEffectType, iEffectFrame, iEffectTotalFrame;
+	bool  bUseAbsPos = false;
 
 	if ((m_sPivotX == -1) || (m_sPivotY == -1)) return false;
 	std::memset(cTmpName, 0, sizeof(cTmpName));
 	strcpy(cTmpName, pName);
 	dwTime = m_dwFrameTime;
 	iEffectType = iEffectFrame = iEffectTotalFrame = 0;
+	if ((wObjectID >= 30000) &&
+		((sAction == DEF_OBJECTMOVE) || (sAction == DEF_OBJECTRUN) ||
+			(sAction == DEF_OBJECTDAMAGEMOVE) || (sAction == DEF_OBJECTDAMAGE) ||
+			(sAction == DEF_OBJECTDYING))) {
+		if ((sX >= m_sPivotX) && (sX < m_sPivotX + MAPDATASIZEX) &&
+			(sY >= m_sPivotY) && (sY < m_sPivotY + MAPDATASIZEY)) {
+			bUseAbsPos = true;
+		}
+	}
 	if ((wObjectID < 30000)
 		&& ((sX < m_sPivotX) || (sX >= m_sPivotX + MAPDATASIZEX)
 			|| (sY < m_sPivotY) || (sY >= m_sPivotY + MAPDATASIZEY)))
@@ -1256,24 +1266,30 @@ bool __fastcall CMapData::bSetOwner(uint16_t wObjectID, int sX, int sY, int sTyp
 			{
 				dX = iX;
 				dY = iY;
-				switch (sAction) {
-				case DEF_OBJECTRUN:
-				case DEF_OBJECTMOVE:
-				case DEF_OBJECTDAMAGEMOVE:
-				case DEF_OBJECTATTACKMOVE:
-					switch (cDir) {
-					case 1: dY--; break;
-					case 2: dY--; dX++; break;
-					case 3: dX++; break;
-					case 4: dX++; dY++; break;
-					case 5: dY++; break;
-					case 6: dX--; dY++; break;
-					case 7: dX--; break;
-					case 8: dX--; dY--; break;
+				if (bUseAbsPos) {
+					dX = sX - m_sPivotX;
+					dY = sY - m_sPivotY;
+				}
+				else {
+					switch (sAction) {
+					case DEF_OBJECTRUN:
+					case DEF_OBJECTMOVE:
+					case DEF_OBJECTDAMAGEMOVE:
+					case DEF_OBJECTATTACKMOVE:
+						switch (cDir) {
+						case 1: dY--; break;
+						case 2: dY--; dX++; break;
+						case 3: dX++; break;
+						case 4: dX++; dY++; break;
+						case 5: dY++; break;
+						case 6: dX--; dY++; break;
+						case 7: dX--; break;
+						case 8: dX--; dY--; break;
+						}
+						break;
+					default:
+						break;
 					}
-					break;
-				default:
-					break;
 				}
 				if ((wObjectID != (WORD)m_pGame->m_sPlayerObjectID)
 					&& (m_pData[dX][dY].m_sOwnerType != 0) && (m_pData[dX][dY].m_wObjectID != wObjectID))
@@ -1324,24 +1340,30 @@ bool __fastcall CMapData::bSetOwner(uint16_t wObjectID, int sX, int sY, int sTyp
 			{
 				dX = iX;
 				dY = iY;
-				switch (sAction) {
-				case DEF_OBJECTMOVE:
-				case DEF_OBJECTRUN:
-				case DEF_OBJECTDAMAGEMOVE:
-				case DEF_OBJECTATTACKMOVE:
-					switch (cDir) {
-					case 1: dY--; break;
-					case 2: dY--; dX++; break;
-					case 3: dX++; break;
-					case 4: dX++; dY++; break;
-					case 5: dY++; break;
-					case 6: dX--; dY++; break;
-					case 7: dX--; break;
-					case 8: dX--; dY--; break;
+				if (bUseAbsPos) {
+					dX = sX - m_sPivotX;
+					dY = sY - m_sPivotY;
+				}
+				else {
+					switch (sAction) {
+					case DEF_OBJECTMOVE:
+					case DEF_OBJECTRUN:
+					case DEF_OBJECTDAMAGEMOVE:
+					case DEF_OBJECTATTACKMOVE:
+						switch (cDir) {
+						case 1: dY--; break;
+						case 2: dY--; dX++; break;
+						case 3: dX++; break;
+						case 4: dX++; dY++; break;
+						case 5: dY++; break;
+						case 6: dX--; dY++; break;
+						case 7: dX--; break;
+						case 8: dX--; dY--; break;
+						}
+						break;
+					default:
+						break;
 					}
-					break;
-				default:
-					break;
 				}
 				if ((wObjectID != (WORD)m_pGame->m_sPlayerObjectID) &&
 					(m_pData[dX][dY].m_sOwnerType != 0) && (m_pData[dX][dY].m_wObjectID != wObjectID))
@@ -1381,24 +1403,30 @@ bool __fastcall CMapData::bSetOwner(uint16_t wObjectID, int sX, int sY, int sTyp
 				{
 					dX = iX;
 					dY = iY;
-					switch (sAction) {
-					case DEF_OBJECTRUN:
-					case DEF_OBJECTMOVE:
-					case DEF_OBJECTDAMAGEMOVE:
-					case DEF_OBJECTATTACKMOVE:
-						switch (cDir) {
-						case 1: dY--; break;
-						case 2: dY--; dX++; break;
-						case 3: dX++; break;
-						case 4: dX++; dY++; break;
-						case 5: dY++; break;
-						case 6: dX--; dY++; break;
-						case 7: dX--; break;
-						case 8: dX--; dY--; break;
+					if (bUseAbsPos) {
+						dX = sX - m_sPivotX;
+						dY = sY - m_sPivotY;
+					}
+					else {
+						switch (sAction) {
+						case DEF_OBJECTRUN:
+						case DEF_OBJECTMOVE:
+						case DEF_OBJECTDAMAGEMOVE:
+						case DEF_OBJECTATTACKMOVE:
+							switch (cDir) {
+							case 1: dY--; break;
+							case 2: dY--; dX++; break;
+							case 3: dX++; break;
+							case 4: dX++; dY++; break;
+							case 5: dY++; break;
+							case 6: dX--; dY++; break;
+							case 7: dX--; break;
+							case 8: dX--; dY--; break;
+							}
+							break;
+						default:
+							break;
 						}
-						break;
-					default:
-						break;
 					}
 					if ((wObjectID != (WORD)m_pGame->m_sPlayerObjectID)
 						&& (m_pData[dX][dY].m_sOwnerType != 0) && (m_pData[dX][dY].m_wObjectID != wObjectID))
@@ -1437,24 +1465,30 @@ bool __fastcall CMapData::bSetOwner(uint16_t wObjectID, int sX, int sY, int sTyp
 				{
 					dX = iX;
 					dY = iY;
-					switch (sAction) {
-					case DEF_OBJECTMOVE:
-					case DEF_OBJECTRUN:
-					case DEF_OBJECTDAMAGEMOVE:
-					case DEF_OBJECTATTACKMOVE:
-						switch (cDir) {
-						case 1: dY--; break;
-						case 2: dY--; dX++; break;
-						case 3: dX++; break;
-						case 4: dX++; dY++; break;
-						case 5: dY++; break;
-						case 6: dX--; dY++; break;
-						case 7: dX--; break;
-						case 8: dX--; dY--; break;
+					if (bUseAbsPos) {
+						dX = sX - m_sPivotX;
+						dY = sY - m_sPivotY;
+					}
+					else {
+						switch (sAction) {
+						case DEF_OBJECTMOVE:
+						case DEF_OBJECTRUN:
+						case DEF_OBJECTDAMAGEMOVE:
+						case DEF_OBJECTATTACKMOVE:
+							switch (cDir) {
+							case 1: dY--; break;
+							case 2: dY--; dX++; break;
+							case 3: dX++; break;
+							case 4: dX++; dY++; break;
+							case 5: dY++; break;
+							case 6: dX--; dY++; break;
+							case 7: dX--; break;
+							case 8: dX--; dY--; break;
+							}
+							break;
+						default:
+							break;
 						}
-						break;
-					default:
-						break;
 					}
 					if ((wObjectID != (WORD)m_pGame->m_sPlayerObjectID) &&
 						(m_pData[dX][dY].m_sOwnerType != 0) && (m_pData[dX][dY].m_wObjectID != wObjectID))

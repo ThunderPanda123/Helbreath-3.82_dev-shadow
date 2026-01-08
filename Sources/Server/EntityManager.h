@@ -13,6 +13,8 @@
 
 #define DEF_MAXENTITIES 5000
 
+struct DropTable;
+
 class CEntityManager
 {
 public:
@@ -114,6 +116,27 @@ public:
      * Execute flee behavior.
      */
     void UpdateFleeBehavior(int iEntityHandle);
+
+    // ========================================================================
+    // NPC Behavior & Helpers
+    // ========================================================================
+
+    void NpcBehavior_Move(int iNpcH);
+    void TargetSearch(int iNpcH, short* pTarget, char* pTargetType);
+    void NpcBehavior_Attack(int iNpcH);
+    void NpcBehavior_Flee(int iNpcH);
+    void NpcBehavior_Stop(int iNpcH);
+    void NpcBehavior_Dead(int iNpcH);
+    void CalcNextWayPointDestination(int iNpcH);
+    void NpcMagicHandler(int iNpcH, short dX, short dY, short sType);
+    int iGetNpcRelationship(int iWhatH, int iRecvH);
+    int iGetNpcRelationship_SendEvent(int iNpcH, int iOpponentH);
+    void NpcRequestAssistance(int iNpcH);
+    bool _bNpcBehavior_ManaCollector(int iNpcH);
+    bool _bNpcBehavior_Detector(int iNpcH);
+    void _NpcBehavior_GrandMagicGenerator(int iNpcH);
+    bool bSetNpcFollowMode(char* pName, char* pFollowName, char cFollowOwnerType);
+    void bSetNpcAttackMode(char* cName, int iTargetH, char cTargetType, bool bIsPermAttack);
 
     // ========================================================================
     // Query & Access
@@ -231,6 +254,15 @@ private:
      * Generate item drops when entity dies.
      */
     void GenerateEntityLoot(int iEntityHandle, short sAttackerH, char cAttackerType);
+
+    /**
+     * Internal cleanup for entity deletion (drops, counters, naming value).
+     */
+    void DeleteNpcInternal(int iNpcH);
+
+    void NpcDeadItemGenerator(int iNpcH, short sAttackerH, char cAttackerType);
+    int RollDropTableItem(const DropTable* table, int tier, int& outMinCount, int& outMaxCount) const;
+    bool SpawnNpcDropItem(int iNpcH, int itemId, int minCount, int maxCount);
 
     // ========================================================================
     // Spawn Point Management

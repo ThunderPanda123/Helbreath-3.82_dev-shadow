@@ -73,6 +73,7 @@ public:
 	uint32_t	 m_iExpDiceMax;
 	uint32_t  m_iGoldDiceMin;
 	uint32_t  m_iGoldDiceMax;
+	int   m_iDropTableId;
 
 	char m_cSide;					// NPC�� ���� �� 
 	char m_cActionLimit;            // �� ���� 1�̸� Move�� �����ϸ� ������ �ʴ´�.  �� ���� 2�� ���������� ������ ������ �ʴ´�. 3�̸� Dummy��. �´� ����, 

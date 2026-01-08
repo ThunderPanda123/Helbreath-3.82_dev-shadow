@@ -52,6 +52,7 @@ CNpc::CNpc(char * pName5)
 
 	m_iNpcItemType = 0;
 	m_iNpcItemMax = 0;
+	m_iDropTableId = 0;
 
 	// OPTIMIZATION FIX #3: Initialize previous position for delta detection
 	m_sPrevX = -1;

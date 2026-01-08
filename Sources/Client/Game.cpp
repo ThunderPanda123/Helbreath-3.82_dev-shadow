@@ -41788,15 +41788,13 @@ void CGame::NotifyMsg_HP(char* pData)
 	DWORD* dwp;
 	int iPrevHP;
 	char cTxt[120];
-	int iPrevMP;
 
 	iPrevHP = m_iHP;
 	dwp = (DWORD*)(pData + DEF_INDEX2_MSGTYPE + 2);
 	m_iHP = (int)*dwp;
 
-	iPrevMP = m_iMP;
 	dwp = (DWORD*)(pData + DEF_INDEX2_MSGTYPE + 6);
-	m_iMP = (int)*dwp;
+	m_iHungerStatus = (int)*dwp;
 
 	if (m_iHP > iPrevHP)
 	{
@@ -43798,6 +43796,8 @@ void CGame::MotionEventHandler(char* pData)
 	char    cTxt[120];
 	int i;
 	std::memset(cName, 0, sizeof(cName));
+	sX = -1;
+	sY = -1;
 	sV1 = sV2 = sV3 = 0;
 	wp = (WORD*)(pData + DEF_INDEX2_MSGTYPE);
 	wEventType = *wp;
@@ -43876,14 +43876,30 @@ void CGame::MotionEventHandler(char* pData)
 	else
 	{
 		switch (wEventType) {
-		case DEF_OBJECTMAGIC:
+		case DEF_OBJECTMOVE:
+		case DEF_OBJECTRUN:
 		case DEF_OBJECTDAMAGEMOVE:
 		case DEF_OBJECTDAMAGE:
 			cDir = *cp;
 			cp++;
-			sV1 = (short)*cp; //Damage
+			sV1 = (short)*cp; // Damage or 0
 			cp++;
-			sV2 = (short)*cp; //
+			sV2 = (short)*cp;
+			cp++;
+			sp = (short*)cp;
+			sX = *sp;
+			cp += 2;
+			sp = (short*)cp;
+			sY = *sp;
+			cp += 2;
+			break;
+
+		case DEF_OBJECTMAGIC:
+			cDir = *cp;
+			cp++;
+			sV1 = (short)*cp;
+			cp++;
+			sV2 = (short)*cp;
 			cp++;
 			break;
 
@@ -43903,6 +43919,7 @@ void CGame::MotionEventHandler(char* pData)
 			break;
 
 		case DEF_OBJECTATTACK:
+		case DEF_OBJECTATTACKMOVE:
 			cDir = *cp;
 			cp++;
 			sV1 = *cp;

@@ -60,7 +60,6 @@ MMRESULT _StartTimer(DWORD dwTime);
 void _StopTimer(MMRESULT timerid);
 
 // --------------------------------------------------------------
-
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	if (G_pGame->GetText(hWnd, message, wParam, lParam)) return 0;

@@ -26,6 +26,7 @@
 #include <winbase.h>
 #include <mmsystem.h>
 #include <time.h>
+#include <cstring>
 #include "winmain.h"
 #include "Game.h"
 #include "UserMessages.h"
@@ -532,7 +533,6 @@ void PollAllSockets()
 	if (G_pListenSock != nullptr) {
 		int iRet = G_pListenSock->Poll();
 		if (iRet == DEF_XSOCKEVENT_CONNECTIONESTABLISH) {
-			PutLogList("[DEBUG] Accepting connection on ListenSock");
 			G_pGame->bAccept(G_pListenSock);
 		}
 		else if (iRet < 0 && iRet != DEF_XSOCKEVENT_QUENEFULL) {
@@ -544,7 +544,6 @@ void PollAllSockets()
 	if (G_pLoginSock != nullptr) {
 		int iRet = G_pLoginSock->Poll();
 		if (iRet == DEF_XSOCKEVENT_CONNECTIONESTABLISH) {
-			PutLogList("[DEBUG] Accepting connection on LoginSock");
 			G_pGame->bAcceptLogin(G_pLoginSock);
 		}
 		else if (iRet < 0 && iRet != DEF_XSOCKEVENT_QUENEFULL) {
@@ -609,8 +608,6 @@ int EventLoop()
 					for (int i = 0; i < DEF_MAXCLIENTLOGINSOCK; i++) {
 						if (G_pGame->_lclients[i] != nullptr) activeLoginClients++;
 					}
-					std::snprintf(G_cTxt, sizeof(G_cTxt), "[DEBUG] EventLoop - Active clients: %d, Login clients: %d", activeClients, activeLoginClients);
-					PutLogList(G_cTxt);
 					dwLastDebug = dwNow;
 				}
 			}
@@ -685,18 +682,167 @@ void OnAcceptLogin()
 	G_pGame->bAcceptLogin(G_pLoginSock);
 }
 
+namespace
+{
+	const char* GetLevelName(int level)
+	{
+		switch (level) {
+		case LOG_LEVEL_NOTICE: return "NOTICE";
+		case LOG_LEVEL_WARNING: return "WARNING";
+		case LOG_LEVEL_ERROR: return "ERROR";
+		default: return "INFO";
+		}
+	}
+
+	WORD GetLevelColor(int level)
+	{
+		switch (level) {
+		case LOG_LEVEL_NOTICE: return FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY;
+		case LOG_LEVEL_WARNING: return FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY;
+		case LOG_LEVEL_ERROR: return FOREGROUND_RED | FOREGROUND_INTENSITY;
+		default: return FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE;
+		}
+	}
+
+	const char* TrimPrefix(const char* msg, int* outLevel)
+	{
+		if (msg == nullptr) {
+			return msg;
+		}
+
+		const char* p = msg;
+		while (*p == ' ' || *p == '\t') {
+			++p;
+		}
+
+		if (std::strncmp(p, "(!!!)", 5) == 0) {
+			*outLevel = LOG_LEVEL_ERROR;
+			p += 5;
+		}
+		else if (std::strncmp(p, "(XXX)", 5) == 0) {
+			*outLevel = LOG_LEVEL_ERROR;
+			p += 5;
+		}
+		else if (std::strncmp(p, "(X)", 3) == 0) {
+			*outLevel = LOG_LEVEL_ERROR;
+			p += 3;
+		}
+		else if (std::strncmp(p, "(!)", 3) == 0) {
+			*outLevel = LOG_LEVEL_NOTICE;
+			p += 3;
+		}
+		else if (std::strncmp(p, "(*)", 3) == 0) {
+			*outLevel = LOG_LEVEL_INFO;
+			p += 3;
+		}
+		else if (std::strncmp(p, "[ERROR]", 7) == 0) {
+			*outLevel = LOG_LEVEL_ERROR;
+			p += 7;
+		}
+		else if (std::strncmp(p, "[WARNING]", 9) == 0) {
+			*outLevel = LOG_LEVEL_WARNING;
+			p += 9;
+		}
+		else if (std::strncmp(p, "[NOTICE]", 8) == 0) {
+			*outLevel = LOG_LEVEL_NOTICE;
+			p += 8;
+		}
+		else if (std::strncmp(p, "[INFO]", 6) == 0) {
+			*outLevel = LOG_LEVEL_INFO;
+			p += 6;
+		}
+
+		while (*p == ' ' || *p == '\t') {
+			++p;
+		}
+		if (*outLevel == LOG_LEVEL_INFO) {
+			if (std::strstr(p, "CRITICAL ERROR") != nullptr) {
+				*outLevel = LOG_LEVEL_ERROR;
+			}
+			else if (std::strstr(p, "WARNING") != nullptr) {
+				*outLevel = LOG_LEVEL_WARNING;
+			}
+		}
+		return p;
+	}
+
+	void WriteServerLogLine(const char* line)
+	{
+		if (line == nullptr) {
+			return;
+		}
+		CreateDirectoryA("GameLogs", nullptr);
+		FILE* file = fopen("GameLogs\\server.log", "at");
+		if (file == nullptr) {
+			return;
+		}
+		fwrite(line, 1, std::strlen(line), file);
+		fwrite("\n", 1, 1, file);
+		fclose(file);
+	}
+
+	void LogWrite(int level, const char* message, bool writeConsole)
+	{
+		if (message == nullptr) {
+			return;
+		}
+
+		const char* trimmed = message;
+		while (*trimmed == ' ' || *trimmed == '\t') {
+			++trimmed;
+		}
+		if (*trimmed == '\0') {
+			return;
+		}
+		bool onlyDots = true;
+		for (const char* p = trimmed; *p != '\0'; ++p) {
+			if (*p != '.' && *p != ' ') {
+				onlyDots = false;
+				break;
+			}
+		}
+		if (onlyDots) {
+			return;
+		}
+
+		SYSTEMTIME st;
+		GetLocalTime(&st);
+
+		char line[1024] = {};
+		std::snprintf(line, sizeof(line), "[%02d:%02d:%02d] [%s] %s",
+			st.wHour, st.wMinute, st.wSecond, GetLevelName(level), trimmed);
+
+		if (writeConsole) {
+			HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+			CONSOLE_SCREEN_BUFFER_INFO info = {};
+			WORD original = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE;
+			if (hOut != INVALID_HANDLE_VALUE && GetConsoleScreenBufferInfo(hOut, &info)) {
+				original = info.wAttributes;
+				SetConsoleTextAttribute(hOut, GetLevelColor(level));
+			}
+			printf("%s\n", line);
+			if (hOut != INVALID_HANDLE_VALUE && GetConsoleScreenBufferInfo(hOut, &info)) {
+				SetConsoleTextAttribute(hOut, original);
+			}
+		}
+
+		WriteServerLogLine(line);
+	}
+}
+
+void PutLogListLevel(int level, const char* cMsg)
+{
+	if (cMsg == nullptr) {
+		return;
+	}
+	LogWrite(level, cMsg, true);
+}
 
 void PutLogList(char* cMsg)
 {
-	// Get timestamp
-	SYSTEMTIME st;
-	GetLocalTime(&st);
-
-	// Direct console output with timestamp
-	printf("[%02d:%02d:%02d] %s\n", st.wHour, st.wMinute, st.wSecond, cMsg);
-
-	// Still log to file
-	PutAdminLogFileList(cMsg);
+	int level = LOG_LEVEL_INFO;
+	const char* msg = TrimPrefix(cMsg, &level);
+	LogWrite(level, msg, true);
 }
 
 void PutXSocketLogList(char* cMsg)
