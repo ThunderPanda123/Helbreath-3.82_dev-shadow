@@ -9,14 +9,27 @@ Helbreath 3.82 is a classic MMORPG client-server application written in C++ for 
 - **Client (Game)**: DirectX-based game client with DirectDraw rendering, DirectInput, and DirectSound
 - **Server**: Multi-threaded game server managing game logic, player sessions, NPCs, and world state
 
+## Project Structure & Module Organization
+
+- `Sources/Client/`: C++ game client (DirectDraw/DirectInput/DirectSound)
+- `Sources/Server/`: C++ game server (networking, AI, world state)
+- `Dependencies/Shared/`: Headers shared between client and server (protocol IDs, shared constants)
+- `Dependencies/Client/`: DirectX SDK headers and legacy libraries
+- `Binaries/Game/`: Client runtime content (configs, dialogs, assets)
+- `Binaries/Server/`: Server configs and data files
+- `PLANS/`: Implementation plans for significant changes
+- `Helbreath.sln`: Solution entry point; **always build from here** to resolve shared includes
+
 ## Build Instructions
 
 ### Building with Visual Studio
 
 The project uses Visual Studio 2022 (v143 platform toolset) and requires Windows SDK 10.0.
 
-**IMPORTANT: Always build from the solution level, not individual project files.**
+**CRITICAL: Always build from the solution level, not individual project files.**
 Building from the solution level ensures shared include paths (`Dependencies/Shared/`) are properly resolved.
+
+**Build early and often:** After each logical change or file group, re-run the appropriate build to catch breakage quickly.
 
 **Build both projects:**
 ```bash
@@ -28,24 +41,43 @@ msbuild Helbreath.sln /p:Configuration=Debug /p:Platform=x86
 
 **Build client only (from solution):**
 ```bash
-# From the Helbreath-3.82 directory
-msbuild Helbreath.sln /t:Client /p:Configuration=Release /p:Platform=x86
+msbuild Helbreath.sln /t:Game /p:Configuration=Release /p:Platform=x86
 ```
 
 **Build server only (from solution):**
 ```bash
-# From the Helbreath-3.82 directory
 msbuild Helbreath.sln /t:Server /p:Configuration=Release /p:Platform=x86
 ```
 
+**Note:** `msbuild` should be available in PATH. If using PowerShell, invoke directly: `msbuild Helbreath.sln ...`
+
 **Output locations:**
-- Client: `Helbreath-3.82/Debug/Game.exe` or `Helbreath-3.82/Release/Game.exe`
-- Server: `Helbreath-3.82/Debug/Server.exe` or `Helbreath-3.82/Release/Server.exe`
+- Client: `Debug/Game.exe` or `Release/Game.exe`
+- Server: `Debug/Server.exe` or `Release/Server.exe`
+
+**Build Logs:**
+If build issues require user verification beyond agent-run builds, capture output in `server_build.log` and `client_build.log`.
 
 **Important Notes:**
 - Both projects target **Win32 (x86)** architecture only
 - **DO NOT** build from project directories (`Sources/Client/` or `Sources/Server/`) as this breaks shared include path resolution
 - Shared headers in `Dependencies/Shared/` (ActionID.h, DynamicObjectID.h, NetMessages.h) require solution-level builds
+- When adding new source or header files, update the MSVC project (`.vcxproj`) so the files are included in the build
+
+### Debug vs Release Builds
+
+**Debug build characteristics:**
+- No optimization
+- Edit & Continue enabled
+- Full debug symbols
+- Runtime library: `MultiThreadedDebugDLL` (client) / `MultiThreadedDebug` (server)
+
+**Release build characteristics:**
+- Max speed optimization
+- Inline expansion
+- String pooling and function-level linking
+- No debug info (client), limited symbols (server)
+- Runtime library: `MultiThreadedDLL` (client) / `MultiThreaded` (server)
 
 ## Architecture
 
@@ -125,34 +157,38 @@ Both client and server share parallel implementations of:
 - **Action IDs**: Synchronized animation and action constants (`ActionID.h`)
 - **Dynamic Object IDs**: Shared object type definitions (`DynamicObjectID.h`)
 
-## Common Development Commands
+## Code Conventions
 
-### Building Debug vs Release
+- **Indentation**: Tabs; braces use Allman style
+- **Naming**: Hungarian notation (`m_` for members, `p` for pointers, `i` for int, `sz` for strings)
+- **Classes**: Pascal case with `C` prefix (CGame, CClient, CNpc)
+- **Headers**: Use `#pragma once` for include guards
+- **Constants**: `DEF_` prefix for defines, all caps
+- **Memory**: Manual new/delete, no smart pointers
+- **Strings**: Mix of C-style char arrays and some C++ strings
+- **Comments**: Korean comments present in server code
 
-**Debug build characteristics:**
-- No optimization
-- Edit & Continue enabled
-- Full debug symbols
-- Runtime library: `MultiThreadedDebugDLL` (client) / `MultiThreadedDebug` (server)
+## Testing Guidelines
 
-**Release build characteristics:**
-- Max speed optimization
-- Inline expansion
-- String pooling and function-level linking
-- No debug info (client), limited symbols (server)
-- Runtime library: `MultiThreadedDLL` (client) / `MultiThreaded` (server)
+**No automated test framework is present.** All testing is manual.
+
+- **Smoke Testing**: Validate changes by running server then client using configs in `Binaries/Server/` and content in `Binaries/Game/`
+- **Build Validation**: For extensive code changes, stop once a build passes and request the user to run manual tests before proceeding further
+- **Network Testing**: For network communication changes, verify message IDs, payload layout, and handler symmetry between client and server; if full verification isn't possible, note the gap explicitly
+- **Protocol Changes**: When modifying protocol messages, update both client and server handlers and rebuild both
 
 ### Modifying Network Protocol
 
 When adding or changing network messages:
 
-1. Update `Sources/Client/NetMessages.h` and `Sources/Server/NetMessages.h` with matching message IDs
+1. Update `Dependencies/Shared/NetMessages.h` with new message IDs
 2. Implement handler in client `Game.cpp` message processing
 3. Implement handler in server `Game.cpp` message processing
 4. Ensure both sides pack/unpack structures identically
 5. Rebuild both client and server
+6. Note any verification gaps that require manual testing
 
-### Working with Game Data
+## Working with Game Data
 
 Game content files are in `Binaries/Game/CONTENTS/`:
 - `contents*.txt`: NPC dialogs, quests, and game text
@@ -177,15 +213,36 @@ When you finish a TODO task from `TODO.md`:
 
 2. **Mark as complete in TODO.md**: Add a checkmark (✓ or ✅) to the completed task in `TODO.md`
 
-## Code Conventions
+## Planning & Documentation
 
-- **Naming**: Hungarian notation (m_ for members, p for pointers, i for int, sz for strings)
-- **Classes**: Pascal case with C prefix (CGame, CClient, CNpc)
-- **Headers**: Include guards with AFX_ prefix
-- **Constants**: DEF_ prefix for defines, all caps
-- **Memory**: Manual new/delete, no smart pointers
-- **Strings**: Mix of C-style char arrays and some C++ strings
-- **Comments**: Korean comments present in server code
+Before significant changes, write a plan and place it in `PLANS/`:
+- Use descriptive names (e.g., `PLAN_EntityManager.md`, `PLAN_NetworkRefactor.md`)
+- Rename older generic plans to `PLAN_{ModifiedDateTimeStamp}.md` to preserve history
+- Include: objectives, affected files, implementation steps, and testing notes
+
+## Commit & Pull Request Guidelines
+
+- **Do not create git commits in this repo**; work only with the existing working tree
+- If a PR is needed, include:
+  - Summary of changes
+  - Affected modules
+  - Test notes (manual steps to verify)
+  - Screenshots only for UI changes
+
+## Agent-Specific Instructions
+
+**Critical Rules:**
+- **Always build from `Helbreath.sln`**, never from `Sources/Client/` or `Sources/Server/` project folders
+- **`HelbreathServer-main` is read-only**; do not edit files there
+- **Avoid over-optimization**; implement only what is requested and necessary for correctness
+- **Do not create tooling inside this repo**; place any new tooling in `C:\Users\ShadowEvil\source\Repos3`
+- **Do not preserve refactored code**; when refactoring, delete the old implementation entirely. Git provides backup history if rollback is needed. Keeping "for reference" copies creates dead code and confusion.
+
+**Workflow Guidelines:**
+- If a change is large enough to warrant end-to-end verification, pause and ask the user to run the test locally
+- If the next step is unclear or scope might expand, ask the user for direction before continuing
+- When adding new source or header files, update the MSVC project (`.vcxproj`) so the files are included in the build
+- Build early and often to catch issues quickly
 
 ## Platform Specifics
 
@@ -201,7 +258,7 @@ When you finish a TODO task from `TODO.md`:
 - `Sources/Server/Game.cpp` (2.1MB): Core server logic and entity management
 - `Sources/Client/Game.h`: Client constants and CGame interface
 - `Sources/Server/Game.h`: Server constants and limits
-- `NetMessages.h`: Network protocol (must match on both sides)
+- `Dependencies/Shared/NetMessages.h`: Network protocol (must match on both sides)
 - `XSocket.cpp/h`: Custom async socket wrapper
 - `GlobalDef.h`: Shared global definitions (different per side)
 

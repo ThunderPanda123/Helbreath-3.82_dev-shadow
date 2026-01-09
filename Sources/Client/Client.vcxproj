@@ -146,6 +146,7 @@
   <ItemGroup>
     <ClInclude Include="ActionID_Client.h" />
     <ClInclude Include="Benchmark.h" />
+    <ClInclude Include="FrameTiming.h" />
     <ClInclude Include="BuildItem.h" />
     <ClInclude Include="CharInfo.h" />
     <ClInclude Include="CommonTypes.h" />
@@ -180,6 +181,7 @@
   <ItemGroup>
     <ClCompile Include="CommonTypes.cpp" />
     <ClCompile Include="Curse.cpp" />
+    <ClCompile Include="FrameTiming.cpp" />
     <ClCompile Include="DXC_ddraw.cpp" />
     <ClCompile Include="DXC_dinput.cpp" />
     <ClCompile Include="Game.cpp" />

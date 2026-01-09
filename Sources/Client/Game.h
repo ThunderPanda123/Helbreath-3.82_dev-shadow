@@ -448,8 +448,11 @@ public:
 
 	void UseShortCut( int num );
 	void UpdateScreen();
+	void DrawScreen();        // Dispatches to Draw_* methods based on game mode
+	void RenderFrame();       // Clear backbuffer -> DrawScreen -> Flip (centralized)
 	void UpdateScreen_OnMainMenu();
 	void UpdateScreen_OnGame();
+	void DrawScreen_OnGame();
 	void UpdateScreen_OnConnecting();
 	void UpdateScreen_OnWaitInitData();
 	void MakeSprite( char* FileName, short sStart, short sCount, bool bAlphaEffect = true);
@@ -470,6 +473,45 @@ public:
 	void UpdateScreen_OnChangePassword();
 	void UpdateScreen_OnLoading_Progress();
 	void UpdateScreen_OnVersionNotMatch();
+
+	// Separated Update/Draw methods (Phase 3 refactor)
+	void UpdateScreen_Quit();
+	void DrawScreen_Quit();
+	void UpdateScreen_VersionNotMatch();
+	void DrawScreen_VersionNotMatch();
+	void UpdateScreen_ConnectionLost();
+	void DrawScreen_ConnectionLost();
+	void UpdateScreen_Msg();
+	void DrawScreen_Msg();
+	void UpdateScreen_WaitingResponse();
+	void DrawScreen_WaitingResponse();
+	void UpdateScreen_Connecting();
+	void DrawScreen_Connecting();
+	void UpdateScreen_QueryForceLogin();
+	void DrawScreen_QueryForceLogin();
+	void UpdateScreen_QueryDeleteCharacter();
+	void DrawScreen_QueryDeleteCharacter();
+	void UpdateScreen_MainMenu();
+	void DrawScreen_MainMenu();
+	void UpdateScreen_Login();
+	void DrawScreen_Login();
+	void UpdateScreen_SelectServer();
+	void DrawScreen_SelectServer();
+	void UpdateScreen_WaitInitData();
+	void DrawScreen_WaitInitData();
+	void UpdateScreen_LogResMsg();
+	void DrawScreen_LogResMsg();
+	void UpdateScreen_ChangePassword();
+	void DrawScreen_ChangePassword();
+	void UpdateScreen_CreateNewAccount();
+	void DrawScreen_CreateNewAccount();
+	void UpdateScreen_SelectCharacter();
+	void DrawScreen_SelectCharacter();
+	void UpdateScreen_CreateNewCharacter();
+	void DrawScreen_CreateNewCharacter();
+	void UpdateScreen_Loading();
+	void DrawScreen_Loading();
+
 	void NpcTalkHandler(char * pData);
 	int  _iGetWeaponSkillType();
 	void SetCameraShakingEffect(short sDist, int iMul = 0);
@@ -888,6 +930,12 @@ public:
 	short m_sShortCut[6]; // Snoopy: 6 shortcuts
 	int	m_iSpecialAbilityTimeLeftSec;
 	int m_iDrawFlag;
+	bool m_bSkipFrame;  // Set by UpdateScreen_OnGame when iUpdateRet == 0 to skip flip
+
+	// Frame state shared between Update and Draw phases
+	short m_sFrameMouseX, m_sFrameMouseY, m_sFrameMouseZ;
+	char m_cFrameMouseLB, m_cFrameMouseRB;
+
 	int m_iSpecialAbilityType;
 	int m_iTimeLeftSecAccount, m_iTimeLeftSecIP;
 	int m_iCrusadeDuty;

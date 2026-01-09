@@ -21,6 +21,7 @@
 #include "Game.h"
 #include "GlobalDef.h"
 #include "resource.h"
+#include "FrameTiming.h"
 
 // --------------------------------------------------------------
 #define WM_USER_TIMERSIGNAL		WM_USER + 500
@@ -211,12 +212,22 @@ void EventLoop()
 	{
 		if (PeekMessage(&msg, 0, 0, 0, PM_NOREMOVE))
 		{
-			if (!GetMessage(&msg, 0, 0, 0)) return;// msg.wParam;
+			if (!GetMessage(&msg, 0, 0, 0)) return;
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
-		else if (G_pGame->m_bIsProgramActive) G_pGame->UpdateScreen();
-		else if (G_pGame->m_cGameMode == DEF_GAMEMODE_ONLOADING) G_pGame->UpdateScreen_OnLoading(false);
+		else if (G_pGame->m_bIsProgramActive)
+		{
+			FrameTiming::BeginFrame();
+			G_pGame->RenderFrame();  // Centralized: Clear -> UpdateScreen -> Flip
+			FrameTiming::EndFrame();
+		}
+		else if (G_pGame->m_cGameMode == DEF_GAMEMODE_ONLOADING)
+		{
+			FrameTiming::BeginFrame();
+			G_pGame->RenderFrame();  // Use RenderFrame for loading too
+			FrameTiming::EndFrame();
+		}
 		else WaitMessage();
 	}
 }
@@ -264,6 +275,10 @@ void Initialize(char* pCmdLine)
 	int     iErrCode;
 	uint16_t wVersionRequested;
 	WSADATA wsaData;
+
+	// Initialize timing systems
+	FrameTiming::Initialize();
+
 	wVersionRequested = MAKEWORD(2, 2);
 	iErrCode = WSAStartup(wVersionRequested, &wsaData);
 	if (iErrCode)
