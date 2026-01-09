@@ -391,7 +391,7 @@ public:
 	void SyncMiddlelandMapInfo();
 	void RemoveCrusadeStructures();
 	void _SendMapStatus(int iClientH);
-	void MapStatusHandler(int iClientH, int iMode, char * pMapName);
+	void MapStatusHandler(int iClientH, int iMode, const char * pMapName);
 	void SelectCrusadeDutyHandler(int iClientH, int iDuty);
 	void RequestSummonWarUnitHandler(int iClientH, int dX, int dY, char cType, char cNum, char cMode);
 	void RequestGuildTeleportHandler(int iClientH);
@@ -406,7 +406,7 @@ public:
 	void GrandMagicResultHandler(char *cMapName, int iCrashedStructureNum, int iStructureDamageAmount, int iCasualities, int iActiveStructure, int iTotalStrikePoints, char * cData);
 	void CalcMeteorStrikeEffectHandler(int iMapIndex);
 	void DoMeteorStrikeDamageHandler(int iMapIndex);
-	void RequestSetGuildConstructLocHandler(int iClientH, int dX, int dY, int iGuildGUID, char * pMapName);
+	void RequestSetGuildConstructLocHandler(int iClientH, int dX, int dY, int iGuildGUID, const char * pMapName);
 	void GSM_SetGuildConstructLoc(int iGuildGUID, int dX, int dY, char * pMapName);
 	void GSM_ConstructionPoint(int iGuildGUID, int iPoint);
 	void CheckCommanderConstructionPoint(int iClientH);
@@ -452,7 +452,7 @@ public:
 	void SetIllusionFlag(short sOwnerH, char cOwnerType, bool bStatus);
 
 	void RequestChangePlayMode(int iClientH);
-	void GetHeroMantleHandler(int iClientH,int iItemID,char * pString);
+	void GetHeroMantleHandler(int iClientH, int iItemID, const char * pString);
 	void AdminOrder_Weather(int iClientH, char * pData, uint32_t dwMsgSize);
 	
 	void SendMsg(short sOwnerH, char cOwnerType, bool bStatus, long lPass);
@@ -511,7 +511,7 @@ public:
 	void ActivateSpecialAbilityHandler(int iClientH);
 	void EnergySphereProcessor(bool bIsAdminCreate = false, int iClientH = 0);
 	bool bCheckEnergySphereDestination(int iNpcH, short sAttackerH, char cAttackerType);
-	void JoinPartyHandler(int iClientH, int iV1, char *pMemberName);
+	void JoinPartyHandler(int iClientH, int iV1, const char * pMemberName);
 	void CreateNewPartyHandler(int iClientH);
 	void _DeleteRandomOccupyFlag(int iMapIndex);
 	void RequestSellItemListHandler(int iClientH, char * pData);
@@ -542,7 +542,7 @@ public:
 	int  iGetMaxSP(int iClientH);
 	void _ClearQuestStatus(int iClientH);
 	bool _bCheckItemReceiveCondition(int iClientH, class CItem * pItem);
-	void SendItemNotifyMsg(int iClientH, uint16_t wMsgType, class CItem * pItem, int iV1);
+	int SendItemNotifyMsg(int iClientH, uint16_t wMsgType, class CItem * pItem, int iV1);
 	
 	int _iTalkToNpcResult_WTower(int iClientH, int * pQuestType, int * pMode, int * pRewardType, int * pRewardAmount, int * pContribution, char * pTargetName, int * pTargetType, int * pTargetCount, int * pX, int * pY, int * pRange);
 	int _iTalkToNpcResult_WHouse(int iClientH, int * pQuestType, int * pMode, int * pRewardType, int * pRewardAmount, int * pContribution, char * pTargetName, int * pTargetType, int * pTargetCount, int * pX, int * pY, int * pRange);
@@ -558,7 +558,7 @@ public:
 	bool bAddItem(int iClientH, class CItem * pItem, char cMode);
 	void ConfirmExchangeItem(int iClientH);
 	void SetExchangeItem(int iClientH, int iItemIndex, int iAmount);
-	void ExchangeItemHandler(int iClientH, short sItemIndex, int iAmount, short dX, short dY, uint16_t wObjectID, char * pItemName);
+	void ExchangeItemHandler(int iClientH, short sItemIndex, int iAmount, short dX, short dY, uint16_t wObjectID, const char * pItemName);
 
 	void _BWM_Command_Shutup(char * pData);
 	void _BWM_Init(int iClientH, char * pData);
@@ -628,10 +628,10 @@ public:
 	void ToggleWhisperPlayer(int iClientH, char * pMsg, uint32_t dwMsgSize);
 	void CheckAndNotifyPlayerConnection(int iClientH, char * pMsg, uint32_t dwSize);
 	int iCalcTotalWeight(int iClientH);
-	void ReqRepairItemCofirmHandler(int iClientH, char cItemID, char * pString);
-	void ReqRepairItemHandler(int iClientH, char cItemID, char cRepairWhom, char * pString);
-	void ReqSellItemConfirmHandler(int iClientH, char cItemID, int iNum, char * pString);
-	void ReqSellItemHandler(int iClientH, char cItemID, char cSellToWhom, int iNum, char * pItemName);
+	void ReqRepairItemCofirmHandler(int iClientH, char cItemID, const char * pString);
+	void ReqRepairItemHandler(int iClientH, char cItemID, char cRepairWhom, const char * pString);
+	void ReqSellItemConfirmHandler(int iClientH, char cItemID, int iNum, const char * pString);
+	void ReqSellItemHandler(int iClientH, char cItemID, char cSellToWhom, int iNum, const char * pItemName);
 	void UseSkillHandler(int iClientH, int iV1, int iV2, int iV3);
 	int  iCalculateUseSkillItemEffect(int iOwnerH, char cOwnerType, char cOwnerSkill, int iSkillNum, char cMapIndex, int dX, int dY);
 	void ClearSkillUsingStatus(int iClientH);
@@ -689,7 +689,7 @@ public:
 	int  _iGetSkillNumber(char * pSkillName);
 	void TrainSkillResponse(bool bSuccess, int iClientH, int iSkillNum, int iSkillLevel);
 	int _iGetMagicNumber(char * pMagicName, int * pReqInt, int * pCost);
-	void RequestStudyMagicHandler(int iClientH, char * pName, bool bIsPurchase = true);
+	void RequestStudyMagicHandler(int iClientH, const char * pName, bool bIsPurchase = true);
 	void ReleaseFollowMode(short sOwnerH, char cOwnerType);
 	void RequestTeleportHandler(int iClientH, char * pData, char * cMapName = 0, int dX = -1, int dY = -1);
 	void PlayerMagicHandler(int iClientH, int dX, int dY, short sType, bool bItemEffect = false, int iV1 = 0);
@@ -711,13 +711,13 @@ public:
 	int  SetItemCount(int iClientH, char * pItemName, uint32_t dwCount);
 	int  SetItemCount(int iClientH, int iItemIndex, uint32_t dwCount);
 	uint32_t dwGetItemCount(int iClientH, char * pName);
-	void DismissGuildRejectHandler(int iClientH, char * pName);
-	void DismissGuildApproveHandler(int iClientH, char * pName);
-	void JoinGuildRejectHandler(int iClientH, char * pName);			    
-	void JoinGuildApproveHandler(int iClientH, char * pName);
+	void DismissGuildRejectHandler(int iClientH, const char * pName);
+	void DismissGuildApproveHandler(int iClientH, const char * pName);
+	void JoinGuildRejectHandler(int iClientH, const char * pName);
+	void JoinGuildApproveHandler(int iClientH, const char * pName);
 	void SendNotifyMsg(int iFromH, int iToH, uint16_t wMsgType, uint32_t sV1, uint32_t sV2, uint32_t sV3, char * pString, uint32_t sV4 = 0, uint32_t sV5 = 0, uint32_t sV6 = 0, uint32_t sV7 = 0, uint32_t sV8 = 0, uint32_t sV9 = 0, char * pString2 = 0);
-	void GiveItemHandler(int iClientH, short sItemIndex, int iAmount, short dX, short dY, uint16_t wObjectID, char * pItemName);
-	void RequestPurchaseItemHandler(int iClientH, char * pItemName, int iNum);
+	void GiveItemHandler(int iClientH, short sItemIndex, int iAmount, short dX, short dY, uint16_t wObjectID, const char * pItemName);
+	void RequestPurchaseItemHandler(int iClientH, const char * pItemName, int iNum);
 	void ResponseDisbandGuildHandler(char * pData, int iType);
 	void RequestDisbandGuildHandler(int iClientH, char * pData, uint32_t dwMsgSize);
 	void RequestCreateNewGuildHandler(int iClientH, char * pData, uint32_t dwMsgSize);
@@ -730,7 +730,7 @@ public:
 	bool bEquipItemHandler(int iClientH, short sItemIndex, bool bNotify = true);
 	bool _bAddClientItemList(int iClientH, class CItem * pItem, int * pDelReq);
 	int  iClientMotion_GetItem_Handler(int iClientH, short sX, short sY, char cDir);
-	void DropItemHandler(int iClientH, short sItemIndex, int iAmount, char * pItemName, bool bByPlayer = true);
+	void DropItemHandler(int iClientH, short sItemIndex, int iAmount, const char * pItemName, bool bByPlayer = true);
 	void ClientCommonHandler(int iClientH, char * pData);
 	bool __fastcall bGetMsgQuene(char * pFrom, char * pData, uint32_t * pMsgSize, int * pIndex, char * pKey);
 	void MsgProcess();

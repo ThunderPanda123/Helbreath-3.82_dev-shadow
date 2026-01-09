@@ -9,6 +9,7 @@ using namespace std;
 
 #include "AccountSqliteStore.h"
 #include "sqlite3.h"
+#include "../../Dependencies/Shared/Packet/SharedPackets.h"
 
 extern char	G_cData50000[50000];
 //extern void PutLogList(char* cMsg);
@@ -83,10 +84,12 @@ void LoginServer::RequestLogin(int h, char* pData)
 	char cPassword[11] = {};
 	char world_name[32] = {};
 
-	auto cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
-	Pop(cp, cName, 10);
-	Pop(cp, cPassword, 10);
-	Pop(cp, world_name, 30);
+	const auto* req = hb::net::PacketCast<hb::net::LoginRequest>(pData, sizeof(hb::net::LoginRequest));
+	if (!req) return;
+
+	std::memcpy(cName, req->account_name, 10);
+	std::memcpy(cPassword, req->password, 10);
+	std::memcpy(world_name, req->world_name, 30);
 
 	if (string(world_name) != WORLDNAMELS)
 		return;
@@ -187,22 +190,24 @@ void LoginServer::ResponseCharacter(int h, char* pData)
 
 	char gender, skin, hairstyle, haircolor, under, str, vit, dex, intl, mag, chr;
 
-	auto cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
-	Pop(cp, cName, 10);
-	Pop(cp, cAcc, 10);
-	Pop(cp, cPassword, 10);
-	Pop(cp, world_name, 30);
-	Pop(cp, gender);
-	Pop(cp, skin);
-	Pop(cp, hairstyle);
-	Pop(cp, haircolor);
-	Pop(cp, under);
-	Pop(cp, str);
-	Pop(cp, vit);
-	Pop(cp, dex);
-	Pop(cp, intl);
-	Pop(cp, mag);
-	Pop(cp, chr);
+	const auto* req = hb::net::PacketCast<hb::net::CreateCharacterRequest>(pData, sizeof(hb::net::CreateCharacterRequest));
+	if (!req) return;
+
+	std::memcpy(cName, req->character_name, 10);
+	std::memcpy(cAcc, req->account_name, 10);
+	std::memcpy(cPassword, req->password, 10);
+	std::memcpy(world_name, req->world_name, 30);
+	gender = static_cast<char>(req->gender);
+	skin = static_cast<char>(req->skin);
+	hairstyle = static_cast<char>(req->hairstyle);
+	haircolor = static_cast<char>(req->haircolor);
+	under = static_cast<char>(req->underware);
+	str = static_cast<char>(req->str);
+	vit = static_cast<char>(req->vit);
+	dex = static_cast<char>(req->dex);
+	intl = static_cast<char>(req->intl);
+	mag = static_cast<char>(req->mag);
+	chr = static_cast<char>(req->chr);
 
 	if (string(world_name) != WORLDNAMELS)
 		return;
@@ -468,11 +473,13 @@ void LoginServer::DeleteCharacter(int h, char* pData)
 	char cPassword[11] = {};
 	char world_name[32] = {};
 
-	auto cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
-	Pop(cp, cName, 10);
-	Pop(cp, cAcc, 10);
-	Pop(cp, cPassword, 10);
-	Pop(cp, world_name, 30);
+	const auto* req = hb::net::PacketCast<hb::net::DeleteCharacterRequest>(pData, sizeof(hb::net::DeleteCharacterRequest));
+	if (!req) return;
+
+	std::memcpy(cName, req->character_name, 10);
+	std::memcpy(cAcc, req->account_name, 10);
+	std::memcpy(cPassword, req->password, 10);
+	std::memcpy(world_name, req->world_name, 30);
 
 	std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) Request delete Character: %s", cName);
 	PutLogList(G_cTxt);
@@ -519,11 +526,13 @@ void LoginServer::ChangePassword(int h, char* pData)
 	char cNewPw[11] = {};
 	char cNewPwConf[11] = {};
 
-	auto cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
-	Pop(cp, cAcc, 10);
-	Pop(cp, cPassword, 10);
-	Pop(cp, cNewPw, 10);
-	Pop(cp, cNewPwConf, 10);
+	const auto* req = hb::net::PacketCast<hb::net::ChangePasswordRequest>(pData, sizeof(hb::net::ChangePasswordRequest));
+	if (!req) return;
+
+	std::memcpy(cAcc, req->account_name, 10);
+	std::memcpy(cPassword, req->password, 10);
+	std::memcpy(cNewPw, req->new_password, 10);
+	std::memcpy(cNewPwConf, req->new_password_confirm, 10);
 
 	std::snprintf(G_cTxt, sizeof(G_cTxt), "(!) Request change password: %s", cAcc);
 	PutLogList(G_cTxt);
@@ -565,12 +574,14 @@ void LoginServer::CreateNewAccount(int h, char* pData)
 	if (G_pGame->_lclients[h] == 0)
 		return;
 
-	auto cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
-	Pop(cp, cName, 10);
-	Pop(cp, cPassword, 10);
-	Pop(cp, cEmailAddr, 50);
-	Pop(cp, cQuiz, 45);
-	Pop(cp, cAnswer, 25);
+	const auto* req = hb::net::PacketCast<hb::net::CreateAccountRequest>(pData, sizeof(hb::net::CreateAccountRequest));
+	if (!req) return;
+
+	std::memcpy(cName, req->account_name, 10);
+	std::memcpy(cPassword, req->password, 10);
+	std::memcpy(cEmailAddr, req->email, 50);
+	std::memcpy(cQuiz, req->quiz, 45);
+	std::memcpy(cAnswer, req->answer, 25);
 
 	if ((strlen(cName) == 0) || (strlen(cPassword) == 0) ||
 		(strlen(cEmailAddr) == 0) || (strlen(cQuiz) == 0) ||
@@ -622,9 +633,7 @@ void LoginServer::SendLoginMsg(uint32_t msg_id, uint16_t msg_type, char* data, i
 {
 
 	int iRet;
-	uint32_t* dwp;
 	char* cp;
-	uint16_t* wp;
 	int index = h;
 
 	if (!G_pGame->_lclients[h])
@@ -632,12 +641,11 @@ void LoginServer::SendLoginMsg(uint32_t msg_id, uint16_t msg_type, char* data, i
 
 	std::memset(G_cData50000, 0, sizeof(G_cData50000));
 
-	dwp = (uint32_t*)(G_cData50000 + DEF_INDEX4_MSGID);
-	*dwp = msg_id;
-	wp = (uint16_t*)(G_cData50000 + DEF_INDEX2_MSGTYPE);
-	*wp = msg_type;
+	auto* header = reinterpret_cast<hb::net::PacketHeader*>(G_cData50000);
+	header->msg_id = msg_id;
+	header->msg_type = msg_type;
 
-	cp = (char*)(G_cData50000 + DEF_INDEX2_MSGTYPE + 2);
+	cp = reinterpret_cast<char*>(G_cData50000) + sizeof(hb::net::PacketHeader);
 
 	memcpy((char*)cp, data, sz);
 
@@ -673,14 +681,16 @@ void LoginServer::RequestEnterGame(int h, char* pData)
 	char ws_name[31] = {};
 	char cmd_line[121] = {};
 
-	auto cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
-	Pop(cp, cName, 10);
-	Pop(cp, cMapName, 10);
-	Pop(cp, cAcc, 10);
-	Pop(cp, cPass, 10);
-	Pop(cp, lvl);
-	Pop(cp, ws_name, 10);
-	Pop(cp, cmd_line, 120);
+	const auto* req = hb::net::PacketCast<hb::net::EnterGameRequest>(pData, sizeof(hb::net::EnterGameRequest));
+	if (!req) return;
+
+	std::memcpy(cName, req->character_name, 10);
+	std::memcpy(cMapName, req->map_name, 10);
+	std::memcpy(cAcc, req->account_name, 10);
+	std::memcpy(cPass, req->password, 10);
+	lvl = req->level;
+	std::memcpy(ws_name, req->world_name, 10);
+	std::memcpy(cmd_line, req->cmd_line, 120);
 
 	char cData[112] = {};
 	char* cp2 = cData;

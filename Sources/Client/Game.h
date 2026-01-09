@@ -582,7 +582,7 @@ public:
 	void OnLogSocketEvent();  // MODERNIZED: Polls socket instead of handling window messages
 	void OnTimer();
 	void LogEventHandler(char * pData);
-	void _ReadMapData(short sPivotX, short sPivotY, char * pData);
+	void _ReadMapData(short sPivotX, short sPivotY, const char* pData);
 	void MotionEventHandler(char * pData);
 	void InitDataResponseHandler(char * pData);
 	void InitPlayerResponseHandler(char * pData);

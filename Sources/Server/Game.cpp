@@ -12,6 +12,7 @@
 #include "AccountSqliteStore.h"
 #include "GameConfigSqliteStore.h"
 #include "sqlite3.h"
+#include "../../Dependencies/Shared/Packet/SharedPackets.h"
 
 class CDebugWindow* DbgWnd;
 
@@ -1125,61 +1126,48 @@ void CGame::DisplayInfo()
 
 void CGame::ClientMotionHandler(int iClientH, char* pData)
 {
-	uint32_t* dwp, dwClientTime;
-	uint16_t* wp, wCommand, wTargetObjectID;
-	short* sp, sX, sY, dX, dY, wType;
-	char* cp, cDir;
+	uint32_t dwClientTime;
+	uint16_t wCommand, wTargetObjectID = 0;
+	short sX, sY, dX, dY, wType;
+	char cDir;
 	int   iRet, iTemp;
 
 	if (m_pClientList[iClientH] == 0) return;
 	if (m_pClientList[iClientH]->m_bIsInitComplete == false) return;
 	if (m_pClientList[iClientH]->m_bIsKilled) return;
 
+	const auto* base = hb::net::PacketCast<hb::net::PacketCommandMotionBase>(
+		pData, sizeof(hb::net::PacketCommandMotionBase));
+	if (!base) return;
 	/*m_pClientList[iClientH]->m_cConnectionCheck++;
 	if (m_pClientList[iClientH]->m_cConnectionCheck > 50) {
 		std::snprintf(G_cTxt, sizeof(G_cTxt), "Hex: (%s) Player: (%s) - removed 03203203h, vital to hack detection.", m_pClientList[iClientH]->m_cIPaddress, m_pClientList[iClientH]->m_cCharName);
 		PutHackLogFileList(G_cTxt);
 		DeleteClient(iClientH, true, true);
 		return;
-	}*/
-	wp = (uint16_t*)(pData + DEF_INDEX2_MSGTYPE);
-	wCommand = *wp;
-
-	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
-
-	sp = (short*)cp;
-	sX = *sp;
-	cp += 2;
-
-	sp = (short*)cp;
-	sY = *sp;
-	cp += 2;
-
-	cDir = *cp;
-	cp++;
-
-	sp = (short*)cp;
-	dX = *sp;
-	cp += 2;
-
-	sp = (short*)cp;
-	dY = *sp;
-	cp += 2;
-
-	sp = (short*)cp;
-	wType = *sp;
-	cp += 2;
+	}
+	*/
+	wCommand = base->header.msg_type;
+	sX = base->x;
+	sY = base->y;
+	cDir = static_cast<char>(base->dir);
+	dX = base->dx;
+	dY = base->dy;
+	wType = base->type;
 
 	if ((wCommand == DEF_OBJECTATTACK) || (wCommand == DEF_OBJECTATTACKMOVE)) { // v1.4
-		wp = (uint16_t*)cp;
-		wTargetObjectID = *wp;
-		cp += 2;
+		const auto* pkt = hb::net::PacketCast<hb::net::PacketCommandMotionAttack>(
+			pData, sizeof(hb::net::PacketCommandMotionAttack));
+		if (!pkt) return;
+		wTargetObjectID = pkt->target_id;
+		dwClientTime = pkt->time_ms;
 	}
-
-	// v2.171
-	dwp = (uint32_t*)cp;
-	dwClientTime = *dwp;
-	cp += 4;
+	else {
+		const auto* pkt = hb::net::PacketCast<hb::net::PacketCommandMotionSimple>(
+			pData, sizeof(hb::net::PacketCommandMotionSimple));
+		if (!pkt) return;
+		dwClientTime = pkt->time_ms;
+	}
 
 	switch (wCommand) {
 	case DEF_OBJECTSTOP:
@@ -1288,52 +1276,34 @@ void CGame::ClientMotionHandler(int iClientH, char* pData)
 	}
 }
 
-/////////////////////////////////////////////////////////////////////////////////////
-//  int CGame::iClientMotion_Move_Handler(int iClientH, short sX, short sY, char cDir, char cMoveType)
-//  description			:: Handles how player or npc run, walk, attack, or get flown by attack
-//  last updated		:: October 30, 2004; 1:52 AM; Hypnotoad
-//	return value		:: int
-//  commentary			:: - contains speed hack detection previously unavailable
-//						   - changed variable 5 to char, prior bool.
-//								1 = object run
-//								2 = object malk
-//								0 = object damage move, object attack move
-//						   - fixed bump bug removing aura
-/////////////////////////////////////////////////////////////////////////////////////
-// Missing 3.51: 
-//			m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->3CA18h
-// 			bRet = m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->sub_4C0F20(dX, dY, cTemp, wV1, wV2);
-//
-/////////////////////////////////////////////////////////////////////////////////////
 int CGame::iClientMotion_Move_Handler(int iClientH, short sX, short sY, char cDir, char cMoveType)
 {
-	char* cp, cData[3000];
-	class CTile* pTile;
-	uint32_t* dwp, dwTime;
-	uint16_t* wp, wObjectID;
-	short* sp, dX, dY, sTemp, sTemp2, sDOtype, pTopItem;
-	int* ip, iRet, iSize, iDamage;
-	bool  bRet, bIsBlocked = false;
+ char moveMapData[3000];
+ class CTile * pTile;
+ DWORD dwTime;
+ WORD  wObjectID;
+ short dX, dY, sTemp, sTemp2, sDOtype, pTopItem;
+ int   iRet, iSize, iDamage;
+ bool  bRet, bIsBlocked = false;
+ hb::net::PacketWriter writer;
 
 	if (m_pClientList[iClientH] == 0) return 0;
 	if ((cDir <= 0) || (cDir > 8))       return 0;
-	if (m_pClientList[iClientH]->m_bIsKilled) return 0;
+	if (m_pClientList[iClientH]->m_bIsKilled ) return 0;
 	if (m_pClientList[iClientH]->m_bIsInitComplete == false) return 0;
-
-	if ((sX != m_pClientList[iClientH]->m_sX) || (sY != m_pClientList[iClientH]->m_sY)) {
-		return 2;
-	}
-
+	
+	if ((sX != m_pClientList[iClientH]->m_sX) || (sY != m_pClientList[iClientH]->m_sY)) return 2;
+	
 	//locobans
-	dwTime = GameClock::GetTimeMS();
+	dwTime = timeGetTime();
 	/*m_pClientList[iClientH]->m_dwLastActionTime = dwTime;
 	if (cMoveType == 2) {
 		if (m_pClientList[iClientH]->m_iRecentWalkTime > dwTime) {
 			m_pClientList[iClientH]->m_iRecentWalkTime = dwTime;
 			if (m_pClientList[iClientH]->m_sV1 < 1) {
-				if (m_pClientList[iClientH]->m_iRecentWalkTime < dwTime) {
-					m_pClientList[iClientH]->m_sV1++;
-				}
+				if (m_pClientList[iClientH]->m_iRecentWalkTime < dwTime) {	
+					m_pClientList[iClientH]->m_sV1++;	
+				} 
 				else {
 					bIsBlocked = true;
 					m_pClientList[iClientH]->m_sV1 = 0;
@@ -1345,7 +1315,7 @@ int CGame::iClientMotion_Move_Handler(int iClientH, short sX, short sY, char cDi
 		if (m_pClientList[iClientH]->m_iMoveMsgRecvCount >= 3) {
 			if (m_pClientList[iClientH]->m_dwMoveLAT != 0) {
 				if ((dwTime - m_pClientList[iClientH]->m_dwMoveLAT) < (590)) {
-					//std::snprintf(G_cTxt, sizeof(G_cTxt), "3.51 Walk Speeder: (%s) Player: (%s) walk difference: %d. Speed Hack?", m_pClientList[iClientH]->m_cIPaddress, m_pClientList[iClientH]->m_cCharName, dwTime - m_pClientList[iClientH]->m_dwMoveLAT);
+					//wsprintf(G_cTxt, "3.51 Walk Speeder: (%s) Player: (%s) walk difference: %d. Speed Hack?", m_pClientList[iClientH]->m_cIPaddress, m_pClientList[iClientH]->m_cCharName, dwTime - m_pClientList[iClientH]->m_dwMoveLAT);
 					//PutHackLogFileList(G_cTxt);
 					bIsBlocked = true;
 				}
@@ -1358,8 +1328,8 @@ int CGame::iClientMotion_Move_Handler(int iClientH, short sX, short sY, char cDi
 		if (m_pClientList[iClientH]->m_iRecentRunTime > dwTime) {
 			m_pClientList[iClientH]->m_iRecentRunTime = dwTime;
 			if (m_pClientList[iClientH]->m_sV1 < 1) {
-				if (m_pClientList[iClientH]->m_iRecentRunTime < dwTime) {
-					m_pClientList[iClientH]->m_sV1++;
+				if (m_pClientList[iClientH]->m_iRecentRunTime < dwTime) {	
+					m_pClientList[iClientH]->m_sV1++;	
 				}
 				else {
 					bIsBlocked = true;
@@ -1372,7 +1342,7 @@ int CGame::iClientMotion_Move_Handler(int iClientH, short sX, short sY, char cDi
 		if (m_pClientList[iClientH]->m_iRunMsgRecvCount >= 3) {
 			if (m_pClientList[iClientH]->m_dwRunLAT != 0) {
 				if ((dwTime - m_pClientList[iClientH]->m_dwRunLAT) < (290)) {
-					//std::snprintf(G_cTxt, sizeof(G_cTxt), "3.51 Run Speeder: (%s) Player: (%s) run difference: %d. Speed Hack?", m_pClientList[iClientH]->m_cIPaddress, m_pClientList[iClientH]->m_cCharName, dwTime - m_pClientList[iClientH]->m_dwRunLAT);
+					//wsprintf(G_cTxt, "3.51 Run Speeder: (%s) Player: (%s) run difference: %d. Speed Hack?", m_pClientList[iClientH]->m_cIPaddress, m_pClientList[iClientH]->m_cCharName, dwTime - m_pClientList[iClientH]->m_dwRunLAT);
 					//PutHackLogFileList(G_cTxt);
 					bIsBlocked = true;
 				}
@@ -1387,16 +1357,16 @@ int CGame::iClientMotion_Move_Handler(int iClientH, short sX, short sY, char cDi
 		iStX = m_pClientList[iClientH]->m_sX / 20;
 		iStY = m_pClientList[iClientH]->m_sY / 20;
 		m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_stTempSectorInfo[iStX][iStY].iPlayerActivity++;
-
+		
 		switch (m_pClientList[iClientH]->m_cSide) {
 		case 0: m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_stTempSectorInfo[iStX][iStY].iNeutralActivity++; break;
 		case 1: m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_stTempSectorInfo[iStX][iStY].iAresdenActivity++; break;
 		case 2: m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_stTempSectorInfo[iStX][iStY].iElvineActivity++;  break;
 		}
 	}
-
+	
 	ClearSkillUsingStatus(iClientH);
-
+	
 	dX = m_pClientList[iClientH]->m_sX;
 	dY = m_pClientList[iClientH]->m_sY;
 
@@ -1413,80 +1383,62 @@ int CGame::iClientMotion_Move_Handler(int iClientH, short sX, short sY, char cDi
 
 	pTopItem = 0;
 	bRet = m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->bGetMoveable(dX, dY, &sDOtype, &pTopItem);
-
+	
 	if (m_pClientList[iClientH]->m_cMagicEffectStatus[DEF_MAGICTYPE_HOLDOBJECT] != 0)
 		bRet = false;
-
-	if ((bRet) && (bIsBlocked == false)) {
+  
+	if ((bRet ) && (bIsBlocked == false)) {
 		if (m_pClientList[iClientH]->m_iQuest != 0) _bCheckIsQuestCompleted(iClientH);
 
 		m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->ClearOwner(1, iClientH, DEF_OWNERTYPE_PLAYER, m_pClientList[iClientH]->m_sX, m_pClientList[iClientH]->m_sY);
 
-		m_pClientList[iClientH]->m_sX = dX;
-		m_pClientList[iClientH]->m_sY = dY;
+		m_pClientList[iClientH]->m_sX   = dX;
+		m_pClientList[iClientH]->m_sY   = dY;
 		m_pClientList[iClientH]->m_cDir = cDir;
 
 		m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->SetOwner((short)iClientH,
-			DEF_OWNERTYPE_PLAYER,
-			dX, dY);
+			                                                       DEF_OWNERTYPE_PLAYER,
+																   dX, dY);
 
 		if (sDOtype == DEF_DYNAMICOBJECT_SPIKE) {
-			if ((m_pClientList[iClientH]->m_bIsNeutral) && ((m_pClientList[iClientH]->m_sAppr2 & 0xF000) == 0)) {
+			if ((m_pClientList[iClientH]->m_bIsNeutral ) && ((m_pClientList[iClientH]->m_sAppr2 & 0xF000) == 0)) {
 
 			}
 			else {
-				iDamage = iDice(2, 4);
+				iDamage = iDice(2,4);
 
 				if (m_pClientList[iClientH]->m_iAdminUserLevel == 0)
 					m_pClientList[iClientH]->m_iHP -= iDamage;
 			}
 		}
-
+		
 		if (m_pClientList[iClientH]->m_iHP <= 0) m_pClientList[iClientH]->m_iHP = 0;
-
-		dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-		*dwp = MSGID_RESPONSE_MOTION;
-		wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-		*wp = DEF_OBJECTMOVE_CONFIRM;
-
-		cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-
-		sp = (short*)cp;
-		*sp = (short)(dX - 12);
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)(dY - 9);
-		cp += 2;
-
-		*cp = cDir;
-		cp++;
-
+		
+		writer.Reset();
+		auto* pkt = writer.Append<hb::net::PacketResponseMotionMoveConfirm>();
+		pkt->header.msg_id = MSGID_RESPONSE_MOTION;
+		pkt->header.msg_type = DEF_OBJECTMOVE_CONFIRM;
+		pkt->x = static_cast<std::int16_t>(dX - 12);
+		pkt->y = static_cast<std::int16_t>(dY - 9);
+		pkt->dir = static_cast<std::uint8_t>(cDir);
+		pkt->stamina_cost = 0;
 		if (cMoveType == 1) {
 			if (m_pClientList[iClientH]->m_iSP > 0) {
-				*cp = 0;
 				if (m_pClientList[iClientH]->m_iTimeLeft_FirmStaminar == 0) {
 					m_pClientList[iClientH]->m_iSP--;
-					*cp = 1;
+					pkt->stamina_cost = 1;
 				}
 			}
-			else {
-				*cp = 0;
-			}
 		}
-		else *cp = 0;
-		cp++;
 
 		pTile = (class CTile*)(m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_pTile + dX + dY * m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_sSizeY);
-		*cp = (char)pTile->m_iOccupyStatus;
-		cp++;
+		pkt->occupy_status = static_cast<std::uint8_t>(pTile->m_iOccupyStatus);
+		pkt->hp = m_pClientList[iClientH]->m_iHP;
 
-		ip = (int*)cp;
-		*ip = m_pClientList[iClientH]->m_iHP;
-		cp += 4;
+		iSize = iComposeMoveMapData((short)(dX - 12), (short)(dY - 9), iClientH, cDir, moveMapData);
+		writer.AppendBytes(moveMapData, static_cast<std::size_t>(iSize));
 
-		iSize = iComposeMoveMapData((short)(dX - 12), (short)(dY - 9), iClientH, cDir, cp);
-		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, iSize + 12 + 1 + 4);
+		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(writer.Data(), static_cast<int>(writer.Size()));
 		switch (iRet) {
 		case DEF_XSOCKEVENT_QUENEFULL:
 		case DEF_XSOCKEVENT_SOCKETERROR:
@@ -1496,13 +1448,13 @@ int CGame::iClientMotion_Move_Handler(int iClientH, short sX, short sY, char cDi
 			return 0;
 		}
 		/*if (m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->3CA18h ) {
-
+			
 			.text:00406037                 mov     [ebp+var_C1C], 0
 			.text:0040603E                 xor     edx, edx
 			.text:00406040                 mov     [ebp+var_C1B], edx
 			.text:00406046                 mov     [ebp+var_C17], edx
 			.text:0040604C                 mov     [ebp+var_C13], dx
-
+			
 			bRet = m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->sub_4C0F20(dX, dY, cTemp, wV1, wV2);
 			if (bRet == 1) {
 				RequestTeleportHandler(iClientH, "2   ", cTemp, wV1, wV2);
@@ -1512,73 +1464,36 @@ int CGame::iClientMotion_Move_Handler(int iClientH, short sX, short sY, char cDi
 	else {
 		m_pClientList[iClientH]->m_bIsMoveBlocked = true;
 
-		dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-		*dwp = MSGID_RESPONSE_MOTION;
-		wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-		*wp = DEF_OBJECTMOVE_REJECT;
-		if (bIsBlocked) {
+		if (bIsBlocked ) {
 			m_pClientList[iClientH]->m_dwAttackLAT = 1050;
 		}
 		m_pClientList[iClientH]->m_dwAttackLAT = 1010;
 
-		wObjectID = (uint16_t)iClientH;
-
-		cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-
-		wp = (uint16_t*)cp;
-		*wp = wObjectID;
-		cp += 2;
-
-		sp = (short*)cp;
-		sX = m_pClientList[wObjectID]->m_sX;
-		*sp = sX;
-		cp += 2;
-
-		sp = (short*)cp;
-		sY = m_pClientList[wObjectID]->m_sY;
-		*sp = sY;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = m_pClientList[wObjectID]->m_sType;
-		cp += 2;
-
-		*cp = m_pClientList[wObjectID]->m_cDir;
-		cp++;
-
-		memcpy(cp, m_pClientList[wObjectID]->m_cCharName, 10);
-		cp += 10;
-
-		sp = (short*)cp;
-		*sp = m_pClientList[wObjectID]->m_sAppr1;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = m_pClientList[wObjectID]->m_sAppr2;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = m_pClientList[wObjectID]->m_sAppr3;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = m_pClientList[wObjectID]->m_sAppr4;
-		cp += 2;
-
-		ip = (int*)cp;
-		*ip = m_pClientList[wObjectID]->m_iApprColor;
-		cp += 4;
-
-		ip = (int*)cp;
+		wObjectID = (WORD)iClientH;
+		writer.Reset();
+		auto* pkt = writer.Append<hb::net::PacketResponseMotionMoveReject>();
+		pkt->header.msg_id = MSGID_RESPONSE_MOTION;
+		pkt->header.msg_type = DEF_OBJECTMOVE_REJECT;
+		pkt->object_id = static_cast<std::uint16_t>(wObjectID);
+		pkt->x = m_pClientList[wObjectID]->m_sX;
+		pkt->y = m_pClientList[wObjectID]->m_sY;
+		pkt->type = m_pClientList[wObjectID]->m_sType;
+		pkt->dir = static_cast<std::uint8_t>(m_pClientList[wObjectID]->m_cDir);
+		std::memcpy(pkt->name, m_pClientList[wObjectID]->m_cCharName, sizeof(pkt->name));
+		pkt->appr1 = m_pClientList[wObjectID]->m_sAppr1;
+		pkt->appr2 = m_pClientList[wObjectID]->m_sAppr2;
+		pkt->appr3 = m_pClientList[wObjectID]->m_sAppr3;
+		pkt->appr4 = m_pClientList[wObjectID]->m_sAppr4;
+		pkt->appr_color = m_pClientList[wObjectID]->m_iApprColor;
 		sTemp = m_pClientList[wObjectID]->m_iStatus;
 		sTemp = 0x0FFFFFFF & sTemp;
 		sTemp2 = iGetPlayerABSStatus(wObjectID, iClientH);
 		sTemp = (sTemp | (sTemp2 << 28));
-		*ip = sTemp;
-		cp += 4;
+		pkt->status = sTemp;
+		pkt->padding = 0;
 
-		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 42);
-
+		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(writer.Data(), static_cast<int>(writer.Size()));
+		
 		switch (iRet) {
 		case DEF_XSOCKEVENT_QUENEFULL:
 		case DEF_XSOCKEVENT_SOCKETERROR:
@@ -1587,274 +1502,180 @@ int CGame::iClientMotion_Move_Handler(int iClientH, short sX, short sY, char cDi
 			DeleteClient(iClientH, true, true);
 			return 0;
 		}
-		// locobans
-		SendEventToNearClient_TypeA(iClientH, DEF_OWNERTYPE_PLAYER, MSGID_EVENT_MOTION, DEF_OBJECTNULLACTION, 0, 0, 0);
+	// locobans
+ SendEventToNearClient_TypeA(iClientH, DEF_OWNERTYPE_PLAYER, MSGID_EVENT_MOTION, DEF_OBJECTNULLACTION, 0, 0, 0);
 		return 0;
 	}
 
 	return 1;
 }
 
-void CGame::RequestInitPlayerHandler(int iClientH, char* pData, char cKey)
+void CGame::RequestInitPlayerHandler(int iClientH, char * pData, char cKey)
 {
-	int i;
-	char* cp, cCharName[11], cAccountName[11], cAccountPassword[11], cTxt[120];
-	bool bIsObserverMode;
-
+ int i;
+ char cCharName[11], cAccountName[11], cAccountPassword[11], cTxt[120];
+ bool bIsObserverMode;
+	
 	if (m_pClientList[iClientH] == 0) return;
-	if (m_pClientList[iClientH]->m_bIsInitComplete) return;
+	if (m_pClientList[iClientH]->m_bIsInitComplete ) return;
 
 
-	std::memset(cCharName, 0, sizeof(cCharName));
-	std::memset(cAccountName, 0, sizeof(cAccountName));
-	std::memset(cAccountPassword, 0, sizeof(cAccountPassword));
+	ZeroMemory(cCharName, sizeof(cCharName));
+	ZeroMemory(cAccountName, sizeof(cAccountName));
+	ZeroMemory(cAccountPassword, sizeof(cAccountPassword));
 
-	std::memset(m_pClientList[iClientH]->m_cCharName, 0, sizeof(m_pClientList[iClientH]->m_cCharName));
-	std::memset(m_pClientList[iClientH]->m_cAccountName, 0, sizeof(m_pClientList[iClientH]->m_cAccountName));
-	std::memset(m_pClientList[iClientH]->m_cAccountPassword, 0, sizeof(m_pClientList[iClientH]->m_cAccountPassword));
+	ZeroMemory(m_pClientList[iClientH]->m_cCharName, sizeof(m_pClientList[iClientH]->m_cCharName));
+	ZeroMemory(m_pClientList[iClientH]->m_cAccountName, sizeof(m_pClientList[iClientH]->m_cAccountName));
+	ZeroMemory(m_pClientList[iClientH]->m_cAccountPassword, sizeof(m_pClientList[iClientH]->m_cAccountPassword));
 
-	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
+	const auto* req = hb::net::PacketCast<hb::net::PacketRequestInitPlayer>(
+		pData, sizeof(hb::net::PacketRequestInitPlayer));
+	if (!req) return;
 
-	memcpy(cCharName, cp, 10);
-	cp += 10;
+	memcpy(cCharName, req->player, 10);
 
-	std::memset(cTxt, 0, sizeof(cTxt)); // v1.4
+	ZeroMemory(cTxt, sizeof(cTxt)); // v1.4
 	memcpy(cTxt, cCharName, 10);
 	CMisc::bDecode(cKey, cTxt);
-	std::memset(cCharName, 0, sizeof(cCharName));
+	ZeroMemory(cCharName, sizeof(cCharName));
 	memcpy(cCharName, cTxt, 10);
 
 	//testcode
 	if (strlen(cTxt) == 0) PutLogList("RIPH - cTxt: Char 0!");
 
-	memcpy(cAccountName, cp, 10);
-	cp += 10;
-
-	std::memset(cTxt, 0, sizeof(cTxt)); // v1.4
+	memcpy(cAccountName, req->account, 10);
+	
+	ZeroMemory(cTxt, sizeof(cTxt)); // v1.4
 	memcpy(cTxt, cAccountName, 10);
 	CMisc::bDecode(cKey, cTxt);
-	std::memset(cAccountName, 0, sizeof(cAccountName));
+	ZeroMemory(cAccountName, sizeof(cAccountName));
 	memcpy(cAccountName, cTxt, 10);
 
-	memcpy(cAccountPassword, cp, 10);
-	cp += 10;
+	memcpy(cAccountPassword, req->password, 10);
 
-	std::memset(cTxt, 0, sizeof(cTxt)); // v1.4
+	ZeroMemory(cTxt, sizeof(cTxt)); // v1.4
 	memcpy(cTxt, cAccountPassword, 10);
 	CMisc::bDecode(cKey, cTxt);
-	std::memset(cAccountPassword, 0, sizeof(cAccountPassword));
+	ZeroMemory(cAccountPassword, sizeof(cAccountPassword));
 	memcpy(cAccountPassword, cTxt, 10);
-
-	bIsObserverMode = (bool)*cp;
-	cp++;
-
-	std::snprintf(G_cTxt, sizeof(G_cTxt),
-		"InitPlayer request: Client(%d) Char(%s) Account(%s) Observer(%d)",
-		iClientH, cCharName, cAccountName, bIsObserverMode ? 1 : 0);
-	PutLogList(G_cTxt);
+	
+	bIsObserverMode = (req->is_observer != 0);
 
 	for (i = 1; i < DEF_MAXCLIENTS; i++)
-		if ((m_pClientList[i] != 0) && (iClientH != i) && (memcmp(m_pClientList[i]->m_cAccountName, cAccountName, 10) == 0)) {
-			if (memcmp(m_pClientList[i]->m_cAccountPassword, cAccountPassword, 10) == 0) {
-				std::snprintf(G_cTxt, sizeof(G_cTxt), "<%d> Duplicate account player! Deleted with data save : CharName(%s) AccntName(%s) IP(%s)", i, m_pClientList[i]->m_cCharName, m_pClientList[i]->m_cAccountName, m_pClientList[i]->m_cIPaddress);
-				PutLogList(G_cTxt);
-				//PutLogFileList(G_cTxt);
-				DeleteClient(i, true, true, false);
-			}
-			else {
-				memcpy(m_pClientList[iClientH]->m_cCharName, cCharName, 10);
-				memcpy(m_pClientList[iClientH]->m_cAccountName, cAccountName, 10);
-				memcpy(m_pClientList[iClientH]->m_cAccountPassword, cAccountPassword, 10);
-
-				DeleteClient(iClientH, false, false, false);
-				return;
-			}
+	if ((m_pClientList[i] != 0) && (iClientH != i) && (memcmp(m_pClientList[i]->m_cAccountName, cAccountName, 10) == 0)) {
+		if (memcmp(m_pClientList[i]->m_cAccountPassword, cAccountPassword, 10) == 0) { 
+			wsprintf(G_cTxt, "<%d> Duplicate account player! Deleted with data save : CharName(%s) AccntName(%s) IP(%s)", i, m_pClientList[i]->m_cCharName, m_pClientList[i]->m_cAccountName, m_pClientList[i]->m_cIPaddress);
+			PutLogList(G_cTxt);
+			//PutLogFileList(G_cTxt);
+			DeleteClient(i, true, true, false);
 		}
-
+		else {
+			memcpy(m_pClientList[iClientH]->m_cCharName, cCharName, 10);
+			memcpy(m_pClientList[iClientH]->m_cAccountName, cAccountName, 10);
+			memcpy(m_pClientList[iClientH]->m_cAccountPassword, cAccountPassword, 10);
+			
+			DeleteClient(iClientH, false, false, false);
+			return;
+		}
+	}	
+	
 	for (i = 1; i < DEF_MAXCLIENTS; i++)
-		if ((m_pClientList[i] != 0) && (iClientH != i) && (memcmp(m_pClientList[i]->m_cCharName, cCharName, 10) == 0)) {
-			if (memcmp(m_pClientList[i]->m_cAccountPassword, cAccountPassword, 10) == 0) {
-				std::snprintf(G_cTxt, sizeof(G_cTxt), "<%d> Duplicate player! Deleted with data save : CharName(%s) IP(%s)", i, m_pClientList[i]->m_cCharName, m_pClientList[i]->m_cIPaddress);
-				PutLogList(G_cTxt);
-				//PutLogFileList(G_cTxt);
-				DeleteClient(i, true, true, false);
-			}
-			else {
-				memcpy(m_pClientList[iClientH]->m_cCharName, cCharName, 10);
-				memcpy(m_pClientList[iClientH]->m_cAccountName, cAccountName, 10);
-				memcpy(m_pClientList[iClientH]->m_cAccountPassword, cAccountPassword, 10);
-
-				DeleteClient(iClientH, false, false);
-				return;
-			}
+	if ((m_pClientList[i] != 0) && (iClientH != i) && (memcmp(m_pClientList[i]->m_cCharName, cCharName, 10) == 0)) {
+		if (memcmp(m_pClientList[i]->m_cAccountPassword, cAccountPassword, 10) == 0) { 
+			wsprintf(G_cTxt, "<%d> Duplicate player! Deleted with data save : CharName(%s) IP(%s)", i, m_pClientList[i]->m_cCharName, m_pClientList[i]->m_cIPaddress);
+			PutLogList(G_cTxt);
+			//PutLogFileList(G_cTxt);
+			DeleteClient(i, true, true, false);	
 		}
+		else {
+			memcpy(m_pClientList[iClientH]->m_cCharName, cCharName, 10);
+			memcpy(m_pClientList[iClientH]->m_cAccountName, cAccountName, 10);
+			memcpy(m_pClientList[iClientH]->m_cAccountPassword, cAccountPassword, 10);
+			
+			DeleteClient(iClientH, false, false);
+			return;
+		}
+	}
 
 	memcpy(m_pClientList[iClientH]->m_cCharName, cCharName, 10);
 	memcpy(m_pClientList[iClientH]->m_cAccountName, cAccountName, 10);
 	memcpy(m_pClientList[iClientH]->m_cAccountPassword, cAccountPassword, 10);
-
+	
 	m_pClientList[iClientH]->m_bIsObserverMode = bIsObserverMode;
-
+		
 	InitPlayerData(iClientH, 0, 0); //bSendMsgToLS(MSGID_REQUEST_PLAYERDATA, iClientH);
 }
 
 // 05/22/2004 - Hypnotoad - sends client to proper location after dieing
-void CGame::RequestInitDataHandler(int iClientH, char* pData, char cKey)
+void CGame::RequestInitDataHandler(int iClientH, char * pData, char cKey)
 {
-	char* pBuffer = 0;
-	short* sp;
-	uint32_t* dwp;
-	uint16_t* wp;
-	char* cp, cPlayerName[11], cTxt[120];
+	char cPlayerName[11], cTxt[120];
 	int sSummonPoints;
-	int* ip, i, iTotalItemA, iTotalItemB, iSize, iRet, iStats;
+	int i, iTotalItemA, iTotalItemB, iSize, iRet, iStats;
 	SYSTEMTIME SysTime;
+	hb::net::PacketWriter writer;
+	char initMapData[DEF_MSGBUFFERSIZE + 1];
 
 	if (m_pClientList[iClientH] == 0) return;
 
-	pBuffer = new char[DEF_MSGBUFFERSIZE + 1];
-	std::memset(pBuffer, 0, DEF_MSGBUFFERSIZE + 1);
+	const auto* req = hb::net::PacketCast<hb::net::PacketRequestInitPlayer>(
+		pData, sizeof(hb::net::PacketRequestInitPlayer));
+	if (!req) {
+		return;
+	}
 
-	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
-	std::memset(cPlayerName, 0, sizeof(cPlayerName));
-	memcpy(cPlayerName, cp, 10);
+	ZeroMemory(cPlayerName, sizeof(cPlayerName));
+	memcpy(cPlayerName, req->player, 10);
 
-	std::memset(cTxt, 0, sizeof(cTxt)); // v1.4
+	ZeroMemory(cTxt, sizeof(cTxt)); // v1.4
 	memcpy(cTxt, cPlayerName, 10);
 	CMisc::bDecode(cKey, cTxt);
-	std::memset(cPlayerName, 0, sizeof(cPlayerName));
+	ZeroMemory(cPlayerName, sizeof(cPlayerName));
 	memcpy(cPlayerName, cTxt, 10);
 
 	if (memcmp(m_pClientList[iClientH]->m_cCharName, cPlayerName, 10) != 0) {
-		std::snprintf(G_cTxt, sizeof(G_cTxt),
-			"InitData name mismatch: Client(%d) Expected(%s) Got(%s)",
-			iClientH, m_pClientList[iClientH]->m_cCharName, cPlayerName);
-		PutLogList(G_cTxt);
 		DeleteClient(iClientH, false, true);
 		return;
 	}
 
-	dwp = (uint32_t*)(pBuffer + DEF_INDEX4_MSGID);
-	*dwp = MSGID_PLAYERCHARACTERCONTENTS; // 0x0Fm_cHeldenianVictoryType000 = 262406144
-	wp = (uint16_t*)(pBuffer + DEF_INDEX2_MSGTYPE);
-	*wp = DEF_MSGTYPE_CONFIRM;
-
-	cp = (char*)(pBuffer + DEF_INDEX2_MSGTYPE + 2);
-
-	ip = (int*)cp;
-	*ip = m_pClientList[iClientH]->m_iHP;
-	cp += 4;
-
-	ip = (int*)cp;
-	*ip = m_pClientList[iClientH]->m_iMP;
-	cp += 4;
-
-	ip = (int*)cp;
-	*ip = m_pClientList[iClientH]->m_iSP;
-	cp += 4;
-
-	ip = (int*)cp;
-	*ip = m_pClientList[iClientH]->m_iDefenseRatio;
-	cp += 4;
-
-	ip = (int*)cp;
-	*ip = m_pClientList[iClientH]->m_iHitRatio;
-	cp += 4;
-
-	ip = (int*)cp;
-	*ip = m_pClientList[iClientH]->m_iLevel;
-	cp += 4;
-
-	ip = (int*)cp;
-	*ip = m_pClientList[iClientH]->m_iStr;
-	cp += 4;
-
-	ip = (int*)cp;
-	*ip = m_pClientList[iClientH]->m_iInt;
-	cp += 4;
-
-	ip = (int*)cp;
-	*ip = m_pClientList[iClientH]->m_iVit;
-	cp += 4;
-
-	ip = (int*)cp;
-	*ip = m_pClientList[iClientH]->m_iDex;
-	cp += 4;
-
-	ip = (int*)cp;
-	*ip = m_pClientList[iClientH]->m_iMag;
-	cp += 4;
-
-	ip = (int*)cp;
-	*ip = m_pClientList[iClientH]->m_iCharisma;
-	cp += 4;
+	writer.Reset();
+	auto* char_pkt = writer.Append<hb::net::PacketResponsePlayerCharacterContents>();
+	char_pkt->header.msg_id = MSGID_PLAYERCHARACTERCONTENTS;
+	char_pkt->header.msg_type = DEF_MSGTYPE_CONFIRM;
+	char_pkt->hp = m_pClientList[iClientH]->m_iHP;
+	char_pkt->mp = m_pClientList[iClientH]->m_iMP;
+	char_pkt->sp = m_pClientList[iClientH]->m_iSP;
+	char_pkt->ac = m_pClientList[iClientH]->m_iDefenseRatio;
+	char_pkt->thac0 = m_pClientList[iClientH]->m_iHitRatio;
+	char_pkt->level = m_pClientList[iClientH]->m_iLevel;
+	char_pkt->str = m_pClientList[iClientH]->m_iStr;
+	char_pkt->intel = m_pClientList[iClientH]->m_iInt;
+	char_pkt->vit = m_pClientList[iClientH]->m_iVit;
+	char_pkt->dex = m_pClientList[iClientH]->m_iDex;
+	char_pkt->mag = m_pClientList[iClientH]->m_iMag;
+	char_pkt->chr = m_pClientList[iClientH]->m_iCharisma;
 
 	iStats = (m_pClientList[iClientH]->m_iStr + m_pClientList[iClientH]->m_iDex + m_pClientList[iClientH]->m_iVit +
 		m_pClientList[iClientH]->m_iInt + m_pClientList[iClientH]->m_iMag + m_pClientList[iClientH]->m_iCharisma);
 
 	m_pClientList[iClientH]->m_iLU_Pool = m_pClientList[iClientH]->m_iLevel * 3 - (iStats - 70);
-	wp = (uint16_t*)cp;
-	//*wp = m_pClientList[iClientH]->m_iLevel*3 - (iStats - 70); 
-	*wp = m_pClientList[iClientH]->m_iLU_Pool;
-	cp += 2;
-
-	*cp = m_pClientList[iClientH]->m_cVar;
-	cp++;
-
-	*cp = 0;
-	cp++;
-
-	*cp = 0;
-	cp++;
-
-	*cp = 0;
-	cp++;
-
-	*cp = 0;
-	cp++;
-
-	dwp = (uint32_t*)cp;
-	*dwp = m_pClientList[iClientH]->m_iExp;
-	cp += 4;
-
-	ip = (int*)cp;
-	*ip = m_pClientList[iClientH]->m_iEnemyKillCount;
-	cp += 4;
-
-	ip = (int*)cp;
-	*ip = m_pClientList[iClientH]->m_iPKCount;
-	cp += 4;
-
-	dwp = (uint32_t*)cp;
-	*dwp = m_pClientList[iClientH]->m_iRewardGold;
-	cp += 4;
-
-	memcpy(cp, m_pClientList[iClientH]->m_cLocation, 10);
-	cp += 10;
-
-	memcpy(cp, m_pClientList[iClientH]->m_cGuildName, 20);
-	cp += 20;
-
-	ip = (int*)cp;
-	*ip = m_pClientList[iClientH]->m_iGuildRank;
-	cp += 4;
-
-	// v1.4311
-	*cp = (char)m_pClientList[iClientH]->m_iSuperAttackLeft;
-	cp++;
-
-	// v1.4311-3 
-	ip = (int*)cp;
-	*ip = m_pClientList[iClientH]->m_iFightzoneNumber;
-	cp += 4;
-
-	sp = (short*)cp;
-	*sp = m_sCharStatLimit;
-	cp += 2;
-
-	ip = (int*)cp;
-	*ip = m_iPlayerMaxLevel;
-	cp += 4;
+	char_pkt->lu_point = static_cast<std::uint16_t>(m_pClientList[iClientH]->m_iLU_Pool);
+	char_pkt->lu_unused[0] = static_cast<std::uint8_t>(m_pClientList[iClientH]->m_cVar);
+	char_pkt->lu_unused[1] = 0;
+	char_pkt->lu_unused[2] = 0;
+	char_pkt->lu_unused[3] = 0;
+	char_pkt->lu_unused[4] = 0;
+	char_pkt->exp = m_pClientList[iClientH]->m_iExp;
+	char_pkt->enemy_kills = m_pClientList[iClientH]->m_iEnemyKillCount;
+	char_pkt->pk_count = m_pClientList[iClientH]->m_iPKCount;
+	char_pkt->reward_gold = m_pClientList[iClientH]->m_iRewardGold;
+	std::memcpy(char_pkt->location, m_pClientList[iClientH]->m_cLocation, sizeof(char_pkt->location));
+	std::memcpy(char_pkt->guild_name, m_pClientList[iClientH]->m_cGuildName, sizeof(char_pkt->guild_name));
+	char_pkt->guild_rank = m_pClientList[iClientH]->m_iGuildRank;
+	char_pkt->super_attack_left = static_cast<std::uint8_t>(m_pClientList[iClientH]->m_iSuperAttackLeft);
+	char_pkt->fightzone_number = m_pClientList[iClientH]->m_iFightzoneNumber;
+	char_pkt->max_stats = m_sCharStatLimit;
+	char_pkt->max_level = m_iPlayerMaxLevel;
 
 	//hbest
 	m_pClientList[iClientH]->isForceSet = false;
@@ -1862,92 +1683,52 @@ void CGame::RequestInitDataHandler(int iClientH, char* pData, char cKey)
 	m_pClientList[iClientH]->m_iPartyStatus = DEF_PARTYSTATUS_NULL;
 	m_pClientList[iClientH]->m_iReqJoinPartyClientH = 0;
 
-	//Syntax : ======HP==MP==SP==DRatHRatLVL=STR=INT=VIT=DEX=MAG=CHR=LUstatEXP=EK==PK==RewaLocation==GuildName=RankAF
-	//Syntax : 1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345
-	//Syntax : ......145212521152........376.200=200=200=200=200=195=......big.8...17......aresden...NONE......NONE30
-	// 0x0Fm_cHeldenianVictoryType000 = 262406144
-	// ì¨íš§ì©íš„íšì²  ?ì²´ì©Œíš¤ 
-
-	//Debug Event
-	//DbgWnd->AddEventMsg(MSG_SEND,pBuffer,180,0);
-
-	iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(pBuffer, 124);// Original : 115
+	iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(writer.Data(), static_cast<int>(writer.Size()));
 	switch (iRet) {
 	case DEF_XSOCKEVENT_QUENEFULL:
 	case DEF_XSOCKEVENT_SOCKETERROR:
 	case DEF_XSOCKEVENT_CRITICALERROR:
 	case DEF_XSOCKEVENT_SOCKETCLOSED:
-		// ì¨íš§ì©íš„íšì² ì¨ì§ ì¨˜ì¨ì¨€ì©ì¨‹ì§  ì©”ì§•ì¨Œì§±ì§¸ì§• ì¨”íš©ì¨©ì²µíš‰íš©ì¨ˆíš¢ì¨ì±• íšì§ì§¸íš‡íš‰íš—ì¨ˆíš¢.
 		DeleteClient(iClientH, true, true);
-		if (pBuffer != 0) delete[] pBuffer;
 		return;
 	}
 
-
-	dwp = (uint32_t*)(pBuffer + DEF_INDEX4_MSGID);
-	*dwp = MSGID_PLAYERITEMLISTCONTENTS;
-	wp = (uint16_t*)(pBuffer + DEF_INDEX2_MSGTYPE);
-	*wp = DEF_MSGTYPE_CONFIRM;
+	writer.Reset();
+	auto* item_header = writer.Append<hb::net::PacketResponseItemListHeader>();
+	item_header->header.msg_id = MSGID_PLAYERITEMLISTCONTENTS;
+	item_header->header.msg_type = DEF_MSGTYPE_CONFIRM;
 
 	iTotalItemA = 0;
 	for (i = 0; i < DEF_MAXITEMS; i++)
 		if (m_pClientList[iClientH]->m_pItemList[i] != 0)
 			iTotalItemA++;
 
-	cp = (char*)(pBuffer + DEF_INDEX2_MSGTYPE + 2);
-
-	*cp = iTotalItemA;
-	cp++;
+	item_header->item_count = static_cast<std::uint8_t>(iTotalItemA);
 
 	for (i = 0; i < iTotalItemA; i++) {
 		// ### ERROR POINT!!!
 		if (m_pClientList[iClientH]->m_pItemList[i] == 0) {
-			std::snprintf(G_cTxt, sizeof(G_cTxt), "RequestInitDataHandler error: Client(%s) Item(%d)", m_pClientList[iClientH]->m_cCharName, i);
+			wsprintf(G_cTxt, "RequestInitDataHandler error: Client(%s) Item(%d)", m_pClientList[iClientH]->m_cCharName, i);
 			PutLogFileList(G_cTxt);
 
 			DeleteClient(iClientH, false, true);
-			if (pBuffer != 0) delete[] pBuffer;
 			return;
 		}
-		memcpy(cp, m_pClientList[iClientH]->m_pItemList[i]->m_cName, 20);
-		cp += 20;
-		dwp = (uint32_t*)cp;
-		*dwp = m_pClientList[iClientH]->m_pItemList[i]->m_dwCount;
-		cp += 4;
-		*cp = m_pClientList[iClientH]->m_pItemList[i]->m_cItemType;
-		cp++;
-		*cp = m_pClientList[iClientH]->m_pItemList[i]->m_cEquipPos;
-		cp++;
-		*cp = (char)m_pClientList[iClientH]->m_bIsItemEquipped[i];
-		cp++;
-		sp = (short*)cp;
-		*sp = m_pClientList[iClientH]->m_pItemList[i]->m_sLevelLimit;
-		cp += 2;
-		*cp = m_pClientList[iClientH]->m_pItemList[i]->m_cGenderLimit;
-		cp++;
-		wp = (uint16_t*)cp;
-		*wp = m_pClientList[iClientH]->m_pItemList[i]->m_wCurLifeSpan;
-		cp += 2;
-		wp = (uint16_t*)cp;
-		*wp = m_pClientList[iClientH]->m_pItemList[i]->m_wWeight;
-		cp += 2;
-		sp = (short*)cp;
-		*sp = m_pClientList[iClientH]->m_pItemList[i]->m_sSprite;
-		cp += 2;
-		sp = (short*)cp;
-		*sp = m_pClientList[iClientH]->m_pItemList[i]->m_sSpriteFrame;
-		cp += 2;
-		*cp = m_pClientList[iClientH]->m_pItemList[i]->m_cItemColor; // v1.4
-		cp++;
-		*cp = (char)m_pClientList[iClientH]->m_pItemList[i]->m_sItemSpecEffectValue2; // v1.41 
-		cp++;
-		dwp = (uint32_t*)cp;
-		*dwp = m_pClientList[iClientH]->m_pItemList[i]->m_dwAttribute;
-		cp += 4;
-		/*
-		*cp = (char)(m_pClientList[iClientH]->m_pItemList[i]->m_dwAttribute & 0x00000001); // Custom-Item?íš“íšì² ?íš‰ ì©”ì§¤ì¨˜íš“
-		cp++;
-		*/
+		auto* entry = writer.Append<hb::net::PacketResponseItemListEntry>();
+		std::memcpy(entry->name, m_pClientList[iClientH]->m_pItemList[i]->m_cName, sizeof(entry->name));
+		entry->count = m_pClientList[iClientH]->m_pItemList[i]->m_dwCount;
+		entry->item_type = m_pClientList[iClientH]->m_pItemList[i]->m_cItemType;
+		entry->equip_pos = m_pClientList[iClientH]->m_pItemList[i]->m_cEquipPos;
+		entry->is_equipped = static_cast<std::uint8_t>(m_pClientList[iClientH]->m_bIsItemEquipped[i]);
+		entry->level_limit = m_pClientList[iClientH]->m_pItemList[i]->m_sLevelLimit;
+		entry->gender_limit = m_pClientList[iClientH]->m_pItemList[i]->m_cGenderLimit;
+		entry->cur_lifespan = m_pClientList[iClientH]->m_pItemList[i]->m_wCurLifeSpan;
+		entry->weight = m_pClientList[iClientH]->m_pItemList[i]->m_wWeight;
+		entry->sprite = m_pClientList[iClientH]->m_pItemList[i]->m_sSprite;
+		entry->sprite_frame = m_pClientList[iClientH]->m_pItemList[i]->m_sSpriteFrame;
+		entry->item_color = m_pClientList[iClientH]->m_pItemList[i]->m_cItemColor;
+		entry->spec_value2 = static_cast<std::uint8_t>(m_pClientList[iClientH]->m_pItemList[i]->m_sItemSpecEffectValue2);
+		entry->attribute = m_pClientList[iClientH]->m_pItemList[i]->m_dwAttribute;
 	}
 
 	iTotalItemB = 0;
@@ -1955,152 +1736,77 @@ void CGame::RequestInitDataHandler(int iClientH, char* pData, char cKey)
 		if (m_pClientList[iClientH]->m_pItemInBankList[i] != 0)
 			iTotalItemB++;
 
-	*cp = iTotalItemB;
-	cp++;
+	const auto bank_count = static_cast<std::uint8_t>(iTotalItemB);
+	writer.AppendBytes(&bank_count, sizeof(bank_count));
 
 	for (i = 0; i < iTotalItemB; i++) {
 		if (m_pClientList[iClientH]->m_pItemInBankList[i] == 0) {
-			std::snprintf(G_cTxt, sizeof(G_cTxt), "RequestInitDataHandler error: Client(%s) Bank-Item(%d)", m_pClientList[iClientH]->m_cCharName, i);
+			wsprintf(G_cTxt, "RequestInitDataHandler error: Client(%s) Bank-Item(%d)", m_pClientList[iClientH]->m_cCharName, i);
 			PutLogFileList(G_cTxt);
 
 			DeleteClient(iClientH, false, true);
-			if (pBuffer != 0) delete[] pBuffer;
 			return;
 		}
-		memcpy(cp, m_pClientList[iClientH]->m_pItemInBankList[i]->m_cName, 20);
-		cp += 20;
-		dwp = (uint32_t*)cp;
-		*dwp = m_pClientList[iClientH]->m_pItemInBankList[i]->m_dwCount;
-		cp += 4;
-		*cp = m_pClientList[iClientH]->m_pItemInBankList[i]->m_cItemType;
-		cp++;
-		*cp = m_pClientList[iClientH]->m_pItemInBankList[i]->m_cEquipPos;
-		cp++;
-		sp = (short*)cp;
-		*sp = m_pClientList[iClientH]->m_pItemInBankList[i]->m_sLevelLimit;
-		cp += 2;
-		*cp = m_pClientList[iClientH]->m_pItemInBankList[i]->m_cGenderLimit;
-		cp++;
-		wp = (uint16_t*)cp;
-		*wp = m_pClientList[iClientH]->m_pItemInBankList[i]->m_wCurLifeSpan;
-		cp += 2;
-		wp = (uint16_t*)cp;
-		*wp = m_pClientList[iClientH]->m_pItemInBankList[i]->m_wWeight;
-		cp += 2;
-		sp = (short*)cp;
-		*sp = m_pClientList[iClientH]->m_pItemInBankList[i]->m_sSprite;
-		cp += 2;
-		sp = (short*)cp;
-		*sp = m_pClientList[iClientH]->m_pItemInBankList[i]->m_sSpriteFrame;
-		cp += 2;
-		*cp = m_pClientList[iClientH]->m_pItemInBankList[i]->m_cItemColor; // v1.4
-		cp++;
-		*cp = (char)m_pClientList[iClientH]->m_pItemInBankList[i]->m_sItemSpecEffectValue2; // v1.41 
-		cp++;
-		dwp = (uint32_t*)cp;
-		*dwp = m_pClientList[iClientH]->m_pItemInBankList[i]->m_dwAttribute;
-		cp += 4;
-		/*
-		*cp = (char)(m_pClientList[iClientH]->m_pItemInBankList[i]->m_dwAttribute & 0x00000001); // Custom-Item?íš“íšì² ?íš‰ ì©”ì§¤ì¨˜íš“
-		cp++;
-		*/
+		auto* entry = writer.Append<hb::net::PacketResponseBankItemEntry>();
+		std::memcpy(entry->name, m_pClientList[iClientH]->m_pItemInBankList[i]->m_cName, sizeof(entry->name));
+		entry->count = m_pClientList[iClientH]->m_pItemInBankList[i]->m_dwCount;
+		entry->item_type = m_pClientList[iClientH]->m_pItemInBankList[i]->m_cItemType;
+		entry->equip_pos = m_pClientList[iClientH]->m_pItemInBankList[i]->m_cEquipPos;
+		entry->level_limit = m_pClientList[iClientH]->m_pItemInBankList[i]->m_sLevelLimit;
+		entry->gender_limit = m_pClientList[iClientH]->m_pItemInBankList[i]->m_cGenderLimit;
+		entry->cur_lifespan = m_pClientList[iClientH]->m_pItemInBankList[i]->m_wCurLifeSpan;
+		entry->weight = m_pClientList[iClientH]->m_pItemInBankList[i]->m_wWeight;
+		entry->sprite = m_pClientList[iClientH]->m_pItemInBankList[i]->m_sSprite;
+		entry->sprite_frame = m_pClientList[iClientH]->m_pItemInBankList[i]->m_sSpriteFrame;
+		entry->item_color = m_pClientList[iClientH]->m_pItemInBankList[i]->m_cItemColor;
+		entry->spec_value2 = static_cast<std::uint8_t>(m_pClientList[iClientH]->m_pItemInBankList[i]->m_sItemSpecEffectValue2);
+		entry->attribute = m_pClientList[iClientH]->m_pItemInBankList[i]->m_dwAttribute;
 	}
 
-	for (i = 0; i < DEF_MAXMAGICTYPE; i++) {
-		*cp = m_pClientList[iClientH]->m_cMagicMastery[i];
-		cp++;
-	}
+	writer.AppendBytes(m_pClientList[iClientH]->m_cMagicMastery, DEF_MAXMAGICTYPE);
+	writer.AppendBytes(m_pClientList[iClientH]->m_cSkillMastery, DEF_MAXSKILLTYPE);
 
-	for (i = 0; i < DEF_MAXSKILLTYPE; i++) {
-		*cp = m_pClientList[iClientH]->m_cSkillMastery[i];
-		cp++;
-	}
-
-	iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(pBuffer, 6 + 1 + iTotalItemA * 44 + iTotalItemB * 43 + DEF_MAXMAGICTYPE + DEF_MAXSKILLTYPE);
+	iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(writer.Data(), static_cast<int>(writer.Size()));
 	switch (iRet) {
 	case DEF_XSOCKEVENT_QUENEFULL:
 	case DEF_XSOCKEVENT_SOCKETERROR:
 	case DEF_XSOCKEVENT_CRITICALERROR:
 	case DEF_XSOCKEVENT_SOCKETCLOSED:
 		DeleteClient(iClientH, true, true);
-		if (pBuffer != 0) delete[] pBuffer;
 		return;
 	}
 
-
-	dwp = (uint32_t*)(pBuffer + DEF_INDEX4_MSGID);
-	*dwp = MSGID_RESPONSE_INITDATA;
-	wp = (uint16_t*)(pBuffer + DEF_INDEX2_MSGTYPE);
-	*wp = DEF_MSGTYPE_CONFIRM;
-
-	cp = (char*)(pBuffer + DEF_INDEX2_MSGTYPE + 2);
+	writer.Reset();
+	auto* init_header = writer.Append<hb::net::PacketResponseInitDataHeader>();
+	init_header->header.msg_id = MSGID_RESPONSE_INITDATA;
+	init_header->header.msg_type = DEF_MSGTYPE_CONFIRM;
 
 	if (m_pClientList[iClientH]->m_bIsObserverMode == false)
 		bGetEmptyPosition(&m_pClientList[iClientH]->m_sX, &m_pClientList[iClientH]->m_sY, m_pClientList[iClientH]->m_cMapIndex);
 	else GetMapInitialPoint(m_pClientList[iClientH]->m_cMapIndex, &m_pClientList[iClientH]->m_sX, &m_pClientList[iClientH]->m_sY);
 
-	// ObjectID
-	wp = (uint16_t*)cp;
-	*wp = iClientH;
-	cp += 2;
-
-	sp = (short*)cp;
-	*sp = m_pClientList[iClientH]->m_sX - 14 - 5;
-	cp += 2;
-
-	sp = (short*)cp;
-	*sp = m_pClientList[iClientH]->m_sY - 12 - 5;
-	cp += 2;
-
-	sp = (short*)cp;
-	*sp = m_pClientList[iClientH]->m_sType;
-	cp += 2;
-
-	sp = (short*)cp;
-	*sp = m_pClientList[iClientH]->m_sAppr1;
-	cp += 2;
-
-	sp = (short*)cp;
-	*sp = m_pClientList[iClientH]->m_sAppr2;
-	cp += 2;
-
-	sp = (short*)cp;
-	*sp = m_pClientList[iClientH]->m_sAppr3;
-	cp += 2;
-
-	sp = (short*)cp;
-	*sp = m_pClientList[iClientH]->m_sAppr4;
-	cp += 2;
-
-	ip = (int*)cp; // v1.4
-	*ip = m_pClientList[iClientH]->m_iApprColor;
-	cp += 4;
-
-	ip = (int*)cp;
-	*ip = m_pClientList[iClientH]->m_iStatus;
-	cp += 4;// Original : 2
-
-	memcpy(cp, m_pClientList[iClientH]->m_cMapName, 10);
-	cp += 10;
-
-	memcpy(cp, m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_cLocationName, 10);
-	cp += 10;
+	init_header->player_object_id = static_cast<std::int16_t>(iClientH);
+	init_header->pivot_x = static_cast<std::int16_t>(m_pClientList[iClientH]->m_sX - 14 - 5);
+	init_header->pivot_y = static_cast<std::int16_t>(m_pClientList[iClientH]->m_sY - 12 - 5);
+	init_header->player_type = m_pClientList[iClientH]->m_sType;
+	init_header->appr1 = m_pClientList[iClientH]->m_sAppr1;
+	init_header->appr2 = m_pClientList[iClientH]->m_sAppr2;
+	init_header->appr3 = m_pClientList[iClientH]->m_sAppr3;
+	init_header->appr4 = m_pClientList[iClientH]->m_sAppr4;
+	init_header->appr_color = m_pClientList[iClientH]->m_iApprColor;
+	init_header->status = m_pClientList[iClientH]->m_iStatus;
+	std::memcpy(init_header->map_name, m_pClientList[iClientH]->m_cMapName, sizeof(init_header->map_name));
+	std::memcpy(init_header->cur_location, m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_cLocationName, sizeof(init_header->cur_location));
 
 	if (m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_bIsFixedDayMode)
-		*cp = 1;
-	else *cp = m_cDayOrNight;
-	cp++;
+		init_header->sprite_alpha = 1;
+	else init_header->sprite_alpha = m_cDayOrNight;
 
 	if (m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_bIsFixedDayMode)
-		*cp = 0;
-	else *cp = m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_cWhetherStatus;
-	cp++;
+		init_header->weather_status = 0;
+	else init_header->weather_status = m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_cWhetherStatus;
 
-	// v1.4 Contribution
-	ip = (int*)cp;
-	*ip = m_pClientList[iClientH]->m_iContribution;
-	cp += 4;
-
+	init_header->contribution = m_pClientList[iClientH]->m_iContribution;
 
 	if (m_pClientList[iClientH]->m_bIsObserverMode == false) {
 		m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->SetOwner(iClientH,
@@ -2109,104 +1815,84 @@ void CGame::RequestInitDataHandler(int iClientH, char* pData, char cKey)
 			m_pClientList[iClientH]->m_sY);
 	}
 
-	// v1.41
-	*cp = (char)m_pClientList[iClientH]->m_bIsObserverMode;
-	cp++;
-	// catches debug on player load up
+	init_header->observer_mode = static_cast<std::uint8_t>(m_pClientList[iClientH]->m_bIsObserverMode);
+	init_header->rating = m_pClientList[iClientH]->m_iRating;
+	init_header->hp = m_pClientList[iClientH]->m_iHP;
+	init_header->discount = 0;
 
-	// v1.41 
-	ip = (int*)cp;
-	*ip = m_pClientList[iClientH]->m_iRating;
-	cp += 4;
+	iSize = iComposeInitMapData(m_pClientList[iClientH]->m_sX - 12, m_pClientList[iClientH]->m_sY - 9, iClientH, initMapData);
+	writer.AppendBytes(initMapData, static_cast<std::size_t>(iSize));
 
-	// v1.44
-	ip = (int*)cp;
-	*ip = m_pClientList[iClientH]->m_iHP;
-	cp += 4;
-
-	//Unknown variable
-	*cp = 0;
-	cp++;
-
-	iSize = iComposeInitMapData(m_pClientList[iClientH]->m_sX - 12, m_pClientList[iClientH]->m_sY - 9, iClientH, cp);
-
-	iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(pBuffer, 46 + iSize + 4 + 4 + 1 + 4 + 4 + 3); // Zabuza fix
-	//iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(pBuffer, 59 + iSize +4 +4 +1 +4 +4); // v1.41
-	//	iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(pBuffer, 46 + iSize +4 +4 +1 +4 +4); // v1.41
+	iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(writer.Data(), static_cast<int>(writer.Size()));
 	switch (iRet) {
 	case DEF_XSOCKEVENT_QUENEFULL:
 	case DEF_XSOCKEVENT_SOCKETERROR:
 	case DEF_XSOCKEVENT_CRITICALERROR:
 	case DEF_XSOCKEVENT_SOCKETCLOSED:
 		DeleteClient(iClientH, true, true);
-		if (pBuffer != 0) delete[] pBuffer;
 		return;
 	}
-
-
-	if (pBuffer != 0) delete[] pBuffer;
 
 	SendEventToNearClient_TypeA(iClientH, DEF_OWNERTYPE_PLAYER, MSGID_EVENT_LOG, DEF_MSGTYPE_CONFIRM, 0, 0, 0);
 
 	// v2.13 
-	if ((memcmp(m_pClientList[iClientH]->m_cLocation, "are", 3) == 0) &&
-		(memcmp(m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_cLocationName, "elvine", 6) == 0)
-		&& (m_pClientList[iClientH]->m_iAdminUserLevel == 0)) {
-
-		m_pClientList[iClientH]->m_dwWarBeginTime = GameClock::GetTimeMS();
+	if ( (memcmp(m_pClientList[iClientH]->m_cLocation, "are", 3) == 0) && 
+		 (memcmp(m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_cLocationName, "elvine", 6) == 0)
+		 && (m_pClientList[iClientH]->m_iAdminUserLevel == 0) ) {
+		
+		m_pClientList[iClientH]->m_dwWarBeginTime = timeGetTime();
 		m_pClientList[iClientH]->m_bIsWarLocation = true;
 		// v2.17 2002-7-15
-		SetForceRecallTime(iClientH);
+		SetForceRecallTime(iClientH) ;
 	}
 	// v2.13 
-	else if ((memcmp(m_pClientList[iClientH]->m_cLocation, "elv", 3) == 0) &&
-		(memcmp(m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_cLocationName, "aresden", 7) == 0)
-		&& (m_pClientList[iClientH]->m_iAdminUserLevel == 0)) {
-
-		m_pClientList[iClientH]->m_dwWarBeginTime = GameClock::GetTimeMS();
+	else if ( (memcmp(m_pClientList[iClientH]->m_cLocation, "elv", 3) == 0) && 
+		 (memcmp(m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_cLocationName, "aresden", 7) == 0)
+		 && (m_pClientList[iClientH]->m_iAdminUserLevel == 0)) {
+		
+		m_pClientList[iClientH]->m_dwWarBeginTime = timeGetTime();
 		m_pClientList[iClientH]->m_bIsWarLocation = true;
 
 		// v2.17 2002-7-15
-		SetForceRecallTime(iClientH);
+		SetForceRecallTime(iClientH) ;
 	}
-	else if (((memcmp(m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_cLocationName, "arejail", 7) == 0) ||
-		(memcmp(m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_cLocationName, "elvjail", 7) == 0))
-		&& (m_pClientList[iClientH]->m_iAdminUserLevel == 0)) {
+	else if (((memcmp(m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_cLocationName, "arejail", 7) == 0) || 
+		   (memcmp(m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_cLocationName, "elvjail", 7) == 0))
+		      && (m_pClientList[iClientH]->m_iAdminUserLevel == 0)) { 
 		m_pClientList[iClientH]->m_bIsWarLocation = true;
-		m_pClientList[iClientH]->m_dwWarBeginTime = GameClock::GetTimeMS();
+		m_pClientList[iClientH]->m_dwWarBeginTime = timeGetTime();
 
 		// v2.17 2002-7-15 
 		if (m_pClientList[iClientH]->m_iTimeLeft_ForceRecall == 0) {
-			m_pClientList[iClientH]->m_iTimeLeft_ForceRecall = 20 * 5;
-		}
-		else if (m_pClientList[iClientH]->m_iTimeLeft_ForceRecall > 20 * 5) {
-			m_pClientList[iClientH]->m_iTimeLeft_ForceRecall = 20 * 5;  // 5��
+			m_pClientList[iClientH]->m_iTimeLeft_ForceRecall = 20*5 ; 
+		} else if (m_pClientList[iClientH]->m_iTimeLeft_ForceRecall > 20*5) {
+			m_pClientList[iClientH]->m_iTimeLeft_ForceRecall = 20*5 ;  // 5��
 		}
 
 	}
-	else if ((m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_bIsFightZone) &&
-		(m_iFightzoneNoForceRecall == 0) && (m_pClientList[iClientH]->m_iAdminUserLevel == 0)) {
-
-		m_pClientList[iClientH]->m_dwWarBeginTime = GameClock::GetTimeMS();
+	else if ((m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_bIsFightZone ) &&
+		     (m_iFightzoneNoForceRecall == 0) && (m_pClientList[iClientH]->m_iAdminUserLevel == 0)) { 
+				
+		m_pClientList[iClientH]->m_dwWarBeginTime = timeGetTime();
 		m_pClientList[iClientH]->m_bIsWarLocation = true;
 
 		GetLocalTime(&SysTime);
-		m_pClientList[iClientH]->m_iTimeLeft_ForceRecall = 2 * 60 * 20 - ((SysTime.wHour % 2) * 20 * 60 + SysTime.wMinute * 20) - 2 * 20;
+		m_pClientList[iClientH]->m_iTimeLeft_ForceRecall = 2*60*20 - ((SysTime.wHour%2)*20*60 + SysTime.wMinute*20) - 2*20; 
 	}
 	else
 	{
-		m_pClientList[iClientH]->m_bIsWarLocation = false;
+		m_pClientList[iClientH]->m_bIsWarLocation = false;	
 		// v1.42
 		m_pClientList[iClientH]->m_iTimeLeft_ForceRecall = 0;
 		// 06/11/2004
-		SetForceRecallTime(iClientH);
+		SetForceRecallTime(iClientH) ;
 	}
 
 	// v2.17 2002-7-15
 	//hbest...
-	if ((m_pClientList[iClientH]->m_iTimeLeft_ForceRecall > 0) && (m_pClientList[iClientH]->m_bIsWarLocation) && IsEnemyZone(iClientH)) {
-		SendNotifyMsg(0, iClientH, DEF_NOTIFY_FORCERECALLTIME, m_pClientList[iClientH]->m_iTimeLeft_ForceRecall, 0, 0, 0);
-		//std::snprintf(G_cTxt, sizeof(G_cTxt),"(!) Game Server Force Recall Time  %d (%d)min", m_pClientList[iClientH]->m_iTimeLeft_ForceRecall, m_pClientList[iClientH]->m_iTimeLeft_ForceRecall/20) ;
+	if ((m_pClientList[iClientH]->m_iTimeLeft_ForceRecall > 0) && (m_pClientList[iClientH]->m_bIsWarLocation ) && IsEnemyZone(iClientH)) {
+		SendNotifyMsg(0, iClientH, DEF_NOTIFY_FORCERECALLTIME,  m_pClientList[iClientH]->m_iTimeLeft_ForceRecall , 0, 0, 0);
+		//wsprintf(G_cTxt,"(!) Game Server Force Recall Time  %d (%d)min", m_pClientList[iClientH]->m_iTimeLeft_ForceRecall, m_pClientList[iClientH]->m_iTimeLeft_ForceRecall/20) ;
 		//PutLogList(G_cTxt) ;
 	}
 
@@ -2224,38 +1910,38 @@ void CGame::RequestInitDataHandler(int iClientH, char* pData, char cKey)
 	if ((m_pClientList[iClientH]->m_cSide != iMapside2) && (iMapside != 0)) {
 		if ((iMapside <= 2) && (m_pClientList[iClientH]->m_iAdminUserLevel < 1)) {
 			if (m_pClientList[iClientH]->m_cSide != 0) {
-				m_pClientList[iClientH]->m_dwWarBeginTime = GameClock::GetTimeMS();
+				m_pClientList[iClientH]->m_dwWarBeginTime = timeGetTime();
 				m_pClientList[iClientH]->m_bIsWarLocation = true;
 				m_pClientList[iClientH]->m_iTimeLeft_ForceRecall = 1;
 				m_pClientList[iClientH]->m_bIsInsideOwnTown = true;
 			}
 		}
 	}
-	else {
-		if (m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_bIsFightZone &&
-			m_iFightzoneNoForceRecall == false &&
+	else{
+		if (m_pMapList[ m_pClientList[iClientH]->m_cMapIndex ]->m_bIsFightZone  &&
+			m_iFightzoneNoForceRecall == false && 
 			m_pClientList[iClientH]->m_iAdminUserLevel == 0) {
-			m_pClientList[iClientH]->m_dwWarBeginTime = GameClock::GetTimeMS();
-			m_pClientList[iClientH]->m_bIsWarLocation = true;
-			GetLocalTime(&SysTime);
-			m_pClientList[iClientH]->m_iTimeLeft_ForceRecall = 2 * 60 * 20 - ((SysTime.wHour % 2) * 20 * 60 + SysTime.wMinute * 20) - 2 * 20;
-		}
-		else {
-			if (memcmp(m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_cLocationName, "arejail", 7) == 0 ||
-				memcmp(m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_cLocationName, "elvjail", 7) == 0) {
-				if (m_pClientList[iClientH]->m_iAdminUserLevel == 0) {
-					m_pClientList[iClientH]->m_bIsWarLocation = true;
-					m_pClientList[iClientH]->m_dwWarBeginTime = GameClock::GetTimeMS();
-					if (m_pClientList[iClientH]->m_iTimeLeft_ForceRecall == 0)
-						m_pClientList[iClientH]->m_iTimeLeft_ForceRecall = 100;
-					else if (m_pClientList[iClientH]->m_iTimeLeft_ForceRecall > 100)
-						m_pClientList[iClientH]->m_iTimeLeft_ForceRecall = 100;
-				}
+				m_pClientList[iClientH]->m_dwWarBeginTime = timeGetTime();
+				m_pClientList[iClientH]->m_bIsWarLocation = true;
+				GetLocalTime(&SysTime);
+				m_pClientList[iClientH]->m_iTimeLeft_ForceRecall = 2*60*20 - ((SysTime.wHour%2)*20*60 + SysTime.wMinute*20) - 2*20;
 			}
+		else{
+			if (memcmp(m_pMapList[ m_pClientList[iClientH]->m_cMapIndex ]->m_cLocationName, "arejail", 7) == 0 ||
+				memcmp(m_pMapList[ m_pClientList[iClientH]->m_cMapIndex ]->m_cLocationName, "elvjail", 7) == 0) {
+					if (m_pClientList[iClientH]->m_iAdminUserLevel == 0) {
+						m_pClientList[iClientH]->m_bIsWarLocation = true;
+						m_pClientList[iClientH]->m_dwWarBeginTime = timeGetTime();
+						if (m_pClientList[iClientH]->m_iTimeLeft_ForceRecall == 0)
+							m_pClientList[iClientH]->m_iTimeLeft_ForceRecall = 100;
+						else if(m_pClientList[iClientH]->m_iTimeLeft_ForceRecall > 100)
+							m_pClientList[iClientH]->m_iTimeLeft_ForceRecall = 100;
+					}
+				}
 		}
 	}
 
-	/*if ((m_pClientList[iClientH]->m_iTimeLeft_ForceRecall > 0) &&
+	/*if ((m_pClientList[iClientH]->m_iTimeLeft_ForceRecall > 0) && 
 		(m_pClientList[iClientH]->m_bIsWarLocation )) {
 		SendNotifyMsg(0, iClientH, DEF_NOTIFY_FORCERECALLTIME, m_pClientList[iClientH]->m_iTimeLeft_ForceRecall, 0, 0, 0);
 	}*/
@@ -2263,7 +1949,7 @@ void CGame::RequestInitDataHandler(int iClientH, char* pData, char cKey)
 	SendNotifyMsg(0, iClientH, DEF_NOTIFY_SAFEATTACKMODE, 0, 0, 0, 0);
 	SendNotifyMsg(0, iClientH, DEF_NOTIFY_DOWNSKILLINDEXSET, m_pClientList[iClientH]->m_iDownSkillIndex, 0, 0, 0);
 	SendNotifyMsg(0, iClientH, DEF_NOTIFY_ITEMPOSLIST, 0, 0, 0, 0);
-
+			
 	_SendQuestContents(iClientH);
 	_CheckQuestEnvironment(iClientH);
 
@@ -2273,24 +1959,24 @@ void CGame::RequestInitDataHandler(int iClientH, char* pData, char cKey)
 	}
 
 	// Crusade 
-	if (m_bIsCrusadeMode) {
+	if (m_bIsCrusadeMode ) {
 		if (m_pClientList[iClientH]->m_dwCrusadeGUID == 0) {
 			m_pClientList[iClientH]->m_iCrusadeDuty = 0;
 			m_pClientList[iClientH]->m_iConstructionPoint = 0;
 			m_pClientList[iClientH]->m_dwCrusadeGUID = m_dwCrusadeGUID;
 		}
 		else if (m_pClientList[iClientH]->m_dwCrusadeGUID != m_dwCrusadeGUID) {
-			m_pClientList[iClientH]->m_iCrusadeDuty = 0;
+			m_pClientList[iClientH]->m_iCrusadeDuty       = 0;
 			m_pClientList[iClientH]->m_iConstructionPoint = 0;
-			m_pClientList[iClientH]->m_iWarContribution = 0;
+			m_pClientList[iClientH]->m_iWarContribution   = 0;
 			m_pClientList[iClientH]->m_dwCrusadeGUID = m_dwCrusadeGUID;
-			SendNotifyMsg(0, iClientH, DEF_NOTIFY_CRUSADE, (uint32_t)m_bIsCrusadeMode, 0, 0, 0, -1);
+			SendNotifyMsg(0, iClientH, DEF_NOTIFY_CRUSADE, (DWORD)m_bIsCrusadeMode, 0, 0, 0, -1);		
 		}
 		m_pClientList[iClientH]->m_cVar = 1;
-		SendNotifyMsg(0, iClientH, DEF_NOTIFY_CRUSADE, (uint32_t)m_bIsCrusadeMode, m_pClientList[iClientH]->m_iCrusadeDuty, 0, 0);
+		SendNotifyMsg(0, iClientH, DEF_NOTIFY_CRUSADE, (DWORD)m_bIsCrusadeMode, m_pClientList[iClientH]->m_iCrusadeDuty, 0, 0);
 	}
-	else if (m_bIsHeldenianMode) {
-		sSummonPoints = m_pClientList[iClientH]->m_iCharisma * 300;
+	else if (m_bIsHeldenianMode ) {
+		sSummonPoints = m_pClientList[iClientH]->m_iCharisma*300;
 		if (sSummonPoints > DEF_MAXSUMMONPOINTS) sSummonPoints = DEF_MAXSUMMONPOINTS;
 		if (m_pClientList[iClientH]->m_dwHeldenianGUID == 0) {
 			m_pClientList[iClientH]->m_dwHeldenianGUID = m_dwHeldenianGUID;
@@ -2302,7 +1988,7 @@ void CGame::RequestInitDataHandler(int iClientH, char* pData, char cKey)
 			m_pClientList[iClientH]->m_dwHeldenianGUID = m_dwHeldenianGUID;
 		}
 		m_pClientList[iClientH]->m_cVar = 2;
-		if (m_bIsHeldenianMode) {
+		if (m_bIsHeldenianMode ) {
 			SendNotifyMsg(0, iClientH, DEF_NOTIFY_CRUSADE, 0, 0, 0, 0);
 			if (m_bHeldenianInitiated == false) {
 				SendNotifyMsg(0, iClientH, DEF_NOTIFY_HELDENIANSTART, 0, 0, 0, 0);
@@ -2318,25 +2004,25 @@ void CGame::RequestInitDataHandler(int iClientH, char* pData, char cKey)
 	else {
 		if (m_pClientList[iClientH]->m_dwCrusadeGUID == m_dwCrusadeGUID) {
 			if (m_pClientList[iClientH]->m_cVar == 1) {
-				SendNotifyMsg(0, iClientH, DEF_NOTIFY_CRUSADE, (uint32_t)m_bIsCrusadeMode, 0, 0, 0, -1);
+				SendNotifyMsg(0, iClientH, DEF_NOTIFY_CRUSADE, (DWORD)m_bIsCrusadeMode, 0, 0, 0, -1);
 			}
 		}
 		else {
-			SendNotifyMsg(0, iClientH, DEF_NOTIFY_CRUSADE, (uint32_t)m_bIsCrusadeMode, 0, 0, 0, -1);
+			SendNotifyMsg(0, iClientH, DEF_NOTIFY_CRUSADE, (DWORD)m_bIsCrusadeMode, 0, 0, 0, -1);		
 			m_pClientList[iClientH]->m_dwCrusadeGUID = 0;
-			m_pClientList[iClientH]->m_iWarContribution = 0;
+			m_pClientList[iClientH]->m_iWarContribution   = 0;
 			m_pClientList[iClientH]->m_dwCrusadeGUID = 0;
 		}
 	}
 
 	// v1.42
 	if (memcmp(m_pClientList[iClientH]->m_cMapName, "fightzone", 9) == 0) {
-		std::snprintf(G_cTxt, sizeof(G_cTxt), "Char(%s)-Enter(%s) Observer(%d)", m_pClientList[iClientH]->m_cCharName, m_pClientList[iClientH]->m_cMapName, m_pClientList[iClientH]->m_bIsObserverMode);
+		wsprintf(G_cTxt, "Char(%s)-Enter(%s) Observer(%d)", m_pClientList[iClientH]->m_cCharName, m_pClientList[iClientH]->m_cMapName, m_pClientList[iClientH]->m_bIsObserverMode);
 		PutLogEventFileList(G_cTxt);
 	}
 
-	if (m_bIsHeldenianMode) SendNotifyMsg(0, iClientH, DEF_NOTIFY_HELDENIANTELEPORT, 0, 0, 0, 0, 0);
-	if (m_bHeldenianInitiated) SendNotifyMsg(0, iClientH, DEF_NOTIFY_HELDENIANSTART, 0, 0, 0, 0, 0);
+	if (m_bIsHeldenianMode ) SendNotifyMsg(0, iClientH, DEF_NOTIFY_HELDENIANTELEPORT, 0, 0, 0, 0, 0);		
+	if (m_bHeldenianInitiated ) SendNotifyMsg(0, iClientH, DEF_NOTIFY_HELDENIANSTART, 0, 0, 0, 0, 0);		
 
 	// Crusade
 	SendNotifyMsg(0, iClientH, DEF_NOTIFY_CONSTRUCTIONPOINT, m_pClientList[iClientH]->m_iConstructionPoint, m_pClientList[iClientH]->m_iWarContribution, 1, 0);
@@ -2345,11 +2031,11 @@ void CGame::RequestInitDataHandler(int iClientH, char* pData, char cKey)
 	//Gizon point lefT???
 	SendNotifyMsg(0, iClientH, DEF_NOTIFY_GIZONITEMUPGRADELEFT, m_pClientList[iClientH]->m_iGizonItemUpgradeLeft, 0, 0, 0);
 
-	if ((m_bIsApocalypseMode) && (m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_bIsApocalypseMap)) {
+	if ((m_bIsApocalypseMode ) && (m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_bIsApocalypseMap )) {
 		RequestTeleportHandler(iClientH, "1   ");
 	}
 
-	if (m_bIsApocalypseMode) {
+	if (m_bIsApocalypseMode ) {
 		SendNotifyMsg(0, iClientH, DEF_NOTIFY_APOCGATESTARTMSG, 0, 0, 0, 0, 0);
 	}
 
@@ -2368,19 +2054,13 @@ void CGame::RequestMobKills(int client)
 	auto player = m_pClientList[client];
 	if (player == 0) return;
 
-	char* cData = G_cData50000; //esta es el "buffer", onda, la memoria que neceisto para enviar
+	char* cData = G_cData50000; // buffer for send
 
-	uint32_t* dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-	*dwp = DEF_NOTIFY_MOBKILLS;//a la memoria esa le escribo este mensaje
-	uint16_t* wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-	*wp = 0;//este no se usa, le mando 0
+	auto* header = reinterpret_cast<hb::net::PacketNotifyMobKillCountHeader*>(cData);
+	header->header.msg_id = DEF_NOTIFY_MOBKILLS;
+	header->header.msg_type = 0;
 
-	char* cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2); //eso se usa para decirle "desde aca empiezo a escribir"
-
-	short* pTotal = (short*)cp;
-	cp += 2;
-
-	short* sp;
+	auto* entries = reinterpret_cast<hb::net::PacketNotifyMobKillCountEntry*>(header + 1);
 
 	int count = 0;
 	for (int i = 0; i < 100; i++) //recorro todosl os clientes
@@ -2389,27 +2069,17 @@ void CGame::RequestMobKills(int client)
 
 		if (mob != 0)
 		{
-			sp = (short*)cp;
-			*sp = mob->iKillCount;
-			cp += 2;
-
-			sp = (short*)cp;
-			*sp = mob->iNextCount;
-			cp += 2;
-
-			sp = (short*)cp;
-			*sp = mob->iLevel;
-			cp += 2;
-
-			memcpy(cp, mob->cNpcName, 20); //copiar el nombre del char (de tama�o 20) a la data
-			cp += 20;//decirle a la data que le sume 20 bites
-
+			entries[count].kill_count = mob->iKillCount;
+			entries[count].next_count = mob->iNextCount;
+			entries[count].level = mob->iLevel;
+			memcpy(entries[count].npc_name, mob->cNpcName, sizeof(entries[count].npc_name)); // copiar el nombre del char
 			count++;
 		}
 	}
 
-	*pTotal = count; //esto es medio enroscado, es para decirle cuantos onlines escribio
-	player->m_pXSock->iSendMsg(G_cData50000, cp - G_cData50000);//mandarle la data a p que es el cliente
+	header->total = static_cast<int16_t>(count); // total entries
+	player->m_pXSock->iSendMsg(G_cData50000,
+		static_cast<int>(sizeof(*header) + count * sizeof(hb::net::PacketNotifyMobKillCountEntry)));
 }
 
 bool CGame::bSendClientItemConfigs(int iClientH)
@@ -2426,15 +2096,16 @@ bool CGame::bSendClientItemConfigs(int iClientH)
 
 	int chunkCount = 0;
 	auto sendPayload = [&](const char* payload, size_t payloadLen) -> bool {
-		uint32_t* dwp = (uint32_t*)(G_cData50000);
-		uint16_t* wp = (uint16_t*)(G_cData50000 + DEF_INDEX2_MSGTYPE);
 		std::memset(G_cData50000, 0, sizeof(G_cData50000));
-		*dwp = MSGID_ITEMCONFIGURATIONCONTENTS;
-		*wp = DEF_MSGTYPE_CONFIRM;
+		{
+			auto* header = reinterpret_cast<hb::net::PacketHeader*>(G_cData50000);
+			header->msg_id = MSGID_ITEMCONFIGURATIONCONTENTS;
+			header->msg_type = DEF_MSGTYPE_CONFIRM;
+		}
 		if (payloadLen > maxPayload) {
 			return false;
 		}
-		std::memcpy(G_cData50000 + 6, payload, payloadLen);
+		std::memcpy(G_cData50000 + sizeof(hb::net::PacketHeader), payload, payloadLen);
 		int iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(G_cData50000, static_cast<int>(payloadLen + 8));
 		switch (iRet) {
 		case DEF_XSOCKEVENT_QUENEFULL:
@@ -3135,35 +2806,13 @@ void CGame::DeleteClient(int iClientH, bool bSave, bool bNotify, bool bCountLogo
 
 void CGame::SendEventToNearClient_TypeA(short sOwnerH, char cOwnerType, uint32_t dwMsgID, uint16_t wMsgType, short sV1, short sV2, short sV3)
 {
-	int* ip, i, iRet, iShortCutIndex;
-	char* cp_a, * cp_s, * cp_sv, cData_All[200], cData_Srt[200], cData_Srt_Av[200];
-	uint32_t* dwp;
-	uint16_t* wp;
-	int* ipStatus, iDumm;
-	short* sp, sRange, sX, sY;
-	bool  bFlag, cOwnerSend;
-	char cKey;
-	int iTemp3, iTemp, iTemp2;
+	int i, iRet, iShortCutIndex;
+	bool bFlag;
+	int sRange;
+	short sX, sY;
+	int iTemp, iTemp2, iTemp3;
+	bool cOwnerSend;
 
-	// OPTIMIZATION FIX #2: Early exit if no clients online
-	// Check if there are any clients in the shortcut list before building packets
-	if (m_iClientShortCut[0] == 0) {
-		// DEBUG: Log when we skip broadcast due to no clients
-		static uint32_t dwLastNoClientLog = 0;
-		uint32_t dwNow = GameClock::GetTimeMS();
-		if (dwNow - dwLastNoClientLog > 5000) {
-			dwLastNoClientLog = dwNow;
-		}
-		return;
-	}
-
-	// OPTIMIZATION FIX #2: Pre-check if any clients are in range before building packets
-	// This prevents wasting CPU cycles building 3 packets (43+ bytes each) when no one is nearby
-	bool bHasNearbyClients = false;
-	char cOwnerMapIndex;
-	short sOwnerX, sOwnerY;
-
-	// Determine range modifier and get owner position
 	if ((dwMsgID == MSGID_EVENT_LOG) || (wMsgType == DEF_OBJECTMOVE) || (wMsgType == DEF_OBJECTRUN) ||
 		(wMsgType == DEF_OBJECTATTACKMOVE) || (wMsgType == DEF_OBJECTDAMAGEMOVE) || (wMsgType == DEF_OBJECTDYING))
 		sRange = 1;
@@ -3171,103 +2820,9 @@ void CGame::SendEventToNearClient_TypeA(short sOwnerH, char cOwnerType, uint32_t
 
 	if (cOwnerType == DEF_OWNERTYPE_PLAYER) {
 		if (m_pClientList[sOwnerH] == 0) return;
-		cOwnerMapIndex = m_pClientList[sOwnerH]->m_cMapIndex;
-		sOwnerX = m_pClientList[sOwnerH]->m_sX;
-		sOwnerY = m_pClientList[sOwnerH]->m_sY;
-	}
-	else {
-		if (m_pNpcList[sOwnerH] == 0) return;
-		cOwnerMapIndex = m_pNpcList[sOwnerH]->m_cMapIndex;
-		sOwnerX = m_pNpcList[sOwnerH]->m_sX;
-		sOwnerY = m_pNpcList[sOwnerH]->m_sY;
-	}
 
-	// Quick scan: check if ANY clients are in range before building packets
-	iShortCutIndex = 0;
-	while (m_iClientShortCut[iShortCutIndex] != 0) {
-		i = m_iClientShortCut[iShortCutIndex];
-
-		// CRITICAL FIX: NPC broadcasts don't require m_bIsInitComplete, only player broadcasts do
-		bool bClientValid = (m_pClientList[i] != 0);
-		if (cOwnerType == DEF_OWNERTYPE_PLAYER) {
-			bClientValid = bClientValid && (m_pClientList[i]->m_bIsInitComplete);
-		}
-
-		if (bClientValid &&
-			(m_pClientList[i]->m_cMapIndex == cOwnerMapIndex) &&
-			(m_pClientList[i]->m_sX >= sOwnerX - DEF_VIEWRANGE_X - sRange) &&
-			(m_pClientList[i]->m_sX <= sOwnerX + DEF_VIEWRANGE_X + sRange) &&
-			(m_pClientList[i]->m_sY >= sOwnerY - DEF_VIEWRANGE_Y - sRange) &&
-			(m_pClientList[i]->m_sY <= sOwnerY + DEF_VIEWRANGE_Y + sRange)) {
-			bHasNearbyClients = true;
-			break;
-		}
-		iShortCutIndex++;
-	}
-
-	// TEMPORARILY DISABLED FOR TESTING - Early exit if no clients in range
-	if (false && !bHasNearbyClients) {
-		// DEBUG: Enhanced logging with position details
-		static int iSkipCount = 0;
-		static uint32_t dwLastSkipLog = 0;
-		uint32_t dwNow = GameClock::GetTimeMS();
-		iSkipCount++;
-		if (dwNow - dwLastSkipLog > 5000) {
-			// Log first client's position if any exist
-			if (m_iClientShortCut[0] != 0 && m_pClientList[m_iClientShortCut[0]] != 0) {
-				int iFirstClient = m_iClientShortCut[0];
-				std::snprintf(G_cTxt, sizeof(G_cTxt), "[DEBUG] No nearby clients | Entity(Type:%d Map:%d X:%d Y:%d) | Client1(Map:%d X:%d Y:%d) | Range:±%d | Skipped:%d in 5s",
-					cOwnerType, cOwnerMapIndex, sOwnerX, sOwnerY,
-					m_pClientList[iFirstClient]->m_cMapIndex,
-					m_pClientList[iFirstClient]->m_sX,
-					m_pClientList[iFirstClient]->m_sY,
-					DEF_VIEWRANGE_X + sRange, iSkipCount);
-			}
-			else {
-				std::snprintf(G_cTxt, sizeof(G_cTxt), "[DEBUG] SendEventToNearClient_TypeA: No nearby clients for entity (Type:%d MsgType:0x%X), skipped %d broadcasts in last 5s",
-					cOwnerType, wMsgType, iSkipCount);
-			}
-			PutLogList(G_cTxt);
-			dwLastSkipLog = dwNow;
-			iSkipCount = 0;
-		}
-		return;
-	}
-
-	std::memset(cData_All, 0, sizeof(cData_All));
-	std::memset(cData_Srt, 0, sizeof(cData_Srt));
-	std::memset(cData_Srt_Av, 0, sizeof(cData_Srt_Av));
-	ipStatus = (int*)&iDumm;
-	cKey = (rand() % 255) + 1;
-
-	dwp = (uint32_t*)(cData_All + DEF_INDEX4_MSGID);
-	*dwp = dwMsgID;
-	wp = (uint16_t*)(cData_All + DEF_INDEX2_MSGTYPE);
-	*wp = wMsgType;
-
-	dwp = (uint32_t*)(cData_Srt + DEF_INDEX4_MSGID);
-	*dwp = dwMsgID;
-	wp = (uint16_t*)(cData_Srt + DEF_INDEX2_MSGTYPE);
-	*wp = wMsgType;
-
-	dwp = (uint32_t*)(cData_Srt_Av + DEF_INDEX4_MSGID);
-	*dwp = dwMsgID;
-	wp = (uint16_t*)(cData_Srt_Av + DEF_INDEX2_MSGTYPE);
-	*wp = wMsgType;
-
-	cp_a = (char*)(cData_All + DEF_INDEX2_MSGTYPE + 2);
-	cp_s = (char*)(cData_Srt + DEF_INDEX2_MSGTYPE + 2);
-	cp_sv = (char*)(cData_Srt_Av + DEF_INDEX2_MSGTYPE + 2);
-
-
-	if ((dwMsgID == MSGID_EVENT_LOG) || (wMsgType == DEF_OBJECTMOVE) || (wMsgType == DEF_OBJECTRUN) ||
-		(wMsgType == DEF_OBJECTATTACKMOVE) || (wMsgType == DEF_OBJECTDAMAGEMOVE) || (wMsgType == DEF_OBJECTDYING))
-		sRange = 1;
-	else sRange = 0;
-
-
-	if (cOwnerType == DEF_OWNERTYPE_PLAYER) {
-		if (m_pClientList[sOwnerH] == 0) return;
+		sX = m_pClientList[sOwnerH]->m_sX;
+		sY = m_pClientList[sOwnerH]->m_sY;
 
 		switch (wMsgType) {
 		case DEF_OBJECTNULLACTION:
@@ -3281,105 +2836,62 @@ void CGame::SendEventToNearClient_TypeA(short sOwnerH, char cOwnerType, uint32_t
 			break;
 		}
 
-		wp = (uint16_t*)cp_a;
-		*wp = sOwnerH;
-		cp_a += 2;
-
-		sp = (short*)cp_a;
-		sX = m_pClientList[sOwnerH]->m_sX;
-		*sp = sX;
-		cp_a += 2;
-
-		sp = (short*)cp_a;
-		sY = m_pClientList[sOwnerH]->m_sY;
-		*sp = sY;
-		cp_a += 2;
-
-		sp = (short*)cp_a;
-		*sp = m_pClientList[sOwnerH]->m_sType;
-		cp_a += 2;
-
-		*cp_a = m_pClientList[sOwnerH]->m_cDir;
-		cp_a++;
-
-		memcpy(cp_a, m_pClientList[sOwnerH]->m_cCharName, 10);
-		cp_a += 10;
-
-		sp = (short*)cp_a;
-		*sp = m_pClientList[sOwnerH]->m_sAppr1;
-		cp_a += 2;
-
-		sp = (short*)cp_a;
-		*sp = m_pClientList[sOwnerH]->m_sAppr2;
-		cp_a += 2;
-
-		sp = (short*)cp_a;
-		*sp = m_pClientList[sOwnerH]->m_sAppr3;
-		cp_a += 2;
-
-		sp = (short*)cp_a;
-		*sp = m_pClientList[sOwnerH]->m_sAppr4;
-		cp_a += 2;
-
-		ip = (int*)cp_a;
-		*ip = m_pClientList[sOwnerH]->m_iApprColor;
-		cp_a += 4;
-
-		ip = (int*)cp_a;
-		ipStatus = ip;
-		*ip = m_pClientList[sOwnerH]->m_iStatus;
-		cp_a += 4;
-
-		//iTemp += m_pClientList[sOwnerH]->m_iStatus & 0x0F0;
-		iTemp3 = m_pClientList[sOwnerH]->m_iStatus & 0x0F0FFFF7F; //0F0FFFF7Fh
-
+		hb::net::PacketEventMotionPlayer base_all{};
+		base_all.header.msg_id = dwMsgID;
+		base_all.header.msg_type = wMsgType;
+		base_all.object_id = static_cast<std::uint16_t>(sOwnerH);
+		base_all.x = sX;
+		base_all.y = sY;
+		base_all.type = m_pClientList[sOwnerH]->m_sType;
+		base_all.dir = static_cast<std::uint8_t>(m_pClientList[sOwnerH]->m_cDir);
+		std::memcpy(base_all.name, m_pClientList[sOwnerH]->m_cCharName, sizeof(base_all.name));
+		base_all.appr1 = m_pClientList[sOwnerH]->m_sAppr1;
+		base_all.appr2 = m_pClientList[sOwnerH]->m_sAppr2;
+		base_all.appr3 = m_pClientList[sOwnerH]->m_sAppr3;
+		base_all.appr4 = m_pClientList[sOwnerH]->m_sAppr4;
+		base_all.appr_color = m_pClientList[sOwnerH]->m_iApprColor;
+		base_all.status = m_pClientList[sOwnerH]->m_iStatus;
+		base_all.loc = 0;
 		if (wMsgType == DEF_OBJECTNULLACTION) {
-			if (m_pClientList[sOwnerH]->m_bIsKilled)
-				*cp_a = 1;
-			else *cp_a = 0;
+			base_all.loc = m_pClientList[sOwnerH]->m_bIsKilled ? 1 : 0;
 		}
-		else *cp_a = 0;
-		cp_a++;
 
-		wp = (uint16_t*)cp_s;
-		*wp = sOwnerH + 30000;
-		cp_s += 2;
+		hb::net::PacketEventMotionShort pkt_short{};
+		pkt_short.header.msg_id = dwMsgID;
+		pkt_short.header.msg_type = wMsgType;
+		pkt_short.object_id = static_cast<std::uint16_t>(sOwnerH + 30000);
+		pkt_short.dir = static_cast<std::uint8_t>(m_pClientList[sOwnerH]->m_cDir);
+		pkt_short.v1 = static_cast<std::uint8_t>(sV1);
+		pkt_short.v2 = static_cast<std::uint8_t>(sV2);
 
-		*cp_s = m_pClientList[sOwnerH]->m_cDir;
-		cp_s++;
+		hb::net::PacketEventMotionMove pkt_move{};
+		pkt_move.header.msg_id = dwMsgID;
+		pkt_move.header.msg_type = wMsgType;
+		pkt_move.object_id = static_cast<std::uint16_t>(sOwnerH + 30000);
+		pkt_move.dir = static_cast<std::uint8_t>(m_pClientList[sOwnerH]->m_cDir);
+		pkt_move.v1 = static_cast<std::uint8_t>(sV1);
+		pkt_move.v2 = static_cast<std::uint8_t>(sV2);
+		pkt_move.x = sX;
+		pkt_move.y = sY;
 
-		*cp_s = (unsigned char)sV1;
-		cp_s++;
+		hb::net::PacketEventMotionAttack pkt_attack{};
+		pkt_attack.header.msg_id = dwMsgID;
+		pkt_attack.header.msg_type = wMsgType;
+		pkt_attack.object_id = static_cast<std::uint16_t>(sOwnerH + 30000);
+		pkt_attack.dir = static_cast<std::uint8_t>(m_pClientList[sOwnerH]->m_cDir);
+		pkt_attack.v1 = static_cast<std::int8_t>(sV1 - sX);
+		pkt_attack.v2 = static_cast<std::int8_t>(sV2 - sY);
+		pkt_attack.v3 = static_cast<std::int16_t>(sV3);
 
-		*cp_s = (unsigned char)sV2;
-		cp_s++;
+		hb::net::PacketEventMotionDirOnly pkt_dir{};
+		pkt_dir.header.msg_id = dwMsgID;
+		pkt_dir.header.msg_type = wMsgType;
+		pkt_dir.object_id = static_cast<std::uint16_t>(sOwnerH + 30000);
+		pkt_dir.dir = static_cast<std::uint8_t>(m_pClientList[sOwnerH]->m_cDir);
 
-		sp = (short*)cp_s;
-		sX = m_pClientList[sOwnerH]->m_sX;
-		*sp = sX;
-		cp_s += 2;
+		iTemp3 = m_pClientList[sOwnerH]->m_iStatus & 0x0F0FFFF7F;
 
-		sp = (short*)cp_s;
-		sY = m_pClientList[sOwnerH]->m_sY;
-		*sp = sY;
-		cp_s += 2;
-
-		wp = (uint16_t*)cp_sv;
-		*wp = sOwnerH + 30000;
-		cp_sv += 2;
-
-		*cp_sv = m_pClientList[sOwnerH]->m_cDir;
-		cp_sv++;
-
-		*cp_sv = sV1 - sX;
-		cp_sv++;
-
-		*cp_sv = sV2 - sY;
-		cp_sv++;
-
-		sp = (short*)cp_sv;
-		*sp = sV3;
-		cp_sv += 2;
+		const char cKey = static_cast<char>((rand() % 255) + 1);
 
 		bFlag = true;
 		iShortCutIndex = 0;
@@ -3390,32 +2902,15 @@ void CGame::SendEventToNearClient_TypeA(short sOwnerH, char cOwnerType, uint32_t
 			if (i == 0) bFlag = false;
 
 			if ((bFlag) && (m_pClientList[i] != 0) && (m_pClientList[i]->m_bIsInitComplete))
-
 				if ((m_pClientList[i]->m_cMapIndex == m_pClientList[sOwnerH]->m_cMapIndex) &&
 					(m_pClientList[i]->m_sX >= m_pClientList[sOwnerH]->m_sX - DEF_VIEWRANGE_X - sRange) &&
 					(m_pClientList[i]->m_sX <= m_pClientList[sOwnerH]->m_sX + DEF_VIEWRANGE_X + sRange) &&
 					(m_pClientList[i]->m_sY >= m_pClientList[sOwnerH]->m_sY - DEF_VIEWRANGE_Y - sRange) &&
 					(m_pClientList[i]->m_sY <= m_pClientList[sOwnerH]->m_sY + DEF_VIEWRANGE_Y + sRange)) {
 
-					/*//If player not same side and is invied (Beholder Hack)
-					if (m_pClientList[sOwnerH] != 0 && i != sOwnerH)
-						if ((m_pClientList[i]->m_cSide != m_pClientList[sOwnerH]->m_cSide) &&
-							((m_pClientList[sOwnerH]->m_iStatus & 0x00000010) != 0)) {
-							if(wMsgType == DEF_OBJECTRUN || wMsgType == DEF_OBJECTMOVE || wMsgType == DEF_OBJECTSTOP || wMsgType == DEF_OBJECTGETITEM)
-								if we filter attacking
-								[KLKS] - http://xtremehb.com -> Play Abaddon (PRO ARESDEN) says:
-								the poor guy who's being attacked wont know what hit him
-						continue;
-					}*/
-
-					/*iTemp = *ipStatus;
-					iTemp = 0x0FFFFFFF & iTemp; // ���� 4��Ʈ Ŭ����
-					iTemp2 = (short)iGetPlayerABSStatus(sOwnerH, i); //(short)iGetPlayerRelationship_SendEvent(sOwnerH, i);
-					iTemp  = (iTemp | (iTemp2 << 28));
-					*ipStatus = iTemp;*/
-
+					iTemp = m_pClientList[sOwnerH]->m_iStatus;
 					if (m_pClientList[sOwnerH]->m_cSide != m_pClientList[i]->m_cSide) {
-						if (m_pClientList[i]->m_iAdminUserLevel > 0) {	//¾îµå¹Î¿¡°Ô´Â ¹«Á¶°Ç º¸³½´Ù.
+						if (m_pClientList[i]->m_iAdminUserLevel > 0) {
 							iTemp = m_pClientList[sOwnerH]->m_iStatus;
 						}
 						else if (i != sOwnerH) {
@@ -3425,117 +2920,108 @@ void CGame::SendEventToNearClient_TypeA(short sOwnerH, char cOwnerType, uint32_t
 							iTemp = m_pClientList[sOwnerH]->m_iStatus;
 						}
 					}
-					else
-					{
-						iTemp = m_pClientList[sOwnerH]->m_iStatus;
-						//iTemp = 0x0FFFFFFF;
-					}
 
-					//iTemp = m_pClientList[sOwnerH]->m_iStatus;
 					iTemp = 0x0FFFFFFF & iTemp;
 					iTemp2 = iGetPlayerABSStatus(sOwnerH, i);
 					iTemp = (iTemp | (iTemp2 << 28));
-					*ipStatus = iTemp;
 
-					if ((m_pClientList[i]->m_sX >= m_pClientList[sOwnerH]->m_sX - 11) &&
+					auto pkt_all = base_all;
+					pkt_all.status = iTemp;
+
+					auto send_packet = [&](const void* packet, std::size_t size) -> int {
+						return m_pClientList[i]->m_pXSock->iSendMsg(reinterpret_cast<char*>(const_cast<void*>(packet)), static_cast<int>(size), cKey);
+					};
+
+					const bool is_near = (m_pClientList[i]->m_sX >= m_pClientList[sOwnerH]->m_sX - 11) &&
 						(m_pClientList[i]->m_sX <= m_pClientList[sOwnerH]->m_sX + 11) &&
 						(m_pClientList[i]->m_sY >= m_pClientList[sOwnerH]->m_sY - 9) &&
-						(m_pClientList[i]->m_sY <= m_pClientList[sOwnerH]->m_sY + 9)) {
+						(m_pClientList[i]->m_sY <= m_pClientList[sOwnerH]->m_sY + 9);
 
+					if (is_near) {
 						switch (wMsgType) {
 						case DEF_MSGTYPE_CONFIRM:
 						case DEF_MSGTYPE_REJECT:
 						case DEF_OBJECTNULLACTION:
 							if (cOwnerSend)
-								iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_All, 43, cKey);
-							else
-								if (i != sOwnerH)
-									iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_All, 43, cKey);
+								iRet = send_packet(&pkt_all, sizeof(pkt_all));
+							else if (i != sOwnerH)
+								iRet = send_packet(&pkt_all, sizeof(pkt_all));
 							break;
 
 						case DEF_OBJECTATTACK:
 						case DEF_OBJECTATTACKMOVE:
 							if (cOwnerSend)
-								iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_Srt_Av, 13, cKey);
-							else
-								if (i != sOwnerH)
-									iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_Srt_Av, 13, cKey);
+								iRet = send_packet(&pkt_attack, sizeof(pkt_attack));
+							else if (i != sOwnerH)
+								iRet = send_packet(&pkt_attack, sizeof(pkt_attack));
 							break;
 
 						case DEF_OBJECTMAGIC:
 						case DEF_OBJECTDAMAGE:
 						case DEF_OBJECTDAMAGEMOVE:
 							if (cOwnerSend)
-								iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_Srt, 11, cKey);
-							else
-								if (i != sOwnerH)
-									iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_Srt, 11, cKey);
+								iRet = send_packet(&pkt_short, sizeof(pkt_short));
+							else if (i != sOwnerH)
+								iRet = send_packet(&pkt_short, sizeof(pkt_short));
 							break;
 
 						case DEF_OBJECTDYING:
 							if (cOwnerSend)
-								iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_Srt, 15, cKey);
-							else
-								if (i != sOwnerH)
-									iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_Srt, 15, cKey);
+								iRet = send_packet(&pkt_move, sizeof(pkt_move));
+							else if (i != sOwnerH)
+								iRet = send_packet(&pkt_move, sizeof(pkt_move));
 							break;
 
 						default:
 							if (cOwnerSend)
-								iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_Srt, 9, cKey);
-							else
-								if (i != sOwnerH)
-									iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_Srt, 9, cKey);
+								iRet = send_packet(&pkt_dir, sizeof(pkt_dir));
+							else if (i != sOwnerH)
+								iRet = send_packet(&pkt_dir, sizeof(pkt_dir));
 							break;
-						} //Switch
-					} // If 2
+						}
+					}
 					else {
 						switch (wMsgType) {
 						case DEF_MSGTYPE_CONFIRM:
 						case DEF_MSGTYPE_REJECT:
 						case DEF_OBJECTNULLACTION:
 							if (cOwnerSend)
-								iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_All, 43, cKey);
-							else
-								if (i != sOwnerH)
-									iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_All, 43, cKey);
+								iRet = send_packet(&pkt_all, sizeof(pkt_all));
+							else if (i != sOwnerH)
+								iRet = send_packet(&pkt_all, sizeof(pkt_all));
 							break;
 
 						case DEF_OBJECTATTACK:
 						case DEF_OBJECTATTACKMOVE:
 							if (cOwnerSend)
-								iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_Srt_Av, 13, cKey);
-							else
-								if (i != sOwnerH)
-									iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_Srt_Av, 13, cKey);
+								iRet = send_packet(&pkt_attack, sizeof(pkt_attack));
+							else if (i != sOwnerH)
+								iRet = send_packet(&pkt_attack, sizeof(pkt_attack));
 							break;
 
 						case DEF_OBJECTMAGIC:
 						case DEF_OBJECTDAMAGE:
 						case DEF_OBJECTDAMAGEMOVE:
 							if (cOwnerSend)
-								iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_Srt, 11, cKey);
-							else
-								if (i != sOwnerH)
-									iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_Srt, 11, cKey);
+								iRet = send_packet(&pkt_short, sizeof(pkt_short));
+							else if (i != sOwnerH)
+								iRet = send_packet(&pkt_short, sizeof(pkt_short));
 							break;
 
 						case DEF_OBJECTDYING:
 							if (cOwnerSend)
-								iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_Srt, 15, cKey);
-							else
-								if (i != sOwnerH)
-									iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_Srt, 15, cKey);
+								iRet = send_packet(&pkt_move, sizeof(pkt_move));
+							else if (i != sOwnerH)
+								iRet = send_packet(&pkt_move, sizeof(pkt_move));
 							break;
 
 						default:
 							if (cOwnerSend)
-								iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_All, 43, cKey);
-							else
-								if (i != sOwnerH)
-									iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_All, 43, cKey);
+								iRet = send_packet(&pkt_all, sizeof(pkt_all));
+							else if (i != sOwnerH)
+								iRet = send_packet(&pkt_all, sizeof(pkt_all));
 							break;
-						} //Switch
+						}
 
 						if ((iRet == DEF_XSOCKEVENT_QUENEFULL) || (iRet == DEF_XSOCKEVENT_SOCKETERROR) ||
 							(iRet == DEF_XSOCKEVENT_SOCKETCLOSED) || (iRet == DEF_XSOCKEVENT_CRITICALERROR)) {
@@ -3548,88 +3034,66 @@ void CGame::SendEventToNearClient_TypeA(short sOwnerH, char cOwnerType, uint32_t
 								s_dwLastNetWarn = dwNow;
 							}
 						}
-					} //else
-				} // If 1
-		} //While finish
-	} //Finish Player
+					}
+				}
+		}
+	}
 	else {
-
 		if (m_pNpcList[sOwnerH] == 0) return;
 
-		wp = (uint16_t*)cp_a;
-		*wp = sOwnerH + 10000;
-		cp_a += 2;
-
-		sp = (short*)cp_a;
 		sX = m_pNpcList[sOwnerH]->m_sX;
-		*sp = sX;
-		cp_a += 2;
-
-		sp = (short*)cp_a;
 		sY = m_pNpcList[sOwnerH]->m_sY;
-		*sp = sY;
-		cp_a += 2;
 
-		sp = (short*)cp_a;
-		*sp = m_pNpcList[sOwnerH]->m_sType;
-		cp_a += 2;
-
-		*cp_a = m_pNpcList[sOwnerH]->m_cDir;
-		cp_a++;
-
-		memcpy(cp_a, m_pNpcList[sOwnerH]->m_cName, 5);
-		cp_a += 5;
-
-		sp = (short*)cp_a;
-		*sp = m_pNpcList[sOwnerH]->m_sAppr2;
-		cp_a += 2;
-
-		ip = (int*)cp_a;
-		ipStatus = ip;
-		*ip = m_pNpcList[sOwnerH]->m_iStatus;
-		cp_a += 4;
-
+		hb::net::PacketEventMotionNpc base_all{};
+		base_all.header.msg_id = dwMsgID;
+		base_all.header.msg_type = wMsgType;
+		base_all.object_id = static_cast<std::uint16_t>(sOwnerH + 10000);
+		base_all.x = sX;
+		base_all.y = sY;
+		base_all.type = m_pNpcList[sOwnerH]->m_sType;
+		base_all.dir = static_cast<std::uint8_t>(m_pNpcList[sOwnerH]->m_cDir);
+		std::memcpy(base_all.name, m_pNpcList[sOwnerH]->m_cName, sizeof(base_all.name));
+		base_all.appr2 = m_pNpcList[sOwnerH]->m_sAppr2;
+		base_all.status = m_pNpcList[sOwnerH]->m_iStatus;
+		base_all.loc = 0;
 		if (wMsgType == DEF_OBJECTNULLACTION) {
-			if (m_pNpcList[sOwnerH]->m_bIsKilled)
-				*cp_a = 1;
-			else *cp_a = 0;
+			base_all.loc = m_pNpcList[sOwnerH]->m_bIsKilled ? 1 : 0;
 		}
-		else *cp_a = 0;
-		cp_a++;
 
-		wp = (uint16_t*)cp_s;
-		*wp = sOwnerH + 40000;
-		cp_s += 2;
+		hb::net::PacketEventMotionShort pkt_short{};
+		pkt_short.header.msg_id = dwMsgID;
+		pkt_short.header.msg_type = wMsgType;
+		pkt_short.object_id = static_cast<std::uint16_t>(sOwnerH + 40000);
+		pkt_short.dir = static_cast<std::uint8_t>(m_pNpcList[sOwnerH]->m_cDir);
+		pkt_short.v1 = static_cast<std::uint8_t>(sV1);
+		pkt_short.v2 = static_cast<std::uint8_t>(sV2);
 
-		*cp_s = m_pNpcList[sOwnerH]->m_cDir;
-		cp_s++;
+		hb::net::PacketEventMotionMove pkt_move{};
+		pkt_move.header.msg_id = dwMsgID;
+		pkt_move.header.msg_type = wMsgType;
+		pkt_move.object_id = static_cast<std::uint16_t>(sOwnerH + 40000);
+		pkt_move.dir = static_cast<std::uint8_t>(m_pNpcList[sOwnerH]->m_cDir);
+		pkt_move.v1 = static_cast<std::uint8_t>(sV1);
+		pkt_move.v2 = static_cast<std::uint8_t>(sV2);
+		pkt_move.x = sX;
+		pkt_move.y = sY;
 
-		*cp_s = (unsigned char)sV1;
-		cp_s++;
-		*cp_s = (unsigned char)sV2;
-		cp_s++;
+		hb::net::PacketEventMotionAttack pkt_attack{};
+		pkt_attack.header.msg_id = dwMsgID;
+		pkt_attack.header.msg_type = wMsgType;
+		pkt_attack.object_id = static_cast<std::uint16_t>(sOwnerH + 40000);
+		pkt_attack.dir = static_cast<std::uint8_t>(m_pNpcList[sOwnerH]->m_cDir);
+		pkt_attack.v1 = static_cast<std::int8_t>(sV1 - sX);
+		pkt_attack.v2 = static_cast<std::int8_t>(sV2 - sY);
+		pkt_attack.v3 = static_cast<std::int16_t>(sV3);
 
-		sp = (short*)cp_s;
-		sX = m_pNpcList[sOwnerH]->m_sX;
-		*sp = sX;
-		cp_s += 2;
-		sp = (short*)cp_s;
-		sY = m_pNpcList[sOwnerH]->m_sY;
-		*sp = sY;
-		cp_s += 2;
+		hb::net::PacketEventMotionDirOnly pkt_dir{};
+		pkt_dir.header.msg_id = dwMsgID;
+		pkt_dir.header.msg_type = wMsgType;
+		pkt_dir.object_id = static_cast<std::uint16_t>(sOwnerH + 40000);
+		pkt_dir.dir = static_cast<std::uint8_t>(m_pNpcList[sOwnerH]->m_cDir);
 
-		wp = (uint16_t*)cp_sv;
-		*wp = sOwnerH + 40000;
-		cp_sv += 2;
-		*cp_sv = m_pNpcList[sOwnerH]->m_cDir;
-		cp_sv++;
-		*cp_sv = sV1 - sX;
-		cp_sv++;
-		*cp_sv = sV2 - sY;
-		cp_sv++;
-		sp = (short*)cp_sv;
-		*sp = sV3;
-		cp_sv += 2;
+		const char cKey = static_cast<char>((rand() % 255) + 1);
 
 		bFlag = true;
 		iShortCutIndex = 0;
@@ -3648,42 +3112,50 @@ void CGame::SendEventToNearClient_TypeA(short sOwnerH, char cOwnerType, uint32_t
 					(m_pClientList[i]->m_sY >= m_pNpcList[sOwnerH]->m_sY - DEF_VIEWRANGE_Y - sRange) &&
 					(m_pClientList[i]->m_sY <= m_pNpcList[sOwnerH]->m_sY + DEF_VIEWRANGE_Y + sRange)) {
 
-					iTemp = *ipStatus;
+					iTemp = base_all.status;
 					iTemp = 0x0FFFFFFF & iTemp;
 					iTemp2 = m_pEntityManager->iGetNpcRelationship(sOwnerH, i);
 					iTemp = (iTemp | (iTemp2 << 28));
-					*ipStatus = iTemp;
 
-					if ((m_pClientList[i]->m_sX >= m_pNpcList[sOwnerH]->m_sX - 11) &&
+					auto pkt_all = base_all;
+					pkt_all.status = iTemp;
+
+					auto send_packet = [&](const void* packet, std::size_t size) -> int {
+						return m_pClientList[i]->m_pXSock->iSendMsg(reinterpret_cast<char*>(const_cast<void*>(packet)), static_cast<int>(size), cKey);
+					};
+
+					const bool is_near = (m_pClientList[i]->m_sX >= m_pNpcList[sOwnerH]->m_sX - 11) &&
 						(m_pClientList[i]->m_sX <= m_pNpcList[sOwnerH]->m_sX + 11) &&
 						(m_pClientList[i]->m_sY >= m_pNpcList[sOwnerH]->m_sY - 9) &&
-						(m_pClientList[i]->m_sY <= m_pNpcList[sOwnerH]->m_sY + 9)) {
+						(m_pClientList[i]->m_sY <= m_pNpcList[sOwnerH]->m_sY + 9);
+
+					if (is_near) {
 						switch (wMsgType) {
 						case DEF_MSGTYPE_CONFIRM:
 						case DEF_MSGTYPE_REJECT:
 						case DEF_OBJECTNULLACTION:
-							iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_All, 27, cKey);
+							iRet = send_packet(&pkt_all, sizeof(pkt_all));
 							break;
 
 						case DEF_OBJECTDYING:
-							iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_Srt, 15, cKey);
+							iRet = send_packet(&pkt_move, sizeof(pkt_move));
 							break;
 
 						case DEF_OBJECTDAMAGE:
 						case DEF_OBJECTDAMAGEMOVE:
-							iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_Srt, 11, cKey);
+							iRet = send_packet(&pkt_short, sizeof(pkt_short));
 							break;
 
 						case DEF_OBJECTATTACK:
 						case DEF_OBJECTATTACKMOVE:
-							iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_Srt_Av, 13, cKey);
+							iRet = send_packet(&pkt_attack, sizeof(pkt_attack));
 							break;
 
 						default:
-							iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_Srt, 9, cKey);
+							iRet = send_packet(&pkt_dir, sizeof(pkt_dir));
 							break;
 
-						} //Switch
+						}
 
 						if ((iRet == DEF_XSOCKEVENT_QUENEFULL) || (iRet == DEF_XSOCKEVENT_SOCKETERROR) ||
 							(iRet == DEF_XSOCKEVENT_SOCKETCLOSED) || (iRet == DEF_XSOCKEVENT_CRITICALERROR)) {
@@ -3702,25 +3174,25 @@ void CGame::SendEventToNearClient_TypeA(short sOwnerH, char cOwnerType, uint32_t
 						case DEF_MSGTYPE_CONFIRM:
 						case DEF_MSGTYPE_REJECT:
 						case DEF_OBJECTNULLACTION:
-							iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_All, 27, cKey);
+							iRet = send_packet(&pkt_all, sizeof(pkt_all));
 							break;
 
 						case DEF_OBJECTDYING:
-							iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_Srt, 15, cKey);
+							iRet = send_packet(&pkt_move, sizeof(pkt_move));
 							break;
 
 						case DEF_OBJECTDAMAGE:
 						case DEF_OBJECTDAMAGEMOVE:
-							iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_Srt, 11, cKey);
+							iRet = send_packet(&pkt_short, sizeof(pkt_short));
 							break;
 
 						case DEF_OBJECTATTACK:
 						case DEF_OBJECTATTACKMOVE:
-							iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_Srt_Av, 13, cKey);
+							iRet = send_packet(&pkt_attack, sizeof(pkt_attack));
 							break;
 
 						default:
-							iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData_All, 27, cKey);
+							iRet = send_packet(&pkt_all, sizeof(pkt_all));
 							break;
 
 						} //Switch
@@ -3741,6 +3213,7 @@ void CGame::SendEventToNearClient_TypeA(short sOwnerH, char cOwnerType, uint32_t
 		}
 	} // else - NPC
 }
+
 
 int CGame::iComposeMoveMapData(short sX, short sY, int iClientH, char cDir, char* pData)
 {
@@ -5025,12 +4498,13 @@ bool CGame::bSendMsgToLS(uint32_t dwMsg, int iClientH, bool bFlag, char* pData)
 
 void CGame::ResponsePlayerDataHandler(char* pData, uint32_t dwSize)
 {
-	uint16_t* wp;
 	char* cp, cCharName[11], cTxt[120];
 	int  i;
 
 	std::memset(cCharName, 0, sizeof(cCharName));
-	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
+	const auto* header = hb::net::PacketCast<hb::net::PacketHeader>(pData, sizeof(hb::net::PacketHeader));
+	if (!header) return;
+	cp = (char*)(pData + sizeof(hb::net::PacketHeader));
 
 	memcpy(cCharName, cp, 10);
 	cp += 10;
@@ -5038,8 +4512,7 @@ void CGame::ResponsePlayerDataHandler(char* pData, uint32_t dwSize)
 	for (i = 1; i < DEF_MAXCLIENTS; i++)
 		if (m_pClientList[i] != 0) {
 			if (memcmp(m_pClientList[i]->m_cCharName, cCharName, 10) == 0) {
-				wp = (uint16_t*)(pData + DEF_INDEX2_MSGTYPE);
-				switch (*wp) {
+				switch (header->msg_type) {
 				case DEF_LOGRESMSGTYPE_CONFIRM:
 					InitPlayerData(i, pData, dwSize);
 					break;
@@ -5416,9 +4889,7 @@ bool CGame::LoadPlayerDataFromDb(int iClientH)
 
 void CGame::InitPlayerData(int iClientH, char* pData, uint32_t dwSize)
 {
-	char cData[256], cTxt[256], cQuestRemain;
-	uint32_t* dwp;
-	uint16_t* wp;
+	char cTxt[256], cQuestRemain;
 	int     iRet, i, iTotalPoints;
 	bool    bRet, bGuildStatus;
 
@@ -5535,13 +5006,11 @@ void CGame::InitPlayerData(int iClientH, char* pData, uint32_t dwSize)
 		return;
 	}
 
-	std::memset(cData, 0, sizeof(cData));
-	dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-	*dwp = MSGID_RESPONSE_INITPLAYER;
-	wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-	*wp = DEF_MSGTYPE_CONFIRM;
+	hb::net::PacketResponseInitPlayer pkt{};
+	pkt.header.msg_id = MSGID_RESPONSE_INITPLAYER;
+	pkt.header.msg_type = DEF_MSGTYPE_CONFIRM;
 
-	iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 6);
+	iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 	switch (iRet) {
 	case DEF_XSOCKEVENT_QUENEFULL:
 	case DEF_XSOCKEVENT_SOCKETERROR:
@@ -5726,10 +5195,17 @@ void CGame::ChatMsgHandler(int iClientH, char* pData, uint32_t dwMsgSize)
 	if (m_pClientList[iClientH]->m_bIsInitComplete == false) return;
 	if (dwMsgSize > 83 + 30) return;
 
+	auto* header = hb::net::PacketCast<hb::net::PacketHeader>(pData, sizeof(hb::net::PacketHeader));
+	if (!header) return;
+	const auto* pkt = hb::net::PacketCast<hb::net::PacketCommandChatMsgHeader>(pData, sizeof(hb::net::PacketCommandChatMsgHeader));
+	if (!pkt) return;
+	char* payload = reinterpret_cast<char*>(header) + sizeof(hb::net::PacketHeader);
+	char* message = payload + 15;
+
 	// v1.41 ShutUp Time
 	if (m_pClientList[iClientH]->m_iTimeLeft_ShutUp > 0) return;
 
-	if (memcmp((pData + 10), m_pClientList[iClientH]->m_cCharName, strlen(m_pClientList[iClientH]->m_cCharName)) != 0) return;
+	if (memcmp(pkt->name, m_pClientList[iClientH]->m_cCharName, strlen(m_pClientList[iClientH]->m_cCharName)) != 0) return;
 
 	if ((m_pClientList[iClientH]->m_bIsObserverMode) && (m_pClientList[iClientH]->m_iAdminUserLevel == 0)) return;
 
@@ -5746,7 +5222,7 @@ void CGame::ChatMsgHandler(int iClientH, char* pData, uint32_t dwMsgSize)
 		case 2: m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_stTempSectorInfo[iStX][iStY].iElvineActivity++;  break;
 		}
 	}
-	cp = (char*)(pData + 21);
+	cp = message;
 
 	switch (m_bLogChatOption) {
 		// Chat Logs of only players
@@ -6390,7 +5866,7 @@ void CGame::ChatMsgHandler(int iClientH, char* pData, uint32_t dwMsgSize)
 
 	if ((m_pClientList[iClientH]->m_cMagicEffectStatus[DEF_MAGICTYPE_CONFUSE] == 1) && (iDice(1, 3) != 2)) {
 		// Confuse Language
-		cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 17);
+		cp = message;
 
 		while (*cp != 0) {
 			if ((cp[0] != 0) && (cp[0] != ' ') && (cp[1] != 0) && (cp[1] != ' ')) {
@@ -6405,7 +5881,7 @@ void CGame::ChatMsgHandler(int iClientH, char* pData, uint32_t dwMsgSize)
 		}
 	}
 
-	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 17);
+	cp = message;
 
 	if ((cSendMode == 0) && (m_pClientList[iClientH]->m_iWhisperPlayerIndex != -1)) {
 		cSendMode = 20;
@@ -6415,9 +5891,8 @@ void CGame::ChatMsgHandler(int iClientH, char* pData, uint32_t dwMsgSize)
 		if (m_pClientList[iClientH]->m_iTimeLeft_ShutUp > 0) cSendMode = 0;
 	}
 
-	wp = (uint16_t*)(pData + DEF_INDEX2_MSGTYPE);
-	*wp = (uint16_t)iClientH;
-	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 16);
+	header->msg_type = (uint16_t)iClientH;
+	cp = payload + 14;
 	*cp = cSendMode;
 
 	if (cSendMode != 20) {
@@ -6528,7 +6003,7 @@ void CGame::ChatMsgHandler(int iClientH, char* pData, uint32_t dwMsgSize)
 				case 1:
 					if (m_pClientList[m_pClientList[iClientH]->m_iWhisperPlayerIndex]->m_iAdminUserLevel == 0) {
 						std::memset(cTemp, 0, sizeof(cTemp));
-						std::snprintf(cTemp, sizeof(cTemp), "GM Whisper   (%s):\"%s\"\tto Player(%s)", m_pClientList[iClientH]->m_cCharName, pData + 21, m_pClientList[iClientH]->m_cWhisperPlayerName);
+						std::snprintf(cTemp, sizeof(cTemp), "GM Whisper   (%s):\"%s\"\tto Player(%s)", m_pClientList[iClientH]->m_cCharName, message, m_pClientList[iClientH]->m_cWhisperPlayerName);
 						bSendMsgToLS(MSGID_GAMEMASTERLOG, iClientH, false, cTemp);
 					}
 					break;
@@ -6536,7 +6011,7 @@ void CGame::ChatMsgHandler(int iClientH, char* pData, uint32_t dwMsgSize)
 				case 2:
 					if (m_pClientList[m_pClientList[iClientH]->m_iWhisperPlayerIndex]->m_iAdminUserLevel > 0) {
 						std::memset(cTemp, 0, sizeof(cTemp));
-						std::snprintf(cTemp, sizeof(cTemp), "GM Whisper   (%s):\"%s\"\tto GM(%s)", m_pClientList[iClientH]->m_cCharName, pData + 21, m_pClientList[iClientH]->m_cWhisperPlayerName);
+						std::snprintf(cTemp, sizeof(cTemp), "GM Whisper   (%s):\"%s\"\tto GM(%s)", m_pClientList[iClientH]->m_cCharName, message, m_pClientList[iClientH]->m_cWhisperPlayerName);
 						bSendMsgToLS(MSGID_GAMEMASTERLOG, iClientH, false, cTemp);
 					}
 					break;
@@ -6544,12 +6019,12 @@ void CGame::ChatMsgHandler(int iClientH, char* pData, uint32_t dwMsgSize)
 				case 3:
 					if (m_pClientList[m_pClientList[iClientH]->m_iWhisperPlayerIndex]->m_iAdminUserLevel > 0) {
 						std::memset(cTemp, 0, sizeof(cTemp));
-						std::snprintf(cTemp, sizeof(cTemp), "GM Whisper   (%s):\"%s\"\tto GM(%s)", m_pClientList[iClientH]->m_cCharName, pData + 21, m_pClientList[iClientH]->m_cWhisperPlayerName);
+						std::snprintf(cTemp, sizeof(cTemp), "GM Whisper   (%s):\"%s\"\tto GM(%s)", m_pClientList[iClientH]->m_cCharName, message, m_pClientList[iClientH]->m_cWhisperPlayerName);
 						bSendMsgToLS(MSGID_GAMEMASTERLOG, iClientH, false, cTemp);
 					}
 					else {
 						std::memset(cTemp, 0, sizeof(cTemp));
-						std::snprintf(cTemp, sizeof(cTemp), "Player Whisper   (%s):\"%s\"\tto Player(%s)", m_pClientList[iClientH]->m_cCharName, pData + 21, m_pClientList[iClientH]->m_cWhisperPlayerName);
+						std::snprintf(cTemp, sizeof(cTemp), "Player Whisper   (%s):\"%s\"\tto Player(%s)", m_pClientList[iClientH]->m_cCharName, message, m_pClientList[iClientH]->m_cWhisperPlayerName);
 						bSendMsgToLS(MSGID_GAMEMASTERLOG, iClientH, false, cTemp);
 					}
 					break;
@@ -6575,20 +6050,17 @@ void CGame::ChatMsgHandler(int iClientH, char* pData, uint32_t dwMsgSize)
 void CGame::ChatMsgHandlerGSM(int iMsgType, int iV1, char* pName, char* pData, uint32_t dwMsgSize)
 {
 	int i, iRet;
-	uint32_t* dwp;
-	uint16_t* wp;
 	short* sp;
 	char* cp, cTemp[256], cSendMode = 0;
 
 	std::memset(cTemp, 0, sizeof(cTemp));
 
-	dwp = (uint32_t*)cTemp;
-	*dwp = MSGID_COMMAND_CHATMSG;
-
-	wp = (uint16_t*)(cTemp + DEF_INDEX2_MSGTYPE);
-	*wp = 0;
-
-	cp = (char*)(cTemp + DEF_INDEX2_MSGTYPE + 2);
+	{
+		auto* header = reinterpret_cast<hb::net::PacketHeader*>(cTemp);
+		header->msg_id = MSGID_COMMAND_CHATMSG;
+		header->msg_type = 0;
+	}
+	cp = (char*)(cTemp + sizeof(hb::net::PacketHeader));
 	sp = (short*)cp;
 	*sp = 0;
 	cp += 2;
@@ -6643,9 +6115,7 @@ void CGame::ChatMsgHandlerGSM(int iMsgType, int iV1, char* pName, char* pData, u
 /////////////////////////////////////////////////////////////////////////////////////
 int CGame::iClientMotion_Attack_Handler(int iClientH, short sX, short sY, short dX, short dY, short wType, char cDir, uint16_t wTargetObjectID, bool bResponse, bool bIsDash)
 {
-	char cData[100];
-	uint32_t* dwp, dwTime, iExp;
-	uint16_t* wp;
+	uint32_t dwTime, iExp;
 	int     iRet, tdX = 0, tdY = 0, i;
 	short   sOwner, sAbsX, sAbsY;
 	char    cOwnerType;
@@ -6844,12 +6314,10 @@ int CGame::iClientMotion_Attack_Handler(int iClientH, short sX, short sY, short 
 	}
 
 	if (bResponse) {
-		dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-		*dwp = MSGID_RESPONSE_MOTION;
-		wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-		*wp = DEF_OBJECTMOTION_ATTACK_CONFIRM;
-
-		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 6);
+		hb::net::PacketResponseMotionHeader pkt{};
+		pkt.header.msg_id = MSGID_RESPONSE_MOTION;
+		pkt.header.msg_type = DEF_OBJECTMOTION_ATTACK_CONFIRM;
+		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 		switch (iRet) {
 		case DEF_XSOCKEVENT_QUENEFULL:
 		case DEF_XSOCKEVENT_SOCKETERROR:
@@ -7026,7 +6494,7 @@ int CGame::iGetDangerValue(int iNpcH, short dX, short dY)
 void CGame::MsgProcess()
 {
 	char* pData, cFrom, cKey;
-	uint32_t    dwMsgSize, * dwpMsgID;
+	uint32_t    dwMsgSize;
 	int      i, iClientH;
 	uint32_t dwTime = GameClock::GetTimeMS();
 
@@ -7154,7 +6622,7 @@ void CGame::MsgProcess()
 			//	}
 			//	break;
 
-		case DEF_MSGFROM_CLIENT:
+		case DEF_MSGFROM_CLIENT: {
 			/*m_pClientList[iClientH]->m_cConnectionCheck++;
 			if (m_pClientList[iClientH]->m_cConnectionCheck > 3) {
 				std::snprintf(G_cTxt, sizeof(G_cTxt), "Client Hex Edit: (%s) Player: (%s) - has removed 3203203 (check connection handler).", m_pClientList[iClientH]->m_cIPaddress, m_pClientList[iClientH]->m_cCharName);
@@ -7163,8 +6631,10 @@ void CGame::MsgProcess()
 				break;
 			}*/
 
-			dwpMsgID = (uint32_t*)(pData + DEF_INDEX4_MSGID);
-			switch (*dwpMsgID) { // 84148741
+			const auto* header = hb::net::PacketCast<hb::net::PacketHeader>(
+				pData, sizeof(hb::net::PacketHeader));
+			if (!header) break;
+			switch (header->msg_id) { // 84148741
 
 			case DEF_REQUEST_ANGEL: // Angels by Snoopy...
 				GetAngelHandler(iClientH, pData, dwMsgSize);
@@ -7312,14 +6782,14 @@ void CGame::MsgProcess()
 				if (m_pClientList[iClientH] != 0)  // Snoopy: Anti-crash check !
 				{
 					std::snprintf(G_cTxt, sizeof(G_cTxt), "Unknown message received: (0x%.8X) PC(%s) - (Delayed). \tIP(%s)"
-						, *dwpMsgID
+						, header->msg_id
 						, m_pClientList[iClientH]->m_cCharName
 						, m_pClientList[iClientH]->m_cIPaddress);
 					//DelayedDeleteClient(iClientH, true, true, true, true);
 				}
 				else
 				{
-					std::snprintf(G_cTxt, sizeof(G_cTxt), "Unknown message received: (0x%.8X) PC(unknown).", *dwpMsgID);
+					std::snprintf(G_cTxt, sizeof(G_cTxt), "Unknown message received: (0x%.8X) PC(unknown).", header->msg_id);
 				}
 				PutLogList(G_cTxt);
 				PutHackLogFileList(G_cTxt);
@@ -7327,12 +6797,15 @@ void CGame::MsgProcess()
 				break;
 			}
 			break;
+		}
 
-		case DEF_MSGFROM_LOGSERVER:
-			dwpMsgID = (uint32_t*)(pData + DEF_INDEX4_MSGID);
+		case DEF_MSGFROM_LOGSERVER: {
+			const auto* header = hb::net::PacketCast<hb::net::PacketHeader>(
+				pData, sizeof(hb::net::PacketHeader));
+			if (!header) break;
 			//wpMsgType  = (uint16_t *)(pData + DEF_INDEX2_MSGTYPE);
 
-			switch (*dwpMsgID) {
+			switch (header->msg_id) {
 				//case MSGID_REQUEST_CHECKACCOUNTPASSWORD:
 				//	//DbgWnd->AddEventMsg("RECV -> DEF_MSGFROM_LOGSERVER -> MSGID_REQUEST_CHECKACCOUNTPASSWORD");
 				//	RequestCheckAccountPasswordHandler(pData, dwMsgSize);
@@ -7452,17 +6925,17 @@ void CGame::MsgProcess()
 				g_login->RequestEnterGame(iClientH, pData);
 				break;
 			default:
-				std::snprintf(G_cTxt, sizeof(G_cTxt), "Unknown login message received! (0x%.8X) Delete Client", *dwpMsgID);
+				std::snprintf(G_cTxt, sizeof(G_cTxt), "Unknown login message received! (0x%.8X) Delete Client", header->msg_id);
 				PutLogList(G_cTxt);
 				break;
 			}
 			DeleteLoginClient(iClientH);
-			break;
 		}
+			break;
 	}
 
 }
-
+}
 
 bool CGame::bPutMsgQuene(char cFrom, char* pData, uint32_t dwMsgSize, int iIndex, char cKey)
 {
@@ -7518,50 +6991,28 @@ bool CGame::bGetMsgQuene(char* pFrom, char* pData, uint32_t* pMsgSize, int* pInd
 
 void CGame::ClientCommonHandler(int iClientH, char* pData)
 {
-	uint16_t* wp, wCommand;
-	short* sp, sX, sY;
-	int* ip, iV1, iV2, iV3, iV4;
-	char* cp, cDir, * pString;
+	uint16_t wCommand;
+	short sX, sY;
+	int iV1, iV2, iV3, iV4;
+	char cDir;
+	const char* pString;
 
 	if (m_pClientList[iClientH] == 0) return;
 	if (m_pClientList[iClientH]->m_bIsInitComplete == false) return;
 	if (m_pClientList[iClientH]->m_bIsKilled) return;
 
-	wp = (uint16_t*)(pData + DEF_INDEX2_MSGTYPE);
-	wCommand = *wp;
-
-	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
-
-	sp = (short*)cp;
-	sX = *sp;
-	cp += 2;
-
-	sp = (short*)cp;
-	sY = *sp;
-	cp += 2;
-
-	cDir = *cp;
-	cp++;
-
-	ip = (int*)cp;
-	iV1 = *ip;
-	cp += 4;
-
-	ip = (int*)cp;
-	iV2 = *ip;
-	cp += 4;
-
-	ip = (int*)cp;
-	iV3 = *ip;
-	cp += 4;
-
-	pString = cp;
-	cp += 30;
-
-	ip = (int*)cp;
-	iV4 = *ip;
-	cp += 4;
-
+	const auto* req = hb::net::PacketCast<hb::net::PacketCommandCommonWithString>(
+		pData, sizeof(hb::net::PacketCommandCommonWithString));
+	if (!req) return;
+	wCommand = req->base.header.msg_type;
+	sX = req->base.x;
+	sY = req->base.y;
+	cDir = static_cast<char>(req->base.dir);
+	iV1 = req->v1;
+	iV2 = req->v2;
+	iV3 = req->v3;
+	pString = req->text;
+	iV4 = req->v4;
 	switch (wCommand) {
 
 		//50Cent - Repair All
@@ -7854,7 +7305,7 @@ void CGame::ClientCommonHandler(int iClientH, char* pData)
 }
 
 // New 07/05/2004
-void CGame::DropItemHandler(int iClientH, short sItemIndex, int iAmount, char* pItemName, bool bByPlayer)
+void CGame::DropItemHandler(int iClientH, short sItemIndex, int iAmount, const char* pItemName, bool bByPlayer)
 {
 	class CItem* pItem;
 
@@ -7969,11 +7420,7 @@ void CGame::DropItemHandler(int iClientH, short sItemIndex, int iAmount, char* p
 /////////////////////////////////////////////////////////////////////////////////////
 int CGame::iClientMotion_GetItem_Handler(int iClientH, short sX, short sY, char cDir)
 {
-	uint32_t* dwp;
-	uint16_t* wp;
-	char* cp;
-	short* sp;
-	char  cRemainItemColor, cData[100];
+	char  cRemainItemColor;
 	int   iRet, iEraseReq;
 	class CItem* pItem;
 
@@ -8010,72 +7457,7 @@ int CGame::iClientMotion_GetItem_Handler(int iClientH, short sX, short sY, char 
 
 			_bItemLog(DEF_ITEMLOG_GET, iClientH, 0, pItem);
 
-			dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-			*dwp = MSGID_NOTIFY;
-			wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-			*wp = DEF_NOTIFY_ITEMOBTAINED;
-
-			cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-
-			*cp = 1;
-			cp++;
-
-			memcpy(cp, pItem->m_cName, 20);
-			cp += 20;
-
-			dwp = (uint32_t*)cp;
-			*dwp = pItem->m_dwCount;
-			cp += 4;
-
-			*cp = pItem->m_cItemType;
-			cp++;
-
-			*cp = pItem->m_cEquipPos;
-			cp++;
-
-			*cp = (char)0;
-			cp++;
-
-			sp = (short*)cp;
-			*sp = pItem->m_sLevelLimit;
-			cp += 2;
-
-			*cp = pItem->m_cGenderLimit;
-			cp++;
-
-			wp = (uint16_t*)cp;
-			*wp = pItem->m_wCurLifeSpan;
-			cp += 2;
-
-			wp = (uint16_t*)cp;
-			*wp = pItem->m_wWeight;
-			cp += 2;
-
-			sp = (short*)cp;
-			*sp = pItem->m_sSprite;
-			cp += 2;
-
-			sp = (short*)cp;
-			*sp = pItem->m_sSpriteFrame;
-			cp += 2;
-
-			*cp = pItem->m_cItemColor;
-			cp++;
-
-			*cp = (char)pItem->m_sItemSpecEffectValue2;
-			cp++;
-
-			dwp = (uint32_t*)cp;
-			*dwp = pItem->m_dwAttribute;
-			cp += 4;
-
-			if (iEraseReq == 1) delete pItem;
-
-			SendEventToNearClient_TypeB(MSGID_EVENT_COMMON, DEF_COMMONTYPE_SETITEM, m_pClientList[iClientH]->m_cMapIndex,
-				m_pClientList[iClientH]->m_sX, m_pClientList[iClientH]->m_sY,
-				sIDNum, 0, cRemainItemColor, dwAttribute);
-
-			iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 53);
+			iRet = SendItemNotifyMsg(iClientH, DEF_NOTIFY_ITEMOBTAINED, pItem, 0);
 			switch (iRet) {
 			case DEF_XSOCKEVENT_QUENEFULL:
 			case DEF_XSOCKEVENT_SOCKETERROR:
@@ -8089,12 +7471,7 @@ int CGame::iClientMotion_GetItem_Handler(int iClientH, short sX, short sY, char 
 		{
 			m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->bSetItem(sX, sY, pItem);
 
-			dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-			*dwp = MSGID_NOTIFY;
-			wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-			*wp = DEF_NOTIFY_CANNOTCARRYMOREITEM;
-
-			iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 6);
+			iRet = SendItemNotifyMsg(iClientH, DEF_NOTIFY_CANNOTCARRYMOREITEM, 0, 0);
 			switch (iRet) {
 			case DEF_XSOCKEVENT_QUENEFULL:
 			case DEF_XSOCKEVENT_SOCKETERROR:
@@ -8106,12 +7483,12 @@ int CGame::iClientMotion_GetItem_Handler(int iClientH, short sX, short sY, char 
 		}
 	}
 
-	dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-	*dwp = MSGID_RESPONSE_MOTION;
-	wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-	*wp = DEF_OBJECTMOTION_CONFIRM;
-
-	iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 6);
+	{
+		hb::net::PacketResponseMotionHeader pkt{};
+		pkt.header.msg_id = MSGID_RESPONSE_MOTION;
+		pkt.header.msg_type = DEF_OBJECTMOTION_CONFIRM;
+		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 	switch (iRet) {
 	case DEF_XSOCKEVENT_QUENEFULL:
 	case DEF_XSOCKEVENT_SOCKETERROR:
@@ -8557,10 +7934,6 @@ bool CGame::bEquipItemHandler(int iClientH, short sItemIndex, bool bNotify)
 void CGame::SendEventToNearClient_TypeB(uint32_t dwMsgID, uint16_t wMsgType, char cMapIndex, short sX, short sY, short sV1, short sV2, short sV3, short sV4)
 {
 	int i, iRet, iShortCutIndex;
-	char* cp, cData[100];
-	uint32_t* dwp, dwTime;
-	uint16_t* wp;
-	short* sp;
 	bool bFlag;
 
 	// OPTIMIZATION FIX #2: Early exit if no clients online
@@ -8586,40 +7959,15 @@ void CGame::SendEventToNearClient_TypeB(uint32_t dwMsgID, uint16_t wMsgType, cha
 	// TEMPORARILY DISABLED FOR TESTING - Early exit if no clients in range
 	if (false && !bHasNearbyClients) return;
 
-	std::memset(cData, 0, sizeof(cData));
-
-	dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-	*dwp = dwMsgID;
-	wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-	*wp = wMsgType;
-
-	cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-
-	sp = (short*)cp;
-	*sp = sX;
-	cp += 2;
-
-	sp = (short*)cp;
-	*sp = sY;
-	cp += 2;
-
-	sp = (short*)cp;
-	*sp = sV1;
-	cp += 2;
-
-	sp = (short*)cp;
-	*sp = sV2;
-	cp += 2;
-
-	sp = (short*)cp;
-	*sp = sV3;
-	cp += 2;
-
-	sp = (short*)cp;
-	*sp = sV4;
-	cp += 2;
-
-	dwTime = GameClock::GetTimeMS();
+	hb::net::PacketEventNearTypeBShort pkt{};
+	pkt.header.msg_id = dwMsgID;
+	pkt.header.msg_type = wMsgType;
+	pkt.x = sX;
+	pkt.y = sY;
+	pkt.v1 = sV1;
+	pkt.v2 = sV2;
+	pkt.v3 = sV3;
+	pkt.v4 = sV4;
 
 	//for (i = 1; i < DEF_MAXCLIENTS; i++)
 	bFlag = true;
@@ -8637,7 +7985,7 @@ void CGame::SendEventToNearClient_TypeB(uint32_t dwMsgID, uint16_t wMsgType, cha
 				(m_pClientList[i]->m_sY >= sY - 10) &&
 				(m_pClientList[i]->m_sY <= sY + 10)) {
 
-				iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData, 18);
+				iRet = m_pClientList[i]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 			}
 		}
 	}
@@ -8646,46 +7994,17 @@ void CGame::SendEventToNearClient_TypeB(uint32_t dwMsgID, uint16_t wMsgType, cha
 void CGame::SendEventToNearClient_TypeB(uint32_t dwMsgID, uint16_t wMsgType, char cMapIndex, short sX, short sY, short sV1, short sV2, short sV3, uint32_t dwV4)
 {
 	int i, iRet, iShortCutIndex;
-	char* cp, cData[100];
-	uint32_t* dwp, dwTime;
-	uint16_t* wp;
-	short* sp;
 	bool bFlag;
 
-	std::memset(cData, 0, sizeof(cData));
-
-	dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-	*dwp = dwMsgID;
-	wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-	*wp = wMsgType;
-
-	cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-
-	sp = (short*)cp;
-	*sp = sX;
-	cp += 2;
-
-	sp = (short*)cp;
-	*sp = sY;
-	cp += 2;
-
-	sp = (short*)cp;
-	*sp = sV1;
-	cp += 2;
-
-	sp = (short*)cp;
-	*sp = sV2;
-	cp += 2;
-
-	sp = (short*)cp;
-	*sp = sV3;
-	cp += 2;
-
-	dwp = (uint32_t*)cp;
-	*dwp = dwV4;
-	cp += 4;
-
-	dwTime = GameClock::GetTimeMS();
+	hb::net::PacketEventNearTypeBDword pkt{};
+	pkt.header.msg_id = dwMsgID;
+	pkt.header.msg_type = wMsgType;
+	pkt.x = sX;
+	pkt.y = sY;
+	pkt.v1 = sV1;
+	pkt.v2 = sV2;
+	pkt.v3 = sV3;
+	pkt.v4 = dwV4;
 
 	//for (i = 1; i < DEF_MAXCLIENTS; i++)
 	bFlag = true;
@@ -8703,7 +8022,7 @@ void CGame::SendEventToNearClient_TypeB(uint32_t dwMsgID, uint16_t wMsgType, cha
 				(m_pClientList[i]->m_sY >= sY - 10) &&
 				(m_pClientList[i]->m_sY <= sY + 10)) {
 
-				iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData, 20);
+				iRet = m_pClientList[i]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 			}
 		}
 	}
@@ -8717,9 +8036,6 @@ void CGame::SendEventToNearClient_TypeB(uint32_t dwMsgID, uint16_t wMsgType, cha
 /////////////////////////////////////////////////////////////////////////////////////
 int CGame::iClientMotion_Stop_Handler(int iClientH, short sX, short sY, char cDir)
 {
-	char cData[100];
-	uint32_t* dwp;
-	uint16_t* wp;
 	int     iRet;
 	short   sOwnerH;
 	char    cOwnerType;
@@ -8759,12 +8075,12 @@ int CGame::iClientMotion_Stop_Handler(int iClientH, short sX, short sY, char cDi
 	m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->ClearOwner(0, iClientH, DEF_OWNERTYPE_PLAYER, sX, sY);
 	m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->SetOwner(iClientH, DEF_OWNERTYPE_PLAYER, sX, sY);
 
-	dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-	*dwp = MSGID_RESPONSE_MOTION;
-	wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-	*wp = DEF_OBJECTMOTION_CONFIRM;
-
-	iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 6);
+	{
+		hb::net::PacketResponseMotionHeader pkt{};
+		pkt.header.msg_id = MSGID_RESPONSE_MOTION;
+		pkt.header.msg_type = DEF_OBJECTMOTION_CONFIRM;
+		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 	switch (iRet) {
 	case DEF_XSOCKEVENT_QUENEFULL:
 	case DEF_XSOCKEVENT_SOCKETERROR:
@@ -8780,9 +8096,8 @@ int CGame::iClientMotion_Stop_Handler(int iClientH, short sX, short sY, char cDi
 void CGame::ResponseCreateNewGuildHandler(char* pData, int iType)
 {
 	int i;
-	uint16_t* wp, wResult;
-	uint32_t* dwp;
-	char cCharName[11], cData[100], cTxt[120];
+	uint16_t wResult;
+	char cCharName[11], cTxt[120];
 	int iRet;
 
 	// ·Î±× ¼­¹ö·ÎºÎÅÍ ±æµå »ý¼º ¿äÃ»¿¡ ´ëÇÑ ÀÀ´äµ¥ÀÌÅÍ°¡ µµÂøÇß´Ù. 
@@ -8820,13 +8135,12 @@ void CGame::ResponseCreateNewGuildHandler(char* pData, int iType)
 				break;
 			}
 
-			dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-			*dwp = MSGID_RESPONSE_CREATENEWGUILD;
-			wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-			*wp = wResult;
+			hb::net::PacketHeader pkt{};
+			pkt.msg_id = MSGID_RESPONSE_CREATENEWGUILD;
+			pkt.msg_type = wResult;
 
 			// ±æµå »ý¼º ¿ä±¸ ÀÀ´ä ¸Þ½ÃÁö¸¦ Å¬¶óÀÌ¾ðÆ®¿¡°Ô Àü¼Û
-			iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData, 6);
+			iRet = m_pClientList[i]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 			switch (iRet) {
 			case DEF_XSOCKEVENT_QUENEFULL:
 			case DEF_XSOCKEVENT_SOCKETERROR:
@@ -8847,9 +8161,8 @@ void CGame::ResponseCreateNewGuildHandler(char* pData, int iType)
 
 void CGame::RequestCreateNewGuildHandler(int iClientH, char* pData, uint32_t dwMsgSize)
 {
-	char* cp, cGuildName[21], cTxt[120], cData[100];
-	uint32_t* dwp;
-	uint16_t* wp;
+	char* cp;
+	char cGuildName[21], cTxt[120], cData[100];
 	int     iRet;
 	SYSTEMTIME SysTime;
 
@@ -8857,15 +8170,11 @@ void CGame::RequestCreateNewGuildHandler(int iClientH, char* pData, uint32_t dwM
 	if (m_pClientList[iClientH]->m_bIsInitComplete == false) return;
 	if (m_bIsCrusadeMode) return;
 
-	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
-
-	cp += 10;
-	cp += 10;
-	cp += 10;
-
+	const auto* pkt = hb::net::PacketCast<hb::net::PacketRequestGuildAction>(
+		pData, sizeof(hb::net::PacketRequestGuildAction));
+	if (!pkt) return;
 	std::memset(cGuildName, 0, sizeof(cGuildName));
-	memcpy(cGuildName, cp, 20);
-	cp += 20;
+	memcpy(cGuildName, pkt->guild, sizeof(pkt->guild));
 
 	if (m_pClientList[iClientH]->m_iGuildRank != -1) {
 		// ÀÌ Ä³¸¯ÅÍ´Â ÀÌ¹Ì ±æµå¿¡ °¡ÀÔÇÏ¿© ÀÖÀ¸¹Ç·Î ±æµå¸¦ ¸¸µé ¼ö ¾ø´Ù.
@@ -8879,13 +8188,12 @@ void CGame::RequestCreateNewGuildHandler(int iClientH, char* pData, uint32_t dwM
 			// ÀÚ°Ý¿ä°ÇÀÌ ¸ÂÁö ¾Ê´Â´Ù. Æ¯¼ºÄ¡°¡ ³·°Å³ª ¸¶À»ÀÇ À§Ä¡°¡ ´Ù¸£°Å³ª ½Ã¹ÎÀÌ ¾Æ´Ñ °æ¿ì  
 			std::memset(cData, 0, sizeof(cData));
 
-			dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-			*dwp = MSGID_RESPONSE_CREATENEWGUILD;
-			wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-			*wp = DEF_MSGTYPE_REJECT;
+			hb::net::PacketHeader pkt{};
+			pkt.msg_id = MSGID_RESPONSE_CREATENEWGUILD;
+			pkt.msg_type = DEF_MSGTYPE_REJECT;
 
 			// ±æµå »ý¼º ¿ä±¸ ÀÀ´ä ¸Þ½ÃÁö¸¦ Å¬¶óÀÌ¾ðÆ®¿¡°Ô Àü¼Û
-			iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 6);
+			iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 			switch (iRet) {
 			case DEF_XSOCKEVENT_QUENEFULL:
 			case DEF_XSOCKEVENT_SOCKETERROR:
@@ -8937,19 +8245,17 @@ void CGame::RequestCreateNewGuildHandler(int iClientH, char* pData, uint32_t dwM
 
 void CGame::RequestDisbandGuildHandler(int iClientH, char* pData, uint32_t dwMsgSize)
 {
-	char* cp, cGuildName[21], cTxt[120];
+	char* cp;
+	char cGuildName[21], cTxt[120];
 
 	if (m_bIsCrusadeMode) return;
 
-	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
+	const auto* pkt = hb::net::PacketCast<hb::net::PacketRequestGuildAction>(
+		pData, sizeof(hb::net::PacketRequestGuildAction));
+	if (!pkt) return;
 	std::memset(cGuildName, 0, sizeof(cGuildName));
 
-	cp += 10;
-	cp += 10;
-	cp += 10;
-
-	memcpy(cGuildName, cp, 20);
-	cp += 20;
+	memcpy(cGuildName, pkt->guild, sizeof(pkt->guild));
 
 	if ((m_pClientList[iClientH]->m_iGuildRank != 0) || (memcmp(m_pClientList[iClientH]->m_cGuildName, cGuildName, 20) != 0)) {
 		// ±æµå¸¶½ºÅÍ°¡ ¾Æ´Ï°Å³ª ±æµåÀÇ ÀÌ¸§ÀÌ ´Ù¸£¹Ç·Î ±æµåÇØ»êÀÇ ±ÇÇÑÀÌ ¾ø´Ù.
@@ -8962,7 +8268,6 @@ void CGame::RequestDisbandGuildHandler(int iClientH, char* pData, uint32_t dwMsg
 
 		char cData[512];
 
-		std::memset(cData, 0, sizeof(cData));
 		cp = (char*)(cData);
 
 		memcpy((char*)cp, m_pClientList[iClientH]->m_cCharName, 10);
@@ -8978,9 +8283,8 @@ void CGame::RequestDisbandGuildHandler(int iClientH, char* pData, uint32_t dwMsg
 void CGame::ResponseDisbandGuildHandler(char* pData, int iType)
 {
 	int i;
-	uint16_t* wp, wResult;
-	uint32_t* dwp;
-	char cCharName[11], cData[100], cTxt[120];
+	uint16_t wResult;
+	char cCharName[11], cTxt[120];
 	int iRet;
 
 	// �α� �����κ��� ��� �ػ� ��û�� ���� ���䵥���Ͱ� �����ߴ�. 
@@ -9019,13 +8323,12 @@ void CGame::ResponseDisbandGuildHandler(char* pData, int iType)
 				break;
 			}
 
-			dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-			*dwp = MSGID_RESPONSE_DISBANDGUILD;
-			wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-			*wp = wResult;
+			hb::net::PacketHeader pkt{};
+			pkt.msg_id = MSGID_RESPONSE_DISBANDGUILD;
+			pkt.msg_type = wResult;
 
 			// ��� �ػ� �䱸 ���� �޽����� Ŭ���̾�Ʈ���� ����
-			iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData, 6);
+			iRet = m_pClientList[i]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 			switch (iRet) {
 			case DEF_XSOCKEVENT_QUENEFULL:
 			case DEF_XSOCKEVENT_SOCKETERROR:
@@ -9044,13 +8347,12 @@ void CGame::ResponseDisbandGuildHandler(char* pData, int iType)
 }
 
 // 05/29/2004 - Hypnotoad - Purchase Dicount updated to take charisma into consideration
-void CGame::RequestPurchaseItemHandler(int iClientH, char* pItemName, int iNum)
+void CGame::RequestPurchaseItemHandler(int iClientH, const char* pItemName, int iNum)
 {
 	class CItem* pItem;
-	char* cp, cItemName[21], cData[100];
-	short* sp;
-	uint32_t* dwp, dwGoldCount, dwItemCount;
-	uint16_t* wp, wTempPrice;
+	char cItemName[21];
+	uint32_t dwGoldCount, dwItemCount;
+	uint16_t wTempPrice;
 	int   i, iRet, iEraseReq, iGoldWeight;
 	int   iCost, iDiscountRatio, iDiscountCost;
 	double dTmp1, dTmp2, dTmp3;
@@ -9081,7 +8383,6 @@ void CGame::RequestPurchaseItemHandler(int iClientH, char* pItemName, int iNum)
 
 
 	// ¾ÆÀÌÅÛÀ» ±¸ÀÔÇÑ´Ù. 
-	std::memset(cData, 0, sizeof(cData));
 	std::memset(cItemName, 0, sizeof(cItemName));
 
 	// New 18/05/2004
@@ -9139,15 +8440,13 @@ void CGame::RequestPurchaseItemHandler(int iClientH, char* pItemName, int iNum)
 			if (dwGoldCount < (uint32_t)(iCost - iDiscountCost)) {
 				delete pItem;
 
-				dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-				*dwp = MSGID_NOTIFY;
-				wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-				*wp = DEF_NOTIFY_NOTENOUGHGOLD;
-				cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-				*cp = -1;
-				cp++;
-
-				iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 7);
+				{
+					hb::net::PacketNotifyNotEnoughGold pkt{};
+					pkt.header.msg_id = MSGID_NOTIFY;
+					pkt.header.msg_type = DEF_NOTIFY_NOTENOUGHGOLD;
+					pkt.item_index = -1;
+					iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+				}
 				switch (iRet) {
 				case DEF_XSOCKEVENT_QUENEFULL:
 				case DEF_XSOCKEVENT_SOCKETERROR:
@@ -9165,67 +8464,9 @@ void CGame::RequestPurchaseItemHandler(int iClientH, char* pItemName, int iNum)
 				if (m_pClientList[iClientH]->m_iCurWeightLoad < 0) m_pClientList[iClientH]->m_iCurWeightLoad = 0;
 
 				// ¾ÆÀÌÅÛ »ò´Ù´Â ¸Þ½ÃÁö¸¦ Àü¼ÛÇÑ´Ù.
-				dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-				*dwp = MSGID_NOTIFY;
-				wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-				*wp = DEF_NOTIFY_ITEMPURCHASED;
-
-				cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-				// 1°³ È¹µæÇß´Ù.
-				*cp = 1;
-				cp++;
-
-				memcpy(cp, pItem->m_cName, 20);
-				cp += 20;
-
-				dwp = (uint32_t*)cp;
-				*dwp = pItem->m_dwCount;
-				cp += 4;
-
-				*cp = pItem->m_cItemType;
-				cp++;
-
-				*cp = pItem->m_cEquipPos;
-				cp++;
-
-				*cp = (char)0; // ¾òÀº ¾ÆÀÌÅÛÀÌ¹Ç·Î ÀåÂøµÇÁö ¾Ê¾Ò´Ù.
-				cp++;
-
-				sp = (short*)cp;
-				*sp = pItem->m_sLevelLimit;
-				cp += 2;
-
-				*cp = pItem->m_cGenderLimit;
-				cp++;
-
-				wp = (uint16_t*)cp;
-				*wp = pItem->m_wCurLifeSpan;
-				cp += 2;
-
-				wp = (uint16_t*)cp;
-				*wp = pItem->m_wWeight;
-				cp += 2;
-
-				sp = (short*)cp;
-				*sp = pItem->m_sSprite;
-				cp += 2;
-
-				sp = (short*)cp;
-				*sp = pItem->m_sSpriteFrame;
-				cp += 2;
-
-				*cp = pItem->m_cItemColor;
-				cp++;
-
-				wp = (uint16_t*)cp;
-				*wp = (iCost - iDiscountCost);
 				wTempPrice = (iCost - iDiscountCost);
-				cp += 2;
-
+				iRet = SendItemNotifyMsg(iClientH, DEF_NOTIFY_ITEMPURCHASED, pItem, wTempPrice);
 				if (iEraseReq == 1) delete pItem;
-
-				// ¾ÆÀÌÅÛ Á¤º¸ Àü¼Û 
-				iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 48);
 
 				// GoldÀÇ ¼ö·®À» °¨¼Ò½ÃÅ²´Ù. ¹Ýµå½Ã ¿©±â¼­ ¼¼ÆÃÇØ¾ß ¼ø¼­°¡ ¹Ù²îÁö ¾Ê´Â´Ù.
 				iGoldWeight = SetItemCount(iClientH, "Gold", dwGoldCount - wTempPrice);
@@ -9253,12 +8494,9 @@ void CGame::RequestPurchaseItemHandler(int iClientH, char* pItemName, int iNum)
 				// ¼ÒÁöÇ° ÃÑ Áß·® Àç °è»ê 
 				iCalcTotalWeight(iClientH);
 
-				dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-				*dwp = MSGID_NOTIFY;
-				wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-				*wp = DEF_NOTIFY_CANNOTCARRYMOREITEM;
+				iRet = SendItemNotifyMsg(iClientH, DEF_NOTIFY_CANNOTCARRYMOREITEM, 0, 0);
 
-				iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 6);
+
 				switch (iRet) {
 				case DEF_XSOCKEVENT_QUENEFULL:
 				case DEF_XSOCKEVENT_SOCKETERROR:
@@ -9273,13 +8511,11 @@ void CGame::RequestPurchaseItemHandler(int iClientH, char* pItemName, int iNum)
 	}
 }
 
-void CGame::GiveItemHandler(int iClientH, short sItemIndex, int iAmount, short dX, short dY, uint16_t wObjectID, char* pItemName)
+void CGame::GiveItemHandler(int iClientH, short sItemIndex, int iAmount, short dX, short dY, uint16_t wObjectID, const char* pItemName)
 {
 	int iRet, iEraseReq;
-	short* sp, sOwnerH;
-	char* cp, cOwnerType, cData[100], cCharName[21];
-	uint32_t* dwp;
-	uint16_t* wp;
+	short sOwnerH;
+	char cOwnerType, cCharName[21];
 	class CItem* pItem;
 
 	if (m_pClientList[iClientH] == 0) return;
@@ -9370,73 +8606,7 @@ void CGame::GiveItemHandler(int iClientH, short sItemIndex, int iAmount, short d
 
 				if (_bAddClientItemList(sOwnerH, pItem, &iEraseReq)) {
 					// ¾ÆÀÌÅÛÀ» È¹µæÇß´Ù.
-					dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-					*dwp = MSGID_NOTIFY;
-					wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-					*wp = DEF_NOTIFY_ITEMOBTAINED;
-
-					cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-
-					// 1°³ È¹µæÇß´Ù. Amount°¡ ¾Æ´Ï´Ù!
-					*cp = 1;
-					cp++;
-
-					memcpy(cp, pItem->m_cName, 20);
-					cp += 20;
-
-					dwp = (uint32_t*)cp;
-					*dwp = pItem->m_dwCount;	// ¼ö·®À» ÀÔ·Â 
-					cp += 4;
-
-					*cp = pItem->m_cItemType;
-					cp++;
-
-					*cp = pItem->m_cEquipPos;
-					cp++;
-
-					*cp = (char)0; // ¾òÀº ¾ÆÀÌÅÛÀÌ¹Ç·Î ÀåÂøµÇÁö ¾Ê¾Ò´Ù.
-					cp++;
-
-					sp = (short*)cp;
-					*sp = pItem->m_sLevelLimit;
-					cp += 2;
-
-					*cp = pItem->m_cGenderLimit;
-					cp++;
-
-					wp = (uint16_t*)cp;
-					*wp = pItem->m_wCurLifeSpan;
-					cp += 2;
-
-					wp = (uint16_t*)cp;
-					*wp = pItem->m_wWeight;
-					cp += 2;
-
-					sp = (short*)cp;
-					*sp = pItem->m_sSprite;
-					cp += 2;
-
-					sp = (short*)cp;
-					*sp = pItem->m_sSpriteFrame;
-					cp += 2;
-
-					*cp = pItem->m_cItemColor;
-					cp++;
-
-					*cp = (char)pItem->m_sItemSpecEffectValue2; // v1.41 
-					cp++;
-
-					dwp = (uint32_t*)cp;
-					*dwp = pItem->m_dwAttribute;
-					cp += 4;
-					/*
-					*cp = (char)(pItem->m_dwAttribute & 0x00000001); // Custom-Item
-					cp++;
-					*/
-
-					if (iEraseReq == 1) delete pItem;
-
-					iRet = m_pClientList[sOwnerH]->m_pXSock->iSendMsg(cData, 53);
+					iRet = SendItemNotifyMsg(sOwnerH, DEF_NOTIFY_ITEMOBTAINED, pItem, 0);
 					switch (iRet) {
 					case DEF_XSOCKEVENT_QUENEFULL:
 					case DEF_XSOCKEVENT_SOCKETERROR:
@@ -9465,12 +8635,11 @@ void CGame::GiveItemHandler(int iClientH, short sItemIndex, int iAmount, short d
 						pItem->m_sIDnum, 0, pItem->m_cItemColor, pItem->m_dwAttribute); //v1.4 color
 
 					// ´õÀÌ»ó °¡Áú¼ö ¾ø´Ù´Â ¸Þ½ÃÁö¸¦ º¸³½´Ù.
-					dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-					*dwp = MSGID_NOTIFY;
-					wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-					*wp = DEF_NOTIFY_CANNOTCARRYMOREITEM;
+					{
+	iRet = SendItemNotifyMsg(sOwnerH, DEF_NOTIFY_CANNOTCARRYMOREITEM, 0, 0);
+}
 
-					iRet = m_pClientList[sOwnerH]->m_pXSock->iSendMsg(cData, 6);
+
 					switch (iRet) {
 					case DEF_XSOCKEVENT_QUENEFULL:
 					case DEF_XSOCKEVENT_SOCKETERROR:
@@ -9634,73 +8803,7 @@ void CGame::GiveItemHandler(int iClientH, short sItemIndex, int iAmount, short d
 					_bItemLog(DEF_ITEMLOG_GIVE, iClientH, sOwnerH, pItem);
 
 					// ¾ÆÀÌÅÛÀ» È¹µæÇß´Ù.
-					dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-					*dwp = MSGID_NOTIFY;
-					wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-					*wp = DEF_NOTIFY_ITEMOBTAINED;
-
-					cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-
-					// 1°³ È¹µæÇß´Ù.
-					*cp = 1;
-					cp++;
-
-					memcpy(cp, pItem->m_cName, 20);
-					cp += 20;
-
-					dwp = (uint32_t*)cp;
-					*dwp = pItem->m_dwCount;
-					cp += 4;
-
-					*cp = pItem->m_cItemType;
-					cp++;
-
-					*cp = pItem->m_cEquipPos;
-					cp++;
-
-					*cp = (char)0; // ¾òÀº ¾ÆÀÌÅÛÀÌ¹Ç·Î ÀåÂøµÇÁö ¾Ê¾Ò´Ù.
-					cp++;
-
-					sp = (short*)cp;
-					*sp = pItem->m_sLevelLimit;
-					cp += 2;
-
-					*cp = pItem->m_cGenderLimit;
-					cp++;
-
-					wp = (uint16_t*)cp;
-					*wp = pItem->m_wCurLifeSpan;
-					cp += 2;
-
-					wp = (uint16_t*)cp;
-					*wp = pItem->m_wWeight;
-					cp += 2;
-
-					sp = (short*)cp;
-					*sp = pItem->m_sSprite;
-					cp += 2;
-
-					sp = (short*)cp;
-					*sp = pItem->m_sSpriteFrame;
-					cp += 2;
-
-					*cp = pItem->m_cItemColor;
-					cp++;
-
-					*cp = (char)pItem->m_sItemSpecEffectValue2; // v1.41 
-					cp++;
-
-					dwp = (uint32_t*)cp;
-					*dwp = pItem->m_dwAttribute;
-					cp += 4;
-					/*
-					*cp = (char)(pItem->m_dwAttribute & 0x00000001); // Custom-ItemÀÎÁöÀÇ ¿©ºÎ
-					cp++;
-					*/
-
-					if (iEraseReq == 1) delete pItem;
-
-					iRet = m_pClientList[sOwnerH]->m_pXSock->iSendMsg(cData, 53);
+					iRet = SendItemNotifyMsg(sOwnerH, DEF_NOTIFY_ITEMOBTAINED, pItem, 0);
 					switch (iRet) {
 					case DEF_XSOCKEVENT_QUENEFULL:
 					case DEF_XSOCKEVENT_SOCKETERROR:
@@ -9723,12 +8826,11 @@ void CGame::GiveItemHandler(int iClientH, short sItemIndex, int iAmount, short d
 						m_pClientList[iClientH]->m_pItemList[sItemIndex]->m_cItemColor,
 						m_pClientList[iClientH]->m_pItemList[sItemIndex]->m_dwAttribute); // v1.4 color
 
-					dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-					*dwp = MSGID_NOTIFY;
-					wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-					*wp = DEF_NOTIFY_CANNOTCARRYMOREITEM;
+					{
+	iRet = SendItemNotifyMsg(sOwnerH, DEF_NOTIFY_CANNOTCARRYMOREITEM, 0, 0);
+}
 
-					iRet = m_pClientList[sOwnerH]->m_pXSock->iSendMsg(cData, 6);
+
 					switch (iRet) {
 					case DEF_XSOCKEVENT_QUENEFULL:
 					case DEF_XSOCKEVENT_SOCKETERROR:
@@ -9847,139 +8949,145 @@ void CGame::GiveItemHandler(int iClientH, short sItemIndex, int iAmount, short d
 
 void CGame::SendNotifyMsg(int iFromH, int iToH, uint16_t wMsgType, uint32_t sV1, uint32_t sV2, uint32_t sV3, char* pString, uint32_t sV4, uint32_t sV5, uint32_t sV6, uint32_t sV7, uint32_t sV8, uint32_t sV9, char* pString2)
 {
-	char cData[1000];
-	uint32_t* dwp;
-	uint16_t* wp;
-	char* cp;
-	short* sp;
-	int* ip, iRet, i;
+	int iRet, i;
 
 	if (m_pClientList[iToH] == 0) return;
-
-	std::memset(cData, 0, sizeof(cData));
-
-	dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-	*dwp = MSGID_NOTIFY;
-	wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-	*wp = wMsgType;
-
-	cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
 
 	// !!! sV1, sV2, sV3´Â DWORDÇüÀÓÀ» ¸í½ÉÇÏ¶ó.
 	switch (wMsgType) {
 	case DEF_NOTIFY_CURLIFESPAN:
+	{
+		hb::net::PacketNotifyCurLifeSpan pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.item_index = static_cast<int32_t>(sV1);
+		pkt.cur_lifespan = static_cast<int32_t>(sV2);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		break;
+	}
 	case DEF_SEND_NPCHP: //50Cent - HP Bar
-		ip = (int*)cp;
-		*ip = (int)sV1;
-		cp += 4;
-
-		ip = (int*)cp;
-		*ip = (int)sV2;
-		cp += 4;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 14);
+	{
+		hb::net::PacketNotifyNpcHp pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.hp = static_cast<int32_t>(sV1);
+		pkt.max_hp = static_cast<int32_t>(sV2);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_HELDENIANCOUNT:
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV1;
-		cp += 2;
-
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV2;
-		cp += 2;
-
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV3;
-		cp += 2;
-
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV4;
-		cp += 2;
-
-		cp += 14;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 14);
-
+	{
+		hb::net::PacketNotifyHeldenianCount pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.aresden_tower_left = static_cast<int16_t>(sV1);
+		pkt.elvine_tower_left = static_cast<int16_t>(sV2);
+		pkt.aresden_flags = static_cast<int16_t>(sV3);
+		pkt.elvine_flags = static_cast<int16_t>(sV4);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 		break;
+	}
 
 	case DEF_NOTIFY_NOMOREAGRICULTURE:
 	case DEF_NOTIFY_AGRICULTURESKILLLIMIT:
 	case DEF_NOTIFY_AGRICULTURENOAREA:
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 6);
+	{
+		hb::net::PacketNotifyEmpty pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 		// New 18/05/2004
 	case DEF_NOTIFY_SPAWNEVENT:
-		*cp = static_cast<char>(sV3);
-		cp++;
-
-		sp = (short*)cp;
-		*sp = static_cast<short>(sV1);
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = static_cast<short>(sV2);
-		cp += 2;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 11);
+	{
+		hb::net::PacketNotifySpawnEvent pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.monster_id = static_cast<uint8_t>(sV3);
+		pkt.x = static_cast<int16_t>(sV1);
+		pkt.y = static_cast<int16_t>(sV2);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 		break;
+	}
 
 	case DEF_NOTIFY_QUESTCOUNTER:
-		ip = (int*)cp;
-		*ip = sV1;
-		cp += 4;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 24);
+	{
+		hb::net::PacketNotifyQuestCounter pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.current_count = static_cast<int32_t>(sV1);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 		break;
+	}
 
 	case DEF_NOTIFY_APOCGATECLOSE:
 	case DEF_NOTIFY_APOCGATEOPEN:
-		ip = (int*)cp;
-		*ip = sV1;
-		cp += 4;
-
-		ip = (int*)cp;
-		*ip = sV2;
-		cp += 4;
-
-		memcpy(cp, pString, 10);
-		cp += 10;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 24);
+	{
+		hb::net::PacketNotifyApocGateOpen pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.gate_x = static_cast<int32_t>(sV1);
+		pkt.gate_y = static_cast<int32_t>(sV2);
+		if (pString != 0) {
+			memcpy(pkt.map_name, pString, sizeof(pkt.map_name));
+		}
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 		break;
+	}
 
 	case DEF_NOTIFY_ABADDONKILLED:
-		memcpy(cp, m_pClientList[iFromH]->m_cCharName, 10);
-		cp += 10;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 24);
+	{
+		hb::net::PacketNotifyAbaddonKilled pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		memcpy(pkt.killer_name, m_pClientList[iFromH]->m_cCharName, sizeof(pkt.killer_name));
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 		break;
+	}
 
 	case DEF_NOTIFY_APOCFORCERECALLPLAYERS:
 	case DEF_NOTIFY_APOCGATESTARTMSG:
 	case DEF_NOTIFY_APOCGATEENDMSG:
 	case DEF_NOTIFY_NORECALL:
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 6);
+	{
+		hb::net::PacketNotifyEmpty pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_FORCERECALLTIME:
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV1;
-		cp += 2;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 8);
+	{
+		hb::net::PacketNotifyForceRecallTime pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.seconds_left = static_cast<uint16_t>(sV1);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 		// New 16/05/2004
 		//0xB4E2, 0xBEB
 	case DEF_NOTIFY_MONSTERCOUNT:
 	case DEF_NOTIFY_SLATE_STATUS:
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV1;
-		cp += 2;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 8);
+		if (wMsgType == DEF_NOTIFY_MONSTERCOUNT) {
+			hb::net::PacketNotifyMonsterCount pkt{};
+			pkt.header.msg_id = MSGID_NOTIFY;
+			pkt.header.msg_type = wMsgType;
+			pkt.count = static_cast<int16_t>(sV1);
+			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		}
+		else {
+			hb::net::PacketNotifySimpleShort pkt{};
+			pkt.header.msg_id = MSGID_NOTIFY;
+			pkt.header.msg_type = wMsgType;
+			pkt.value = static_cast<int16_t>(sV1);
+			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		}
 		break;
 
 		//0x0BE5, 0x0BE7, 0x0BE8, 0x0BEA
@@ -9990,19 +9098,31 @@ void CGame::SendNotifyMsg(int iFromH, int iToH, uint16_t wMsgType, uint32_t sV1,
 	case DEF_NOTIFY_SLATE_EXP:
 	case DEF_NOTIFY_SLATE_MANA:
 	case DEF_NOTIFY_SLATE_INVINCIBLE:
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 6);
+	{
+		hb::net::PacketNotifyEmpty pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_SLATE_CREATEFAIL:
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 6);
+	{
+		hb::net::PacketNotifyEmpty pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_SLATE_CREATESUCCESS:
-		dwp = (uint32_t*)cp;
-		*dwp = sV1;
-		cp += 4;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 10);
+	{
+		hb::net::PacketNotifySimpleInt pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.value = static_cast<int32_t>(sV1);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 		// New 07/05/2004
@@ -10011,616 +9131,554 @@ void CGame::SendNotifyMsg(int iFromH, int iToH, uint16_t wMsgType, uint32_t sV1,
 		switch (sV1) {
 		case 4:
 		case 6:
-			wp = (uint16_t*)cp;
-			*wp = (uint16_t)sV1;
-			cp += 2;
-
-			wp = (uint16_t*)cp;
-			*wp = (uint16_t)sV2;
-			cp += 2;
-
-			wp = (uint16_t*)cp;
-			*wp = (uint16_t)sV3;
-			cp += 2;
-
-			memcpy(cp, pString, 10);
-			cp += 10;
-
-			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 22);
+		{
+			hb::net::PacketNotifyPartyName pkt{};
+			pkt.header.msg_id = MSGID_NOTIFY;
+			pkt.header.msg_type = wMsgType;
+			pkt.type = static_cast<int16_t>(sV1);
+			pkt.v2 = static_cast<int16_t>(sV2);
+			pkt.v3 = static_cast<int16_t>(sV3);
+			if (pString != 0) {
+				memcpy(pkt.name, pString, sizeof(pkt.name));
+			}
+			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 			break;
+		}
 		case 5:
-			wp = (uint16_t*)cp;
-			*wp = (uint16_t)sV1;
-			cp += 2;
+		{
+			hb::net::PacketWriter writer;
+			writer.Reserve(sizeof(hb::net::PacketNotifyPartyList) + (sV3 * 11));
 
-			wp = (uint16_t*)cp;
-			*wp = (uint16_t)sV2;
-			cp += 2;
+			auto* pkt = writer.Append<hb::net::PacketNotifyPartyList>();
+			pkt->header.msg_id = MSGID_NOTIFY;
+			pkt->header.msg_type = wMsgType;
+			pkt->type = static_cast<int16_t>(sV1);
+			pkt->v2 = static_cast<int16_t>(sV2);
+			pkt->count = static_cast<int16_t>(sV3);
 
-			wp = (uint16_t*)cp;
-			*wp = (uint16_t)sV3;
-			cp += 2;
+			if (pString != 0 && sV3 > 0) {
+				writer.AppendBytes(pString, sV3 * 11);
+			}
 
-			memcpy(cp, pString, sV3 * 11);
-			cp += sV3 * 11;
-
-			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 12 + (sV3 * 11));
+			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(writer.Data(), static_cast<int>(writer.Size()));
 			break;
+		}
 		default:
-			wp = (uint16_t*)cp;
-			*wp = (uint16_t)sV1;
-			cp += 2;
-
-			wp = (uint16_t*)cp;
-			*wp = (uint16_t)sV2;
-			cp += 2;
-
-			wp = (uint16_t*)cp;
-			*wp = (uint16_t)sV3;
-			cp += 2;
-
-			wp = (uint16_t*)cp;
-			*wp = (uint16_t)sV4;
-			cp += 2;
-
-			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 14);
+		{
+			hb::net::PacketNotifyPartyBasic pkt{};
+			pkt.header.msg_id = MSGID_NOTIFY;
+			pkt.header.msg_type = wMsgType;
+			pkt.type = static_cast<int16_t>(sV1);
+			pkt.v2 = static_cast<int16_t>(sV2);
+			pkt.v3 = static_cast<int16_t>(sV3);
+			pkt.v4 = static_cast<int16_t>(sV4);
+			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 			break;
+		}
 		}
 		break;
 
 	case DEF_NOTIFY_REQGUILDNAMEANSWER:
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV1;
-		cp += 2;
-
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV2;
-		cp += 2;
-
-		memcpy(cp, pString, 20);
-		cp += 20;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 30);
+	{
+		hb::net::PacketNotifyReqGuildNameAnswer pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.guild_rank = static_cast<int16_t>(sV1);
+		pkt.index = static_cast<int16_t>(sV2);
+		if (pString != 0) {
+			memcpy(pkt.guild_name, pString, sizeof(pkt.guild_name));
+		}
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 		// New 06/05/2004
 		// Upgrade Notify Msg's
 	case DEF_NOTIFY_ITEMUPGRADEFAIL:
-		sp = (short*)cp;
-		*sp = (short)sV1;
-		cp += 2;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 8);
+	{
+		hb::net::PacketNotifyItemUpgradeFail pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.reason = static_cast<int16_t>(sV1);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_ITEMATTRIBUTECHANGE:
 	case DEF_NOTIFY_GIZONITEMUPGRADELEFT:
-		sp = (short*)cp;
-		*sp = static_cast<short>(sV1);
-		cp += 2;
-
-		dwp = (uint32_t*)cp;
-		*dwp = sV2;
-		cp += 4;
-
-		dwp = (uint32_t*)cp;
-		*dwp = sV3;
-		cp += 4;
-
-		dwp = (uint32_t*)cp;
-		*dwp = sV4;
-		cp += 4;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 20);
+	{
+		hb::net::PacketNotifyItemAttributeChange pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.item_index = static_cast<int16_t>(sV1);
+		pkt.attribute = sV2;
+		pkt.spec_value1 = sV3;
+		pkt.spec_value2 = sV4;
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_GIZONITEMCANGE:
-		sp = (short*)cp;
-		*sp = (short)sV1;
-		cp += 2;
-
-		*cp = (char)sV2;
-		cp++;
-
-		sp = (short*)cp;
-		*sp = (short)sV3;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV4;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV5;
-		cp += 2;
-
-		*cp = (char)sV6;
-		cp++;
-
-		*cp = (char)sV7;
-		cp++;
-
-		dwp = (uint32_t*)cp;
-		*dwp = sV8;
-		cp += 4;
-
-		memcpy(cp, pString, 20);
-		cp += 20;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 41);
+	{
+		hb::net::PacketNotifyGizonItemChange pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.item_index = static_cast<int16_t>(sV1);
+		pkt.item_type = static_cast<uint8_t>(sV2);
+		pkt.cur_lifespan = static_cast<int16_t>(sV3);
+		pkt.sprite = static_cast<int16_t>(sV4);
+		pkt.sprite_frame = static_cast<int16_t>(sV5);
+		pkt.item_color = static_cast<uint8_t>(sV6);
+		pkt.spec_value2 = static_cast<uint8_t>(sV7);
+		pkt.attribute = sV8;
+		if (pString != 0) {
+			memcpy(pkt.item_name, pString, sizeof(pkt.item_name));
+		}
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 		// 2.06 - by KLKS
 	case DEF_NOTIFY_CHANGEPLAYMODE:
-		memcpy(cp, pString, 10);
-		cp += 10;
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 16);
+	{
+		hb::net::PacketNotifyChangePlayMode pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		if (pString != 0) {
+			memcpy(pkt.location, pString, sizeof(pkt.location));
+		}
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 		break;
+	}
 		//
 
 	case DEF_NOTIFY_TCLOC:
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV1;
-		cp += 2;
-
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV2;
-		cp += 2;
-
-		memcpy(cp, pString, 10);
-		cp += 10;
-
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV4;
-		cp += 2;
-
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV5;
-		cp += 2;
-
-		memcpy(cp, pString2, 10);
-		cp += 10;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 34);
+	{
+		hb::net::PacketNotifyTCLoc pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.dest_x = static_cast<int16_t>(sV1);
+		pkt.dest_y = static_cast<int16_t>(sV2);
+		if (pString != 0) {
+			memcpy(pkt.teleport_map, pString, sizeof(pkt.teleport_map));
+		}
+		pkt.construct_x = static_cast<int16_t>(sV4);
+		pkt.construct_y = static_cast<int16_t>(sV5);
+		if (pString2 != 0) {
+			memcpy(pkt.construct_map, pString2, sizeof(pkt.construct_map));
+		}
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 		//New 11/05/2004
 	case DEF_NOTIFY_GRANDMAGICRESULT:
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV1;
-		cp += 2;
+	{
+		hb::net::PacketWriter writer;
+		writer.Reserve(sizeof(hb::net::PacketNotifyGrandMagicResultHeader) + (sV9 * 2));
 
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV2;
-		cp += 2;
-
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV3;
-		cp += 2;
-
-		memcpy(cp, pString, 10);
-		cp += 10;
-
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV4;
-		cp += 2;
-
-		if (sV9 > 0) {
-			memcpy(cp, pString2, (sV9 * 2) + 2);
-			cp += (sV9 * 2) + 2;
+		auto* pkt = writer.Append<hb::net::PacketNotifyGrandMagicResultHeader>();
+		pkt->header.msg_id = MSGID_NOTIFY;
+		pkt->header.msg_type = wMsgType;
+		pkt->crashed_structures = static_cast<uint16_t>(sV1);
+		pkt->structure_damage = static_cast<uint16_t>(sV2);
+		pkt->casualities = static_cast<uint16_t>(sV3);
+		if (pString != 0) {
+			memcpy(pkt->map_name, pString, sizeof(pkt->map_name));
 		}
-		else {
-			sp = (short*)cp;
-			*sp = 0;
-			cp += 2;
+		pkt->active_structure = static_cast<uint16_t>(sV4);
+		pkt->value_count = static_cast<uint16_t>(sV9);
+
+		if (sV9 > 0 && pString2 != 0) {
+			writer.AppendBytes(pString2 + 2, sV9 * 2);
 		}
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, (sV9 * 2) + 26);
+
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(writer.Data(), static_cast<int>(writer.Size()));
+	}
 		break;
 
 	case DEF_NOTIFY_MAPSTATUSNEXT:
-		memcpy(cp, pString, sV1);
-		cp += sV1;
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 6 + sV1);
+	{
+		hb::net::PacketWriter writer;
+		writer.Reserve(sizeof(hb::net::PacketHeader) + sV1);
+
+		auto* pkt = writer.Append<hb::net::PacketHeader>();
+		pkt->msg_id = MSGID_NOTIFY;
+		pkt->msg_type = wMsgType;
+
+		if (pString != 0 && sV1 > 0) {
+			writer.AppendBytes(pString, sV1);
+		}
+
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(writer.Data(), static_cast<int>(writer.Size()));
+	}
 		break;
 
 	case DEF_NOTIFY_MAPSTATUSLAST:
-		memcpy(cp, pString, sV1);
-		cp += sV1;
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 6 + sV1);
+	{
+		hb::net::PacketWriter writer;
+		writer.Reserve(sizeof(hb::net::PacketHeader) + sV1);
+
+		auto* pkt = writer.Append<hb::net::PacketHeader>();
+		pkt->msg_id = MSGID_NOTIFY;
+		pkt->msg_type = wMsgType;
+
+		if (pString != 0 && sV1 > 0) {
+			writer.AppendBytes(pString, sV1);
+		}
+
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(writer.Data(), static_cast<int>(writer.Size()));
+	}
 		break;
 
 	case DEF_NOTIFY_LOCKEDMAP:
-		sp = (short*)cp;
-		*sp = (short)sV1;
-		cp += 2;
-
-		memcpy(cp, pString, 10);
-		cp += 10;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 18);
+	{
+		hb::net::PacketNotifyLockedMap pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.seconds_left = static_cast<int16_t>(sV1);
+		if (pString != 0) {
+			memcpy(pkt.map_name, pString, sizeof(pkt.map_name));
+		}
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_BUILDITEMSUCCESS:
 	case DEF_NOTIFY_BUILDITEMFAIL:
-
+	{
+		hb::net::PacketNotifyBuildItemResult pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
 		if (sV1 >= 0) {
-			sp = (short*)cp;
-			*sp = (short)sV1;
-			cp += 2;
+			pkt.item_id = static_cast<int16_t>(sV1);
 		}
 		else {
-			sp = (short*)cp;
-			*sp = (short)sV1 + 10000;
-			cp += 2;
+			pkt.item_id = static_cast<int16_t>(sV1 + 10000);
 		}
-
-		sp = (short*)cp;
-		*sp = (short)sV2;
-		cp += 2;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 10);
+		pkt.item_count = static_cast<int16_t>(sV2);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_HELP:
 	case DEF_NOTIFY_QUESTREWARD:
-		sp = (short*)cp;
-		*sp = (short)sV1;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV2;
-		cp += 2;
-
-		ip = (int*)cp;
-		*ip = (int)sV3;
-		cp += 4;
-
-		memcpy(cp, pString, 20);
-		cp += 20;
-
-		ip = (int*)cp;
-		*ip = (int)sV4;
-		cp += 4;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 38);
+	{
+		hb::net::PacketNotifyQuestReward pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.who = static_cast<int16_t>(sV1);
+		pkt.flag = static_cast<int16_t>(sV2);
+		pkt.amount = static_cast<int32_t>(sV3);
+		if (pString != 0) {
+			memcpy(pkt.reward_name, pString, sizeof(pkt.reward_name));
+		}
+		pkt.contribution = static_cast<int32_t>(sV4);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_CANNOTCONSTRUCT:
+	{
+		hb::net::PacketNotifyCannotConstruct pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.reason = static_cast<int16_t>(sV1);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		break;
+	}
 	case DEF_NOTIFY_METEORSTRIKECOMING:
+	{
+		hb::net::PacketNotifyMeteorStrikeComing pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.phase = static_cast<int16_t>(sV1);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		break;
+	}
+	case DEF_NOTIFY_OBSERVERMODE:
+	{
+		hb::net::PacketNotifyObserverMode pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.enabled = static_cast<int16_t>(sV1);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		break;
+	}
 	case DEF_NOTIFY_METEORSTRIKEHIT:
 	case DEF_NOTIFY_HELPFAILED:
 	case DEF_NOTIFY_SPECIALABILITYENABLED:
 	case DEF_NOTIFY_FORCEDISCONN:
-	case DEF_NOTIFY_OBSERVERMODE:
 	case DEF_NOTIFY_QUESTCOMPLETED:
 	case DEF_NOTIFY_QUESTABORTED:
-		sp = (short*)cp;
-		*sp = (short)sV1;
-		cp += 2;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 8);
+		if (wMsgType == DEF_NOTIFY_FORCEDISCONN) {
+			hb::net::PacketNotifyForceDisconn pkt{};
+			pkt.header.msg_id = MSGID_NOTIFY;
+			pkt.header.msg_type = wMsgType;
+			pkt.seconds = static_cast<uint16_t>(sV1);
+			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		}
+		else {
+			hb::net::PacketNotifySimpleShort pkt{};
+			pkt.header.msg_id = MSGID_NOTIFY;
+			pkt.header.msg_type = wMsgType;
+			pkt.value = static_cast<int16_t>(sV1);
+			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		}
 		break;
 
 	case DEF_NOTIFY_QUESTCONTENTS:
-		sp = (short*)cp;
-		*sp = (short)sV1;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV2;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV3;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV4;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV5;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV6;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV7;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV8;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV9;
-		cp += 2;
-
-		if (pString2 != 0) memcpy(cp, pString2, 20);
-		cp += 20;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 44);
+	{
+		hb::net::PacketNotifyQuestContents pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.who = static_cast<int16_t>(sV1);
+		pkt.quest_type = static_cast<int16_t>(sV2);
+		pkt.contribution = static_cast<int16_t>(sV3);
+		pkt.target_type = static_cast<int16_t>(sV4);
+		pkt.target_count = static_cast<int16_t>(sV5);
+		pkt.x = static_cast<int16_t>(sV6);
+		pkt.y = static_cast<int16_t>(sV7);
+		pkt.range = static_cast<int16_t>(sV8);
+		pkt.is_completed = static_cast<int16_t>(sV9);
+		if (pString2 != 0) {
+			memcpy(pkt.target_name, pString2, sizeof(pkt.target_name));
+		}
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 		break;
+	}
 
 	case DEF_NOTIFY_ENERGYSPHERECREATED:
-	case DEF_NOTIFY_ITEMCOLORCHANGE:
-		sp = (short*)cp;
-		*sp = (short)sV1;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV2;
-		cp += 2;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 10);
+	{
+		hb::net::PacketNotifyEnergySphereCreated pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.x = static_cast<int16_t>(sV1);
+		pkt.y = static_cast<int16_t>(sV2);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
+	case DEF_NOTIFY_ITEMCOLORCHANGE:
+	{
+		hb::net::PacketNotifyItemColorChange pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.item_index = static_cast<int16_t>(sV1);
+		pkt.item_color = static_cast<int16_t>(sV2);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		break;
+	}
 
 	case DEF_NOTIFY_NOMORECRUSADESTRUCTURE:
 	case DEF_NOTIFY_EXCHANGEITEMCOMPLETE:
 	case DEF_NOTIFY_CANCELEXCHANGEITEM:
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 6);
+	{
+		hb::net::PacketNotifyEmpty pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_SETEXCHANGEITEM:
-		sp = (short*)cp;
-		*sp = (short)sV1;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV2;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV3;
-		cp += 2;
-
-		ip = (int*)cp;
-		*ip = (int)sV4;
-		cp += 4;
-
-		*cp = (char)sV5;
-		cp++;
-
-		sp = (short*)cp;
-		*sp = (short)sV6;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV7;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV8;
-		cp += 2;
-
-		memcpy(cp, pString, 20);
-		cp += 20;
-
-		memcpy(cp, m_pClientList[iFromH]->m_cCharName, 10);
-		cp += 10;
-
-		// v1.42
-		dwp = (uint32_t*)cp;
-		*dwp = (uint32_t)sV9;
-		cp += 4;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 57);
+	{
+		hb::net::PacketNotifyExchangeItem pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.dir = static_cast<int16_t>(sV1);
+		pkt.sprite = static_cast<int16_t>(sV2);
+		pkt.sprite_frame = static_cast<int16_t>(sV3);
+		pkt.amount = static_cast<int32_t>(sV4);
+		pkt.color = static_cast<uint8_t>(sV5);
+		pkt.cur_life = static_cast<int16_t>(sV6);
+		pkt.max_life = static_cast<int16_t>(sV7);
+		pkt.performance = static_cast<int16_t>(sV8);
+		if (pString != 0) {
+			memcpy(pkt.item_name, pString, sizeof(pkt.item_name));
+		}
+		memcpy(pkt.char_name, m_pClientList[iFromH]->m_cCharName, sizeof(pkt.char_name));
+		pkt.attribute = static_cast<uint32_t>(sV9);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_OPENEXCHANGEWINDOW:
-		sp = (short*)cp;
-		*sp = (short)sV1;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV2;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV3;
-		cp += 2;
-
-		ip = (int*)cp;
-		*ip = (int)sV4;
-		cp += 4;
-
-		*cp = (char)sV5;
-		cp++;
-
-		sp = (short*)cp;
-		*sp = (short)sV6;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV7;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV8;
-		cp += 2;
-
-		memcpy(cp, pString, 20);
-		cp += 20;
-
-		memcpy(cp, m_pClientList[iFromH]->m_cCharName, 10);
-		cp += 10;
-
-		// v1.42
-		dwp = (uint32_t*)cp;
-		*dwp = (uint32_t)sV9;
-		cp += 4;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 57);
+	{
+		hb::net::PacketNotifyExchangeItem pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.dir = static_cast<int16_t>(sV1);
+		pkt.sprite = static_cast<int16_t>(sV2);
+		pkt.sprite_frame = static_cast<int16_t>(sV3);
+		pkt.amount = static_cast<int32_t>(sV4);
+		pkt.color = static_cast<uint8_t>(sV5);
+		pkt.cur_life = static_cast<int16_t>(sV6);
+		pkt.max_life = static_cast<int16_t>(sV7);
+		pkt.performance = static_cast<int16_t>(sV8);
+		if (pString != 0) {
+			memcpy(pkt.item_name, pString, sizeof(pkt.item_name));
+		}
+		memcpy(pkt.char_name, m_pClientList[iFromH]->m_cCharName, sizeof(pkt.char_name));
+		pkt.attribute = static_cast<uint32_t>(sV9);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_NOTFLAGSPOT:
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 6);
+	{
+		hb::net::PacketNotifyEmpty pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_ITEMPOSLIST:
+	{
+		hb::net::PacketNotifyItemPosList pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
 		for (i = 0; i < DEF_MAXITEMS; i++) {
-			sp = (short*)cp;
-			*sp = (short)m_pClientList[iToH]->m_ItemPosList[i].x;
-			cp += 2;
-			sp = (short*)cp;
-			*sp = (short)m_pClientList[iToH]->m_ItemPosList[i].y;
-			cp += 2;
+			pkt.positions[i * 2] = static_cast<int16_t>(m_pClientList[iToH]->m_ItemPosList[i].x);
+			pkt.positions[i * 2 + 1] = static_cast<int16_t>(m_pClientList[iToH]->m_ItemPosList[i].y);
 		}
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 6 + DEF_MAXITEMS * 4);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_ENEMYKILLS:
-		ip = (int*)cp;
-		*ip = (int)sV1;
-		cp += 4;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 10);
+	{
+		hb::net::PacketNotifyEnemyKills pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.count = static_cast<int32_t>(sV1);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_CRUSADE:
-		ip = (int*)cp;
-		*ip = (int)sV1;
-		cp += 4;
-
-		ip = (int*)cp;
-		*ip = (int)sV2;
-		cp += 4;
-
-		ip = (int*)cp;
-		*ip = (int)sV3;
-		cp += 4;
-
-		ip = (int*)cp;
-		*ip = (int)sV4;
-		cp += 4;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 22);
+	{
+		hb::net::PacketNotifyCrusade pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.crusade_mode = static_cast<int32_t>(sV1);
+		pkt.crusade_duty = static_cast<int32_t>(sV2);
+		pkt.v3 = static_cast<int32_t>(sV3);
+		pkt.v4 = static_cast<int32_t>(sV4);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_CONSTRUCTIONPOINT:
+	{
+		hb::net::PacketNotifyConstructionPoint pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.construction_point = static_cast<int16_t>(sV1);
+		pkt.war_contribution = static_cast<int16_t>(sV2);
+		pkt.notify_type = static_cast<int16_t>(sV3);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
+		break;
+
 	case DEF_NOTIFY_SPECIALABILITYSTATUS:
+	{
+		hb::net::PacketNotifySpecialAbilityStatus pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.status_type = static_cast<int16_t>(sV1);
+		pkt.ability_type = static_cast<int16_t>(sV2);
+		pkt.seconds_left = static_cast<int16_t>(sV3);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
+		break;
+
 	case DEF_NOTIFY_DAMAGEMOVE:
-		sp = (short*)cp;
-		*sp = (short)sV1;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV2;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV3;
-		cp += 2;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 12);
+	{
+		hb::net::PacketNotifyDamageMove pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.dir = static_cast<uint8_t>(sV1);
+		pkt.amount = static_cast<int16_t>(sV2);
+		pkt.weapon = static_cast<uint8_t>(sV3);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_DOWNSKILLINDEXSET:
 	case DEF_NOTIFY_RESPONSE_CREATENEWPARTY:
-		sp = (short*)cp;
-		*sp = (short)sV1;
-		cp += 2;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 8);
+		if (wMsgType == DEF_NOTIFY_RESPONSE_CREATENEWPARTY) {
+			hb::net::PacketNotifyResponseCreateNewParty pkt{};
+			pkt.header.msg_id = MSGID_NOTIFY;
+			pkt.header.msg_type = wMsgType;
+			pkt.result = static_cast<int16_t>(sV1);
+			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		}
+		else {
+			hb::net::PacketNotifyDownSkillIndexSet pkt{};
+			pkt.header.msg_id = MSGID_NOTIFY;
+			pkt.header.msg_type = wMsgType;
+			pkt.skill_index = static_cast<uint16_t>(sV1);
+			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		}
 		break;
 
 	case DEF_NOTIFY_ADMINIFO:
 		switch (sV1) {
 		case 1:
-			// NPCÀÇ Á¤º¸¸¦ ¾ò¾î¿Â´Ù.
-			ip = (int*)cp;
-			*ip = m_pNpcList[sV2]->m_iHP;
-			cp += 4;
-
-			ip = (int*)cp;
-			*ip = m_pNpcList[sV2]->m_iDefenseRatio;
-			cp += 4;
-
-			ip = (int*)cp;
-			*ip = m_pNpcList[sV2]->m_bIsSummoned;
-			cp += 4;
-
-			ip = (int*)cp;
-			*ip = m_pNpcList[sV2]->m_cActionLimit;
-			cp += 4;
-
-			ip = (int*)cp;
-			*ip = m_pNpcList[sV2]->m_iHitDice;
-			cp += 4;
-
-			dwp = (uint32_t*)cp; // v1.4
-			*dwp = m_pNpcList[sV2]->m_dwDeadTime;
-			cp += 4;
-
-			dwp = (uint32_t*)cp;
-			*dwp = m_pNpcList[sV2]->m_dwRegenTime;
-			cp += 4;
-
-			ip = (int*)cp;
-			*ip = (int)m_pNpcList[sV2]->m_bIsKilled;
-			cp += 4;
-
-			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 26 + 12);
+		{
+			hb::net::PacketNotifyAdminInfo pkt{};
+			pkt.header.msg_id = MSGID_NOTIFY;
+			pkt.header.msg_type = wMsgType;
+			pkt.v1 = m_pNpcList[sV2]->m_iHP;
+			pkt.v2 = m_pNpcList[sV2]->m_iDefenseRatio;
+			pkt.v3 = m_pNpcList[sV2]->m_bIsSummoned;
+			pkt.v4 = m_pNpcList[sV2]->m_cActionLimit;
+			pkt.v5 = m_pNpcList[sV2]->m_iHitDice;
+			pkt.v6 = static_cast<int32_t>(m_pNpcList[sV2]->m_dwDeadTime);
+			pkt.v7 = static_cast<int32_t>(m_pNpcList[sV2]->m_dwRegenTime);
+			pkt.v8 = static_cast<int32_t>(m_pNpcList[sV2]->m_bIsKilled);
+			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		}
 			break;
 		}
 		break;
 
 	case DEF_NOTIFY_HELDENIANSTART:
 	case DEF_NOTIFY_NPCTALK:
-		sp = (short*)cp;
-		*sp = (short)sV1;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV2;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV3;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV4;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV5;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV6;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV7;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV8;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = (short)sV9;
-		cp += 2;
-
-		if (pString != 0) memcpy(cp, pString, 20);
-		cp += 20;
-
-		if (pString2 != 0) memcpy(cp, pString2, 20);
-		cp += 20;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 64);
+	{
+		hb::net::PacketNotifyNpcTalk pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.type = static_cast<int16_t>(sV1);
+		pkt.response = static_cast<int16_t>(sV2);
+		pkt.amount = static_cast<int16_t>(sV3);
+		pkt.contribution = static_cast<int16_t>(sV4);
+		pkt.target_type = static_cast<int16_t>(sV5);
+		pkt.target_count = static_cast<int16_t>(sV6);
+		pkt.x = static_cast<int16_t>(sV7);
+		pkt.y = static_cast<int16_t>(sV8);
+		pkt.range = static_cast<int16_t>(sV9);
+		if (pString != 0) {
+			memcpy(pkt.reward_name, pString, sizeof(pkt.reward_name));
+		}
+		if (pString2 != 0) {
+			memcpy(pkt.target_name, pString2, sizeof(pkt.target_name));
+		}
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 		// Crafting
 	case DEF_NOTIFY_CRAFTING_FAIL:		//reversed by Snoopy: 0x0BF1:
-		ip = (int*)cp;
-		*ip = (int)sV1;
-		cp += 4;
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 10);
+	{
+		hb::net::PacketNotifyCraftingFail pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.reason = static_cast<int32_t>(sV1);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 		break;
+	}
 
 	case DEF_NOTIFY_CRAFTING_SUCCESS:		//reversed by Snoopy: 0x0BF0
 	case DEF_NOTIFY_PORTIONSUCCESS:
@@ -10628,693 +9686,914 @@ void CGame::SendNotifyMsg(int iFromH, int iToH, uint16_t wMsgType, uint32_t sV1,
 	case DEF_NOTIFY_PORTIONFAIL:
 	case DEF_NOTIFY_NOMATCHINGPORTION:
 		// ÀÏÄ¡ÇÏ´Â Æ÷¼Ç Á¶ÇÕÀÌ ¾ø´Ù.
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 6);
+	{
+		hb::net::PacketNotifyEmpty pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_SUPERATTACKLEFT:
-		sp = (short*)cp;
-		*sp = m_pClientList[iToH]->m_iSuperAttackLeft;
-		cp += 2;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 8);
+	{
+		hb::net::PacketNotifySuperAttackLeft pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.left = static_cast<int16_t>(m_pClientList[iToH]->m_iSuperAttackLeft);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_SAFEATTACKMODE:
-		*cp = m_pClientList[iToH]->m_bIsSafeAttackMode;
-		cp++;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 7);
+	{
+		hb::net::PacketNotifySafeAttackMode pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.enabled = m_pClientList[iToH]->m_bIsSafeAttackMode ? 1 : 0;
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_QUERY_JOINPARTY:
 	case DEF_NOTIFY_IPACCOUNTINFO:
-		strcpy(cp, pString);
-		cp += strlen(pString);
+		if (wMsgType == DEF_NOTIFY_QUERY_JOINPARTY) {
+			hb::net::PacketWriter writer;
+			writer.Reserve(sizeof(hb::net::PacketHeader) + 11);
 
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 6 + strlen(pString) + 1);
+			auto* pkt = writer.Append<hb::net::PacketHeader>();
+			pkt->msg_id = MSGID_NOTIFY;
+			pkt->msg_type = wMsgType;
+
+			std::size_t name_len = 0;
+			if (pString != 0) {
+				name_len = std::strlen(pString);
+				if (name_len > 10) {
+					name_len = 10;
+				}
+				writer.AppendBytes(pString, name_len);
+			}
+			writer.AppendBytes("", 1);
+			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(writer.Data(), static_cast<int>(writer.Size()));
+		}
+		else {
+			hb::net::PacketWriter writer;
+			writer.Reserve(sizeof(hb::net::PacketHeader) + 510);
+
+			auto* pkt = writer.Append<hb::net::PacketHeader>();
+			pkt->msg_id = MSGID_NOTIFY;
+			pkt->msg_type = wMsgType;
+
+			std::size_t text_len = 0;
+			if (pString != 0) {
+				text_len = std::strlen(pString);
+				if (text_len >= 509) {
+					text_len = 509;
+				}
+				writer.AppendBytes(pString, text_len);
+			}
+			writer.AppendBytes("", 1);
+			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(writer.Data(), static_cast<int>(writer.Size()));
+		}
 		break;
 
 	case DEF_NOTIFY_REWARDGOLD:
-		dwp = (uint32_t*)cp;
-		*dwp = m_pClientList[iToH]->m_iRewardGold;
-		cp += 4;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 10);
+	{
+		hb::net::PacketNotifyRewardGold pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.gold = static_cast<uint32_t>(m_pClientList[iToH]->m_iRewardGold);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_SERVERSHUTDOWN:
-		*cp = (char)sV1;
-		cp++;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 7);
+	{
+		hb::net::PacketNotifyServerShutdown pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.mode = static_cast<uint8_t>(sV1);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_GLOBALATTACKMODE:
 	case DEF_NOTIFY_WHETHERCHANGE:
-		*cp = (char)sV1;
-		cp++;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 7);
+		if (wMsgType == DEF_NOTIFY_GLOBALATTACKMODE) {
+			hb::net::PacketNotifyGlobalAttackMode pkt{};
+			pkt.header.msg_id = MSGID_NOTIFY;
+			pkt.header.msg_type = wMsgType;
+			pkt.mode = static_cast<uint8_t>(sV1);
+			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		}
+		else {
+			hb::net::PacketNotifyWhetherChange pkt{};
+			pkt.header.msg_id = MSGID_NOTIFY;
+			pkt.header.msg_type = wMsgType;
+			pkt.status = static_cast<uint8_t>(sV1);
+			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		}
 		break;
 
 	case DEF_NOTIFY_FISHCANCELED:
 	case DEF_NOTIFY_FISHSUCCESS:
 	case DEF_NOTIFY_FISHFAIL:
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV1;
-		cp += 2;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 8);
+		if (wMsgType == DEF_NOTIFY_FISHCANCELED) {
+			hb::net::PacketNotifyFishCanceled pkt{};
+			pkt.header.msg_id = MSGID_NOTIFY;
+			pkt.header.msg_type = wMsgType;
+			pkt.reason = static_cast<uint16_t>(sV1);
+			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		}
+		else {
+			hb::net::PacketNotifySimpleShort pkt{};
+			pkt.header.msg_id = MSGID_NOTIFY;
+			pkt.header.msg_type = wMsgType;
+			pkt.value = static_cast<int16_t>(sV1);
+			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		}
 		break;
 
 	case DEF_NOTIFY_DEBUGMSG:
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV1;
-		cp += 2;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 8);
+	{
+		hb::net::PacketNotifySimpleShort pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.value = static_cast<int16_t>(sV1);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_FISHCHANCE:
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV1;
-		cp += 2;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 8);
+	{
+		hb::net::PacketNotifyFishChance pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.chance = static_cast<uint16_t>(sV1);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_ENERGYSPHEREGOALIN:
 	case DEF_NOTIFY_EVENTFISHMODE:
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV1;
-		cp += 2;
-
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV2;
-		cp += 2;
-
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV3;
-		cp += 2;
-
-		memcpy(cp, pString, 20);
-		cp += 20;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 32);
+		if (wMsgType == DEF_NOTIFY_ENERGYSPHEREGOALIN) {
+			hb::net::PacketNotifyEnergySphereGoalIn pkt{};
+			pkt.header.msg_id = MSGID_NOTIFY;
+			pkt.header.msg_type = wMsgType;
+			pkt.result = static_cast<int16_t>(sV1);
+			pkt.side = static_cast<int16_t>(sV2);
+			pkt.goal = static_cast<int16_t>(sV3);
+			if (pString != 0) {
+				memcpy(pkt.name, pString, sizeof(pkt.name));
+			}
+			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		}
+		else {
+			hb::net::PacketNotifyEventFishMode pkt{};
+			pkt.header.msg_id = MSGID_NOTIFY;
+			pkt.header.msg_type = wMsgType;
+			pkt.price = static_cast<uint16_t>(sV1);
+			pkt.sprite = static_cast<uint16_t>(sV2);
+			pkt.sprite_frame = static_cast<uint16_t>(sV3);
+			if (pString != 0) {
+				memcpy(pkt.name, pString, sizeof(pkt.name));
+			}
+			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		}
 		break;
 
 	case DEF_NOTIFY_NOTICEMSG:
-		memcpy(cp, pString, strlen(pString));
-		cp += strlen(pString);
-
-		*cp = 0;
-		cp++;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, strlen(pString) + 7);
+	{
+		hb::net::PacketNotifyNoticeMsg pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		std::size_t msg_len = 0;
+		if (pString != 0) {
+			msg_len = std::strlen(pString);
+			if (msg_len >= sizeof(pkt.text)) {
+				msg_len = sizeof(pkt.text) - 1;
+			}
+			memcpy(pkt.text, pString, msg_len);
+		}
+		pkt.text[msg_len] = '\0';
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt),
+			static_cast<int>(sizeof(hb::net::PacketHeader) + msg_len + 1));
 		break;
+	}
 
 	case DEF_NOTIFY_CANNOTRATING:
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV1;
-		cp += 2;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 8);
+	{
+		hb::net::PacketNotifyCannotRating pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.time_left = static_cast<uint16_t>(sV1);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_RATINGPLAYER:
-		*cp = (char)sV1;
-		cp++;
-
-		memcpy(cp, pString, 10);
-		cp += 10;
-
-		ip = (int*)cp;
-		*ip = m_pClientList[iToH]->m_iRating;
-		cp += 4;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 22);
+	{
+		hb::net::PacketNotifyRatingPlayer pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.result = static_cast<uint8_t>(sV1);
+		if (pString != 0) {
+			memcpy(pkt.name, pString, sizeof(pkt.name));
+		}
+		pkt.rating = m_pClientList[iToH]->m_iRating;
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_ADMINUSERLEVELLOW:
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 6);
+	{
+		hb::net::PacketNotifyEmpty pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_PLAYERSHUTUP:
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV1;
-		cp += 2;
-
-		memcpy(cp, pString, 10);
-		cp += 10;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 19);
+	{
+		hb::net::PacketNotifyPlayerShutUp pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.time = static_cast<uint16_t>(sV1);
+		if (pString != 0) {
+			memcpy(pkt.name, pString, sizeof(pkt.name));
+		}
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_TIMECHANGE:
-		*cp = (char)sV1;
-		cp++;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 7);
+	{
+		hb::net::PacketNotifyTimeChange pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.sprite_alpha = static_cast<uint8_t>(sV1);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 		break;
+	}
 
 	case DEF_NOTIFY_TOBERECALLED:
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 6);
+	{
+		hb::net::PacketNotifyEmpty pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_HUNGER:
-		*cp = (char)sV1;
-		cp++;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 7);
+	{
+		hb::net::PacketNotifyHunger pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.hunger = static_cast<uint8_t>(sV1);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 		break;
+	}
 
 	case DEF_NOTIFY_PLAYERPROFILE:
-		if (strlen(pString) > 100) {
-			memcpy(cp, pString, 100);
-			cp += 100;
+	{
+		hb::net::PacketNotifyPlayerProfile pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		std::size_t send_len = 0;
+		if (pString != 0) {
+			send_len = std::strlen(pString);
+			if (send_len >= sizeof(pkt.text)) {
+				send_len = sizeof(pkt.text) - 1;
+			}
+			std::size_t copy_len = send_len;
+			if (copy_len > 100) {
+				copy_len = 100;
+			}
+			memcpy(pkt.text, pString, copy_len);
 		}
-		else {
-			memcpy(cp, pString, strlen(pString));
-			cp += strlen(pString);
-		}
-		*cp = 0;
-		cp++;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 7 + strlen(pString));
+		pkt.text[send_len] = '\0';
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt),
+			static_cast<int>(sizeof(hb::net::PacketHeader) + send_len + 1));
 		break;
+	}
 
 		// New 10/05/2004 Changed
 	case DEF_NOTIFY_WHISPERMODEON:
 	case DEF_NOTIFY_WHISPERMODEOFF:
 	case DEF_NOTIFY_PLAYERNOTONGAME:
-		memcpy(cp, pString, 10);
-		cp += 10;
-
-		memcpy(cp, "          ", 10);
-		cp += 10;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 27);
+	{
+		hb::net::PacketNotifyPlayerNotOnGame pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		if (pString != 0) {
+			memcpy(pkt.name, pString, sizeof(pkt.name));
+		}
+		std::memset(pkt.filler, ' ', sizeof(pkt.filler));
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 		// New 15/05/2004 Changed
 	case DEF_NOTIFY_PLAYERONGAME:
-		memcpy(cp, pString, 10);
-		cp += 10;
-
-		if (pString[0] != 0) {
-			memcpy(cp, pString2, 14);
-			cp += 14;
+	{
+		hb::net::PacketNotifyPlayerOnGame pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		if (pString != 0) {
+			memcpy(pkt.name, pString, sizeof(pkt.name));
 		}
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 31);
+		if (pString != 0 && pString[0] != 0 && pString2 != 0) {
+			memcpy(pkt.map_name, pString2, sizeof(pkt.map_name));
+		}
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 		// New 06/05/2004
 	case DEF_NOTIFY_ITEMSOLD:
 	case DEF_NOTIFY_ITEMREPAIRED:
-		dwp = (uint32_t*)cp;
-		*dwp = (uint32_t)sV1;
-		cp += 4;
-		dwp = (uint32_t*)cp;
-		*dwp = (uint32_t)sV2;
-		cp += 4;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 14);
+	{
+		hb::net::PacketNotifyItemRepaired pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.item_id = static_cast<uint32_t>(sV1);
+		pkt.life = static_cast<uint32_t>(sV2);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 		break;
+	}
 
 		// New 06/05/2004
 	case DEF_NOTIFY_REPAIRITEMPRICE:
 	case DEF_NOTIFY_SELLITEMPRICE:
-		dwp = (uint32_t*)cp;
-		*dwp = (uint32_t)sV1;
-		cp += 4;
-		dwp = (uint32_t*)cp;
-		*dwp = (uint32_t)sV2;
-		cp += 4;
-		dwp = (uint32_t*)cp;
-		*dwp = (uint32_t)sV3;
-		cp += 4;
-		dwp = (uint32_t*)cp;
-		*dwp = (uint32_t)sV4;
-		cp += 4;
-
-		memcpy(cp, pString, 20);
-		cp += 20;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 42);
+	{
+		if (wMsgType == DEF_NOTIFY_REPAIRITEMPRICE) {
+			hb::net::PacketNotifyRepairItemPrice pkt{};
+			pkt.header.msg_id = MSGID_NOTIFY;
+			pkt.header.msg_type = wMsgType;
+			pkt.v1 = static_cast<uint32_t>(sV1);
+			pkt.v2 = static_cast<uint32_t>(sV2);
+			pkt.v3 = static_cast<uint32_t>(sV3);
+			pkt.v4 = static_cast<uint32_t>(sV4);
+			if (pString != 0) {
+				memcpy(pkt.item_name, pString, sizeof(pkt.item_name));
+			}
+			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		}
+		else {
+			hb::net::PacketNotifySellItemPrice pkt{};
+			pkt.header.msg_id = MSGID_NOTIFY;
+			pkt.header.msg_type = wMsgType;
+			pkt.v1 = static_cast<uint32_t>(sV1);
+			pkt.v2 = static_cast<uint32_t>(sV2);
+			pkt.v3 = static_cast<uint32_t>(sV3);
+			pkt.v4 = static_cast<uint32_t>(sV4);
+			if (pString != 0) {
+				memcpy(pkt.item_name, pString, sizeof(pkt.item_name));
+			}
+			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		}
 		break;
+	}
 
 	case DEF_NOTIFY_CANNOTREPAIRITEM:
 	case DEF_NOTIFY_CANNOTSELLITEM:
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV1;
-		cp += 2;
-
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV2;
-		cp += 2;
-
-		memcpy(cp, pString, 20);
-		cp += 20;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 30);
-
+		if (wMsgType == DEF_NOTIFY_CANNOTREPAIRITEM) {
+			hb::net::PacketNotifyCannotRepairItem pkt{};
+			pkt.header.msg_id = MSGID_NOTIFY;
+			pkt.header.msg_type = wMsgType;
+			pkt.item_index = static_cast<uint16_t>(sV1);
+			pkt.reason = static_cast<uint16_t>(sV2);
+			if (pString != 0) {
+				memcpy(pkt.name, pString, sizeof(pkt.name));
+			}
+			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		}
+		else {
+			hb::net::PacketNotifyCannotSellItem pkt{};
+			pkt.header.msg_id = MSGID_NOTIFY;
+			pkt.header.msg_type = wMsgType;
+			pkt.item_index = static_cast<uint16_t>(sV1);
+			pkt.reason = static_cast<uint16_t>(sV2);
+			if (pString != 0) {
+				memcpy(pkt.name, pString, sizeof(pkt.name));
+			}
+			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		}
 		break;
 
 	case DEF_NOTIFY_SHOWMAP:
-		wp = (uint16_t*)cp;  // º¸¿©ÁÖ´Â Á¾·ù 
-		*wp = (uint16_t)sV1;
-		cp += 2;
-
-		wp = (uint16_t*)cp;  // ¸Ê ¹øÈ£ (0 aresden, 1 elvine, 3 middleland...)
-		*wp = (uint16_t)sV2;
-		cp += 2;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 10);
-		break;
+	{
+		hb::net::PacketNotifyShowMap pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.map_id = static_cast<uint16_t>(sV1);
+		pkt.map_type = static_cast<uint16_t>(sV2);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
+	break;
 
 	case DEF_NOTIFY_SKILLUSINGEND:
-		wp = (uint16_t*)cp;  // ±â¼ú »ç¿ë °á°ú 
-		*wp = (uint16_t)sV1;
-		cp += 2;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 8);
+	{
+		hb::net::PacketNotifySkillUsingEnd pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.result = static_cast<uint16_t>(sV1);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 		break;
+	}
 
 	case DEF_NOTIFY_TOTALUSERS:
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)m_iTotalGameServerClients; //_iGetTotalClients();
-		cp += 2;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 8);
+	{
+		hb::net::PacketNotifyTotalUsers pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.total = static_cast<uint16_t>(m_iTotalGameServerClients);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 		break;
+	}
 
 	case DEF_NOTIFY_MAGICEFFECTOFF:
 	case DEF_NOTIFY_MAGICEFFECTON:
-		wp = (uint16_t*)cp;  // ¸¶¹ý È¿°ú Á¾·ù 
-		*wp = (uint16_t)sV1;
-		cp += 2;
-
-		dwp = (uint32_t*)cp;  // ¸¶¹ý È¿°ú È¿·Â  
-		*dwp = (uint32_t)sV2;
-		cp += 4;
-
-		dwp = (uint32_t*)cp;  // ¸¶¹ý È¿°ú È¿·Â  
-		*dwp = (uint32_t)sV3;
-		cp += 4;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 16);
+	{
+		hb::net::PacketNotifyMagicEffect pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.magic_type = static_cast<uint16_t>(sV1);
+		pkt.effect = static_cast<uint32_t>(sV2);
+		pkt.owner = static_cast<uint32_t>(sV3);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_CANNOTITEMTOBANK:
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 6);
+	{
+		hb::net::PacketNotifyEmpty pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_SERVERCHANGE:
-		memcpy(cp, m_pClientList[iToH]->m_cMapName, 10);
-		cp += 10;
-
-		// World ServerÀÇ ÁÖ¼Ò¸¦ ¾Ë·ÁÁØ´Ù.
-		memcpy(cp, m_cLogServerAddr, 15);
-		cp += 15;
-
-		ip = (int*)cp;
-		//Filter
-		*ip = m_iLogServerPort;
-		cp += 4;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 16 + 19);
-		break;
+	{
+		hb::net::PacketNotifyServerChange pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		memcpy(pkt.map_name, m_pClientList[iToH]->m_cMapName, sizeof(pkt.map_name));
+		memcpy(pkt.log_server_addr, m_cLogServerAddr, sizeof(pkt.log_server_addr));
+		pkt.log_server_port = m_iLogServerPort;
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
+	break;
 
 	case DEF_NOTIFY_SKILL:
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV1;
-		cp += 2;
-
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV2;
-		cp += 2;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 10);
+	{
+		hb::net::PacketNotifySkill pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.skill_index = static_cast<uint16_t>(sV1);
+		pkt.skill_value = static_cast<uint16_t>(sV2);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 		break;
+	}
 
 	case DEF_NOTIFY_SETITEMCOUNT:
-		wp = (uint16_t*)cp;  // ¾ÆÀÌÅÛ ÀÎµ¦½º ¹øÈ£ 
-		*wp = (uint16_t)sV1;
-		cp += 2;
-
-		dwp = (uint32_t*)cp;  // ¾ÆÀÌÅÛÀÇ ÇöÀç ¼ö·® 
-		*dwp = (uint32_t)sV2;
-		cp += 4;
-
-		*cp = (char)sV3;
-		cp++;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 13);
-		break;
+	{
+		hb::net::PacketNotifySetItemCount pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.item_index = static_cast<uint16_t>(sV1);
+		pkt.count = static_cast<uint32_t>(sV2);
+		pkt.notify = static_cast<uint8_t>(sV3);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
+	break;
 
 	case DEF_NOTIFY_ITEMDEPLETED_ERASEITEM:
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV1;
-		cp += 2;
-
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV2;
-		cp += 2;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 10);
+	{
+		hb::net::PacketNotifyItemDepletedEraseItem pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.item_index = static_cast<uint16_t>(sV1);
+		pkt.use_result = static_cast<uint16_t>(sV2);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 		break;
+	}
 
 	case DEF_NOTIFY_DROPITEMFIN_COUNTCHANGED:
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV1;
-		cp += 2;
-
-		ip = (int*)cp;
-		*ip = (int)sV2;
-		cp += 4;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 12);
+	{
+		hb::net::PacketNotifyDropItemFinCountChanged pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.item_index = static_cast<uint16_t>(sV1);
+		pkt.amount = static_cast<int32_t>(sV2);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 		break;
+	}
 
 	case DEF_NOTIFY_DROPITEMFIN_ERASEITEM:
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV1;
-		cp += 2;
-
-		ip = (int*)cp;
-		*ip = (int)sV2;
-		cp += 4;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 12);
+	{
+		hb::net::PacketNotifyDropItemFinEraseItem pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.item_index = static_cast<uint16_t>(sV1);
+		pkt.amount = static_cast<int32_t>(sV2);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 		break;
+	}
 
 	case DEF_NOTIFY_CANNOTGIVEITEM:
 	case DEF_NOTIFY_GIVEITEMFIN_COUNTCHANGED:
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV1;
-		cp += 2;
-
-		ip = (int*)cp;
-		*ip = (int)sV2;
-		cp += 4;
-
-		memcpy(cp, pString, 20);
-		cp += 20;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 32);
+		if (wMsgType == DEF_NOTIFY_GIVEITEMFIN_COUNTCHANGED) {
+			hb::net::PacketNotifyGiveItemFinCountChanged pkt{};
+			pkt.header.msg_id = MSGID_NOTIFY;
+			pkt.header.msg_type = wMsgType;
+			pkt.item_index = static_cast<uint16_t>(sV1);
+			pkt.amount = static_cast<int32_t>(sV2);
+			if (pString != 0) {
+				memcpy(pkt.name, pString, sizeof(pkt.name));
+			}
+			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		}
+		else {
+			hb::net::PacketNotifyCannotGiveItem pkt{};
+			pkt.header.msg_id = MSGID_NOTIFY;
+			pkt.header.msg_type = wMsgType;
+			pkt.item_index = static_cast<uint16_t>(sV1);
+			pkt.amount = static_cast<int32_t>(sV2);
+			if (pString != 0) {
+				memcpy(pkt.name, pString, sizeof(pkt.name));
+			}
+			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		}
 		break;
 
 	case DEF_NOTIFY_GIVEITEMFIN_ERASEITEM:
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV1;
-		cp += 2;
-
-		ip = (int*)cp;
-		*ip = (int)sV2;
-		cp += 4;
-
-		memcpy(cp, pString, 20);
-		cp += 20;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 32);
+	{
+		hb::net::PacketNotifyGiveItemFinEraseItem pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.item_index = static_cast<uint16_t>(sV1);
+		pkt.amount = static_cast<int32_t>(sV2);
+		if (pString != 0) {
+			memcpy(pkt.name, pString, sizeof(pkt.name));
+		}
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 		break;
+	}
 
 	case DEF_NOTIFY_ENEMYKILLREWARD:
-		dwp = (uint32_t*)cp;
-		*dwp = (uint32_t)m_pClientList[iToH]->m_iExp;
-		cp += 4;
-		dwp = (uint32_t*)cp;
-		*dwp = (uint32_t)m_pClientList[iToH]->m_iEnemyKillCount;
-		cp += 4;
-		memcpy(cp, m_pClientList[sV1]->m_cCharName, 10);
-		cp += 10;
-		memcpy(cp, m_pClientList[sV1]->m_cGuildName, 20);
-		cp += 20;
-		sp = (short*)cp;
-		*sp = (short)m_pClientList[sV1]->m_iGuildRank;
-		cp += 2;
-		sp = (short*)cp;
-		*sp = (short)m_pClientList[iToH]->m_iWarContribution;
-		cp += 2;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 48);
+	{
+		hb::net::PacketNotifyEnemyKillReward pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.exp = static_cast<uint32_t>(m_pClientList[iToH]->m_iExp);
+		pkt.kill_count = static_cast<uint32_t>(m_pClientList[iToH]->m_iEnemyKillCount);
+		memcpy(pkt.killer_name, m_pClientList[sV1]->m_cCharName, sizeof(pkt.killer_name));
+		memcpy(pkt.killer_guild, m_pClientList[sV1]->m_cGuildName, sizeof(pkt.killer_guild));
+		pkt.killer_rank = static_cast<int16_t>(m_pClientList[sV1]->m_iGuildRank);
+		pkt.war_contribution = static_cast<int16_t>(m_pClientList[iToH]->m_iWarContribution);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_PKCAPTURED:
-		// PK¸¦ Àâ¾Ò´Ù.
-		// PKÀÇ PKcount
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV1;
-		cp += 2;
-		wp = (uint16_t*)cp;
-		*wp = (uint16_t)sV2;
-		cp += 2;
-		memcpy(cp, pString, 10);
-		cp += 10;
-		dwp = (uint32_t*)cp;
-		*dwp = (uint32_t)m_pClientList[iToH]->m_iRewardGold;
-		cp += 4;
-		dwp = (uint32_t*)cp;
-		*dwp = m_pClientList[iToH]->m_iExp;
-		cp += 4;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 28);
+	{
+		hb::net::PacketNotifyPKcaptured pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.pk_count = static_cast<uint16_t>(sV1);
+		pkt.victim_pk_count = static_cast<uint16_t>(sV2);
+		if (pString != 0) {
+			memcpy(pkt.victim_name, pString, sizeof(pkt.victim_name));
+		}
+		pkt.reward_gold = static_cast<uint32_t>(m_pClientList[iToH]->m_iRewardGold);
+		pkt.exp = static_cast<uint32_t>(m_pClientList[iToH]->m_iExp);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_PKPENALTY:
-		// PK Æä³ÎÆ¼¸¦ ¸Ô¾ú´Ù.
-		dwp = (uint32_t*)cp;
-		*dwp = (uint32_t)m_pClientList[iToH]->m_iExp;
-		cp += 4;
-		dwp = (uint32_t*)cp;
-		*dwp = (uint32_t)m_pClientList[iToH]->m_iStr;
-		cp += 4;
-		dwp = (uint32_t*)cp;
-		*dwp = (uint32_t)m_pClientList[iToH]->m_iVit;
-		cp += 4;
-		dwp = (uint32_t*)cp;
-		*dwp = (uint32_t)m_pClientList[iToH]->m_iDex;
-		cp += 4;
-		dwp = (uint32_t*)cp;
-		*dwp = (uint32_t)m_pClientList[iToH]->m_iInt;
-		cp += 4;
-		dwp = (uint32_t*)cp;
-		*dwp = (uint32_t)m_pClientList[iToH]->m_iMag;
-		cp += 4;
-		dwp = (uint32_t*)cp;
-		*dwp = (uint32_t)m_pClientList[iToH]->m_iCharisma;
-		cp += 4;
-		dwp = (uint32_t*)cp;
-		*dwp = (uint32_t)m_pClientList[iToH]->m_iPKCount;
-		cp += 4;
+	{
+		hb::net::PacketNotifyPKpenalty pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.exp = static_cast<uint32_t>(m_pClientList[iToH]->m_iExp);
+		pkt.str = static_cast<uint32_t>(m_pClientList[iToH]->m_iStr);
+		pkt.vit = static_cast<uint32_t>(m_pClientList[iToH]->m_iVit);
+		pkt.dex = static_cast<uint32_t>(m_pClientList[iToH]->m_iDex);
+		pkt.intel = static_cast<uint32_t>(m_pClientList[iToH]->m_iInt);
+		pkt.mag = static_cast<uint32_t>(m_pClientList[iToH]->m_iMag);
+		pkt.chr = static_cast<uint32_t>(m_pClientList[iToH]->m_iCharisma);
+		pkt.pk_count = static_cast<uint32_t>(m_pClientList[iToH]->m_iPKCount);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
+		break;
 
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 38);
+	case DEF_NOTIFY_REPAIRALLPRICES:
+	{
+		hb::net::PacketNotifyRepairAllPricesHeader header{};
+		header.header.msg_id = MSGID_NOTIFY;
+		header.header.msg_type = wMsgType;
+		int total = m_pClientList[iToH]->totalItemRepair;
+		if (total < 0) total = 0;
+		header.total = static_cast<int16_t>(total);
+
+		hb::net::PacketWriter writer;
+		writer.Reserve(sizeof(hb::net::PacketNotifyRepairAllPricesHeader) +
+			(total * sizeof(hb::net::PacketNotifyRepairAllPricesEntry)));
+		writer.AppendBytes(&header, sizeof(header));
+
+		for (int i = 0; i < total; i++) {
+			hb::net::PacketNotifyRepairAllPricesEntry entry{};
+			entry.index = static_cast<uint8_t>(m_pClientList[iToH]->m_stRepairAll[i].index);
+			entry.price = static_cast<int16_t>(m_pClientList[iToH]->m_stRepairAll[i].price);
+			writer.AppendBytes(&entry, sizeof(entry));
+		}
+
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(writer.Data(), static_cast<int>(writer.Size()));
+	}
 		break;
 
 	case DEF_NOTIFY_TRAVELERLIMITEDLEVEL:
 	case DEF_NOTIFY_LIMITEDLEVEL:
-		// Ã¼ÇèÆÇ »ç¿ëÀÚ´Â ´õÀÌ»ó ·¹º§À» ¿Ã¸± ¼ö ¾øÀ½À» ¾Ë¸°´Ù.
-		dwp = (uint32_t*)cp;
-		*dwp = (uint32_t)m_pClientList[iToH]->m_iExp;
-		cp += 4;
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 10);
+	{
+		hb::net::PacketNotifySimpleInt pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.value = static_cast<int32_t>(m_pClientList[iToH]->m_iExp);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 		break;
+	}
 
 	case DEF_NOTIFY_ITEMRELEASED:
-	case DEF_NOTIFY_ITEMLIFESPANEND:
-		// ÀüÅõÁß ¹«±â, È¤Àº ¹æ¾î±¸ ¾ÆÀÌÅÛÀÇ ¼ö¸íÀÌ ´ÙÇØ ¸Á°¡Á³À½À» ¾Ë¸°´Ù. 
-		sp = (short*)cp;
-		*sp = (short)sV1;	// ÀåÂø À§Ä¡ 
-		cp += 2;
-		sp = (short*)cp;
-		*sp = (short)sV2;	// ¾ÆÀÌÅÛ ¹øÈ£  
-		cp += 2;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 10);
+	{
+		hb::net::PacketNotifyItemReleased pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.equip_pos = static_cast<int16_t>(sV1);
+		pkt.item_index = static_cast<int16_t>(sV2);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 		break;
+	}
+	case DEF_NOTIFY_ITEMLIFESPANEND:
+	{
+		hb::net::PacketNotifyItemLifeSpanEnd pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.equip_pos = static_cast<int16_t>(sV1);
+		pkt.item_index = static_cast<int16_t>(sV2);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		break;
+	}
 
 	case DEF_NOTIFY_KILLED:
-		// »ç¸Á Åëº¸ : Á×ÀÎ Ä³¸¯ÅÍ ÀÌ¸§µµ ÇÔ²² º¸³»ÁØ´Ù. 
-		memcpy(cp, pString, 20);
-		cp += 20;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 26);
+	{
+		hb::net::PacketNotifyKilled pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		if (pString != 0) {
+			memcpy(pkt.attacker_name, pString, sizeof(pkt.attacker_name));
+		}
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_EXP:
-		dwp = (uint32_t*)cp;
-		*dwp = (uint32_t)m_pClientList[iToH]->m_iExp;
-		cp += 4;
-
-		ip = (int*)cp;
-		*ip = m_pClientList[iToH]->m_iRating;
-		cp += 4;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 14);
+	{
+		hb::net::PacketNotifyExp pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.exp = static_cast<uint32_t>(m_pClientList[iToH]->m_iExp);
+		pkt.rating = static_cast<int32_t>(m_pClientList[iToH]->m_iRating);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 		break;
+	}
 
 	case DEF_NOTIFY_HP:
-		dwp = (uint32_t*)cp;
-		*dwp = (uint32_t)m_pClientList[iToH]->m_iHP;
-		cp += 4;
-		dwp = (uint32_t*)cp;
-		*dwp = (uint32_t)m_pClientList[iToH]->m_iHungerStatus; // v2.04 0926 HPÀÇ µÚ¿¡ MP¸¦ °°ÀÌ ¾Ë·ÁÁØ´Ù. ¸¶³ªº¯È¯ÀÇ Æ¯¼ºÄ¡ ¶§¹® 
-		cp += 4;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 14);
+	{
+		hb::net::PacketNotifyHP pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.hp = static_cast<uint32_t>(m_pClientList[iToH]->m_iHP);
+		pkt.hunger = static_cast<uint32_t>(m_pClientList[iToH]->m_iHungerStatus);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 		break;
+	}
 
 	case DEF_NOTIFY_MP:
-		dwp = (uint32_t*)cp;
-		*dwp = (uint32_t)m_pClientList[iToH]->m_iMP;
-		cp += 4;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 10);
+	{
+		hb::net::PacketNotifyMP pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.mp = static_cast<uint32_t>(m_pClientList[iToH]->m_iMP);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 		break;
+	}
 
 	case DEF_NOTIFY_SP:
-		dwp = (uint32_t*)cp;
-		*dwp = (uint32_t)m_pClientList[iToH]->m_iSP;
-		cp += 4;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 10);
+	{
+		hb::net::PacketNotifySP pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.sp = static_cast<uint32_t>(m_pClientList[iToH]->m_iSP);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 		break;
+	}
 
 	case DEF_NOTIFY_CHARISMA:
-		dwp = (uint32_t*)cp;
-		*dwp = (uint32_t)m_pClientList[iToH]->m_iCharisma;
-		cp += 4;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 10);
+	{
+		hb::net::PacketNotifyCharisma pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.charisma = static_cast<uint32_t>(m_pClientList[iToH]->m_iCharisma);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
-		//MOG Fixes
-	case DEF_NOTIFY_STATECHANGE_FAILED:		// 2003-04-14 ÁöÁ¸ Æ÷ÀÎÆ®¸¦ ·¹º§ ¼öÁ¤¿¡ ½ÇÆÐ..korean buttplugs
+	// State change failures
+	case DEF_NOTIFY_STATECHANGE_FAILED:
 	case DEF_NOTIFY_SETTING_FAILED:
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 6);
+	{
+		hb::net::PacketNotifyEmpty pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_NOTIFY_STATECHANGE_SUCCESS:	// 2003-04-14 ÁöÁ¸ Æ÷ÀÎÆ®¸¦ ·¹º§ ¼öÁ¤¿¡ ¼º°ø.. wtf korean junk
 	{
 		int i;
+		hb::net::PacketNotifyStateChangeSuccess pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
 
 		for (i = 0; i < DEF_MAXMAGICTYPE; i++) {
-			*cp = m_pClientList[iToH]->m_cMagicMastery[i];
-			cp++;
+			pkt.magic_mastery[i] = static_cast<uint8_t>(m_pClientList[iToH]->m_cMagicMastery[i]);
 		}
 
 		for (i = 0; i < DEF_MAXSKILLTYPE; i++) {
-			*cp = m_pClientList[iToH]->m_cSkillMastery[i];
-			cp++;
+			pkt.skill_mastery[i] = static_cast<uint8_t>(m_pClientList[iToH]->m_cSkillMastery[i]);
 		}
 
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 6 + DEF_MAXMAGICTYPE + DEF_MAXSKILLTYPE);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 	}
 	break;
 
 	case DEF_NOTIFY_SETTING_SUCCESS:
 	case DEF_NOTIFY_LEVELUP:
-		ip = (int*)cp;
-		*ip = m_pClientList[iToH]->m_iLevel;
-		cp += 4;
-
-		ip = (int*)cp;
-		*ip = m_pClientList[iToH]->m_iStr;
-		cp += 4;
-
-		ip = (int*)cp;
-		*ip = m_pClientList[iToH]->m_iVit;
-		cp += 4;
-
-		ip = (int*)cp;
-		*ip = m_pClientList[iToH]->m_iDex;
-		cp += 4;
-
-		ip = (int*)cp;
-		*ip = m_pClientList[iToH]->m_iInt;
-		cp += 4;
-
-		ip = (int*)cp;
-		*ip = m_pClientList[iToH]->m_iMag;
-		cp += 4;
-
-		ip = (int*)cp;
-		*ip = m_pClientList[iToH]->m_iCharisma;
-		cp += 4;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 34);
+	{
+		hb::net::PacketNotifyLevelUp pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.level = m_pClientList[iToH]->m_iLevel;
+		pkt.str = m_pClientList[iToH]->m_iStr;
+		pkt.vit = m_pClientList[iToH]->m_iVit;
+		pkt.dex = m_pClientList[iToH]->m_iDex;
+		pkt.intel = m_pClientList[iToH]->m_iInt;
+		pkt.mag = m_pClientList[iToH]->m_iMag;
+		pkt.chr = m_pClientList[iToH]->m_iCharisma;
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 		break;
+	}
 
 	case DEF_NOTIFY_QUERY_DISMISSGUILDREQPERMISSION:
-	case DEF_NOTIFY_QUERY_JOINGUILDREQPERMISSION:
-	case DEF_NOTIFY_CANNOTJOINMOREGUILDSMAN:
-
-		memcpy(cp, m_pClientList[iFromH]->m_cCharName, 10);
-		cp += 10;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 16);
+	{
+		hb::net::PacketNotifyQueryDismissGuildPermission pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		memcpy(pkt.name, m_pClientList[iFromH]->m_cCharName, sizeof(pkt.name));
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 		break;
+	}
+
+	case DEF_NOTIFY_QUERY_JOINGUILDREQPERMISSION:
+	{
+		hb::net::PacketNotifyQueryJoinGuildPermission pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		memcpy(pkt.name, m_pClientList[iFromH]->m_cCharName, sizeof(pkt.name));
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		break;
+	}
+
+	case DEF_NOTIFY_CANNOTJOINMOREGUILDSMAN:
+	{
+		hb::net::PacketNotifyCannotJoinMoreGuildsMan pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		memcpy(pkt.name, m_pClientList[iFromH]->m_cCharName, sizeof(pkt.name));
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		break;
+	}
 
 	case DEF_COMMONTYPE_JOINGUILDAPPROVE:
-		if (m_pClientList[iFromH] != 0)
-			memcpy(cp, m_pClientList[iFromH]->m_cGuildName, 20);
-		else memcpy(cp, "?", 1);
-		cp += 20;
-
-		sp = (short*)cp;
-		*sp = DEF_GUILDSTARTRANK;
-		cp += 2;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 28);
+	{
+		hb::net::PacketNotifyJoinGuildApprove pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		if (m_pClientList[iFromH] != 0) {
+			memcpy(pkt.guild_name, m_pClientList[iFromH]->m_cGuildName, sizeof(pkt.guild_name));
+		}
+		else {
+			memcpy(pkt.guild_name, "?", 1);
+		}
+		pkt.rank = DEF_GUILDSTARTRANK;
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 	case DEF_COMMONTYPE_JOINGUILDREJECT:
 	case DEF_COMMONTYPE_DISMISSGUILDAPPROVE:
 	case DEF_COMMONTYPE_DISMISSGUILDREJECT:
-		if (m_pClientList[iFromH] != 0)
-			memcpy(cp, m_pClientList[iFromH]->m_cGuildName, 20);
-		else memcpy(cp, "?", 1);
-		cp += 20;
-
-		sp = (short*)cp;
-		*sp = DEF_GUILDSTARTRANK;
-		cp += 2;
-
-		memcpy(cp, m_pClientList[iToH]->m_cLocation, 10);
-		cp += 10;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 38);
+		if (wMsgType == DEF_COMMONTYPE_JOINGUILDREJECT) {
+			hb::net::PacketNotifyJoinGuildReject pkt{};
+			pkt.header.msg_id = MSGID_NOTIFY;
+			pkt.header.msg_type = wMsgType;
+			if (m_pClientList[iFromH] != 0) {
+				memcpy(pkt.guild_name, m_pClientList[iFromH]->m_cGuildName, sizeof(pkt.guild_name));
+			}
+			else {
+				memcpy(pkt.guild_name, "?", 1);
+			}
+			pkt.rank = DEF_GUILDSTARTRANK;
+			memcpy(pkt.location, m_pClientList[iToH]->m_cLocation, sizeof(pkt.location));
+			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		}
+		else if (wMsgType == DEF_COMMONTYPE_DISMISSGUILDAPPROVE) {
+			hb::net::PacketNotifyDismissGuildApprove pkt{};
+			pkt.header.msg_id = MSGID_NOTIFY;
+			pkt.header.msg_type = wMsgType;
+			if (m_pClientList[iFromH] != 0) {
+				memcpy(pkt.guild_name, m_pClientList[iFromH]->m_cGuildName, sizeof(pkt.guild_name));
+			}
+			else {
+				memcpy(pkt.guild_name, "?", 1);
+			}
+			pkt.rank = DEF_GUILDSTARTRANK;
+			memcpy(pkt.location, m_pClientList[iToH]->m_cLocation, sizeof(pkt.location));
+			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		}
+		else {
+			hb::net::PacketNotifyDismissGuildReject pkt{};
+			pkt.header.msg_id = MSGID_NOTIFY;
+			pkt.header.msg_type = wMsgType;
+			if (m_pClientList[iFromH] != 0) {
+				memcpy(pkt.guild_name, m_pClientList[iFromH]->m_cGuildName, sizeof(pkt.guild_name));
+			}
+			else {
+				memcpy(pkt.guild_name, "?", 1);
+			}
+			pkt.rank = DEF_GUILDSTARTRANK;
+			memcpy(pkt.location, m_pClientList[iToH]->m_cLocation, sizeof(pkt.location));
+			iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		}
 		break;
 
 	case DEF_NOTIFY_GUILDDISBANDED:
-
-		memcpy(cp, pString, 20);
-		cp += 20;
-
-		memcpy(cp, m_pClientList[iToH]->m_cLocation, 10);
-		cp += 10;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 36);
+	{
+		hb::net::PacketNotifyGuildDisbanded pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		if (pString != 0) {
+			memcpy(pkt.guild_name, pString, sizeof(pkt.guild_name));
+		}
+		memcpy(pkt.location, m_pClientList[iToH]->m_cLocation, sizeof(pkt.location));
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 		// v1.4311-3 Ãß°¡ Å¬¶óÀÌ¾ðÆ®¿¡°Ô »çÅõÀå ¿¹¾àÀÌ Ãë¼ÒµÇ¾ú´Ù°í ¾Ë¸² ..
 	case DEF_NOTIFY_FIGHTZONERESERVE:
-		ip = (int*)cp;
-		*ip = (int)sV1;
-		cp += 4;
-
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 10);
+	{
+		hb::net::PacketNotifyFightZoneReserve pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.result = static_cast<int32_t>(sV1);
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 		// v1.4311-3 Ãß°¡ ±æµå ¸¶½ºÅÍ°¡ ¾Æ´Ñ°æ¿ì .
 	case DEF_NOTIFY_NOGUILDMASTERLEVEL:
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 6);
+	{
+		hb::net::PacketNotifyEmpty pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 
 		// v1.4311-3 Ãß°¡ ÀÚ½ÅÀÇ ±æµå¿øÀÌ  ¾Æ´Ñ°æ¿ì 
 	case DEF_NOTIFY_CANNOTBANGUILDMAN:
-		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(cData, 6);
+	{
+		hb::net::PacketNotifyEmpty pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		iRet = m_pClientList[iToH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 	}
 
@@ -11330,7 +10609,7 @@ void CGame::SendNotifyMsg(int iFromH, int iToH, uint16_t wMsgType, uint32_t sV1,
 	}
 }
 
-void CGame::JoinGuildApproveHandler(int iClientH, char* pName)
+void CGame::JoinGuildApproveHandler(int iClientH, const char* pName)
 {
 	int i;
 	bool bIsExist = false;
@@ -11376,7 +10655,7 @@ void CGame::JoinGuildApproveHandler(int iClientH, char* pName)
 	// °¡ÀÔÀ» ½ÅÃ»ÇÑ Å¬¶óÀÌ¾ðÆ®¸¦ Ã£À»¼ö ¾ø´Ù.(Á¢¼ÓÀÌ ±×»çÀÌ ²÷°å´Ù´øÁö) ¹«È¿ÀÓ 
 }
 
-void CGame::JoinGuildRejectHandler(int iClientH, char* pName)
+void CGame::JoinGuildRejectHandler(int iClientH, const char* pName)
 {
 	int i;
 
@@ -11397,7 +10676,7 @@ void CGame::JoinGuildRejectHandler(int iClientH, char* pName)
 	// °¡ÀÔÀ» ½ÅÃ»ÇÑ Å¬¶óÀÌ¾ðÆ®¸¦ Ã£À»¼ö ¾ø´Ù.(Á¢¼ÓÀÌ ±×»çÀÌ ²÷°å´Ù´øÁö) ¹«È¿ÀÓ 
 }
 
-void CGame::DismissGuildApproveHandler(int iClientH, char* pName)
+void CGame::DismissGuildApproveHandler(int iClientH, const char* pName)
 {
 	int i;
 
@@ -11424,7 +10703,7 @@ void CGame::DismissGuildApproveHandler(int iClientH, char* pName)
 
 }
 
-void CGame::DismissGuildRejectHandler(int iClientH, char* pName)
+void CGame::DismissGuildRejectHandler(int iClientH, const char* pName)
 {
 	int i;
 
@@ -12273,13 +11552,8 @@ void CGame::DelayEventProcess()
 
 void CGame::SendGuildMsg(int iClientH, uint16_t wNotifyMsgType, short sV1, short sV2, char* pString)
 {
-	char cData[500];
-	uint32_t* dwp;
-	uint16_t* wp;
-	char* cp;
 	int i, iRet;
 
-	// °°Àº ±æµå¿øµé¿¡°Ô¸¸ º¸³»´Â ¸Þ½ÃÁöµé
 	if (m_pClientList[iClientH] == 0) return;
 	if (m_pClientList[iClientH]->m_bIsInitComplete == false) return;
 
@@ -12287,26 +11561,16 @@ void CGame::SendGuildMsg(int iClientH, uint16_t wNotifyMsgType, short sV1, short
 		if ((m_pClientList[i] != 0) &&
 			(memcmp(m_pClientList[i]->m_cGuildName, m_pClientList[iClientH]->m_cGuildName, 20) == 0)) {
 
-			// ### BUG POINT À§Ä¡°¡ Àß¸øµÇ¾î Æ÷ÀÎÅÍ ¿¬»êÀÌ Àß¸øµÇ¾ú´Ù. 
-			std::memset(cData, 0, sizeof(cData));
-
-			dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-			*dwp = MSGID_NOTIFY;
-			wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-			*wp = wNotifyMsgType;
-
-			cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-
-			// °°Àº ±æµå ÀÌ¸§À» °®°í ÀÖ´Â Å¬¶óÀÌ¾ðÆ®¸¦ Ã£¾Ò´Ù.
 			switch (wNotifyMsgType) {
 			case DEF_NOTIFY_GUILDDISBANDED:
-				if (i == iClientH) break; // <-- ±æµå ¸¶½ºÅÍ ÀÚ½Å¿¡°Ô´Â ¸Þ½ÃÁö¸¦ º¸³»Áö ¾Ê´Â´Ù.
-				// ±æµå ÇØ»ê Åëº¸¿¡ ÇØ´ç Å¬¶óÀÌ¾ðÆ®ÀÇ ±æµå ·©Å©¸¦ Å¬¸®¾îÇÑ´Ù. 
-				memcpy(cp, m_pClientList[iClientH]->m_cGuildName, 20);
-				cp += 20;
-
-				iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData, 26);
-				// ÇØ´ç Å¬¶óÀÌ¾ðÆ®ÀÇ ±æµå³»¿ëÀ» Å¬¸®¾îÇÑ´Ù. @@@@@@@
+				if (i == iClientH) break;
+				{
+					hb::net::PacketNotifyGuildDisbanded pkt{};
+					pkt.header.msg_id = MSGID_NOTIFY;
+					pkt.header.msg_type = wNotifyMsgType;
+					memcpy(pkt.guild_name, m_pClientList[iClientH]->m_cGuildName, sizeof(pkt.guild_name));
+					iRet = m_pClientList[i]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+				}
 				std::memset(m_pClientList[i]->m_cGuildName, 0, sizeof(m_pClientList[i]->m_cGuildName));
 				strcpy(m_pClientList[i]->m_cGuildName, "NONE");
 				m_pClientList[i]->m_iGuildRank = -1;
@@ -12314,25 +11578,42 @@ void CGame::SendGuildMsg(int iClientH, uint16_t wNotifyMsgType, short sV1, short
 				break;
 
 			case DEF_NOTIFY_EVENTMSGSTRING:
-				// ±æµå¿øµé¿¡°Ô Àü´ÞµÇ´Â ÀÌº¥Æ® ¸Þ½ÃÁö ½ºÆ®¸µ 
-				strcpy(cp, pString);
-				cp += strlen(pString);
+			{
+				hb::net::PacketWriter writer;
+				writer.Reserve(sizeof(hb::net::PacketHeader) + 256);
 
-				iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData, 6 + strlen(pString) + 1);
+				auto* header = writer.Append<hb::net::PacketHeader>();
+				header->msg_id = MSGID_NOTIFY;
+				header->msg_type = wNotifyMsgType;
+
+				if (pString != 0) {
+					const std::size_t len = std::strlen(pString);
+					writer.AppendBytes(pString, len);
+				}
+				writer.AppendBytes("", 1);
+
+				iRet = m_pClientList[i]->m_pXSock->iSendMsg(writer.Data(), static_cast<int>(writer.Size()));
+			}
 				break;
 
 			case DEF_NOTIFY_NEWGUILDSMAN:
-				memcpy(cp, m_pClientList[iClientH]->m_cCharName, 10);
-				cp += 10;
-
-				iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData, 6 + 10 + 1);
+			{
+				hb::net::PacketNotifyNewGuildsMan pkt{};
+				pkt.header.msg_id = MSGID_NOTIFY;
+				pkt.header.msg_type = wNotifyMsgType;
+				memcpy(pkt.name, m_pClientList[iClientH]->m_cCharName, 10);
+				iRet = m_pClientList[i]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+			}
 				break;
 
 			case DEF_NOTIFY_DISMISSGUILDSMAN:
-				memcpy(cp, m_pClientList[iClientH]->m_cCharName, 10);
-				cp += 10;
-
-				iRet = m_pClientList[i]->m_pXSock->iSendMsg(cData, 6 + 10 + 1);
+			{
+				hb::net::PacketNotifyDismissGuildsMan pkt{};
+				pkt.header.msg_id = MSGID_NOTIFY;
+				pkt.header.msg_type = wNotifyMsgType;
+				memcpy(pkt.name, m_pClientList[iClientH]->m_cCharName, 10);
+				iRet = m_pClientList[i]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+			}
 				break;
 			}
 
@@ -12341,13 +11622,13 @@ void CGame::SendGuildMsg(int iClientH, uint16_t wNotifyMsgType, short sV1, short
 			case DEF_XSOCKEVENT_SOCKETERROR:
 			case DEF_XSOCKEVENT_CRITICALERROR:
 			case DEF_XSOCKEVENT_SOCKETCLOSED:
-				// ¸Þ½ÃÁö¸¦ º¸³¾¶§ ¿¡·¯°¡ ¹ß»ýÇß´Ù¸é Á¦°ÅÇÑ´Ù.
 				DeleteClient(i, true, true);
 				return;
 			}
 		}
 
 }
+
 
 void CGame::GuildNotifyHandler(char* pData, uint32_t dwMsgSize)
 {
@@ -12357,7 +11638,9 @@ void CGame::GuildNotifyHandler(char* pData, uint32_t dwMsgSize)
 	std::memset(cCharName, 0, sizeof(cCharName));
 	std::memset(cGuildName, 0, sizeof(cGuildName));
 
-	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
+	const auto* header = hb::net::PacketCast<hb::net::PacketHeader>(pData, sizeof(hb::net::PacketHeader));
+	if (!header) return;
+	cp = (char*)(pData + sizeof(hb::net::PacketHeader));
 
 	memcpy(cCharName, cp, 10);
 	cp += 10;
@@ -12610,9 +11893,6 @@ void CGame::SendMsgToGateServer(uint32_t dwMsg, int iClientH, char* pData)
 /////////////////////////////////////////////////////////////////////////////////////
 int CGame::iClientMotion_Magic_Handler(int iClientH, short sX, short sY, char cDir)
 {
-	char  cData[100];
-	uint32_t* dwp;
-	uint16_t* wp;
 	int     iRet;
 
 	if (m_pClientList[iClientH] == 0) return 0;
@@ -12647,12 +11927,12 @@ int CGame::iClientMotion_Magic_Handler(int iClientH, short sX, short sY, char cD
 
 	m_pClientList[iClientH]->m_cDir = cDir;
 
-	dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-	*dwp = MSGID_RESPONSE_MOTION;
-	wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-	*wp = DEF_OBJECTMOTION_CONFIRM;
-
-	iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 6);
+	{
+		hb::net::PacketResponseMotionHeader pkt{};
+		pkt.header.msg_id = MSGID_RESPONSE_MOTION;
+		pkt.header.msg_type = DEF_OBJECTMOTION_CONFIRM;
+		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 	switch (iRet) {
 	case DEF_XSOCKEVENT_QUENEFULL:
 	case DEF_XSOCKEVENT_SOCKETERROR:
@@ -12678,14 +11958,14 @@ int  _tmp_iMCProb[] = { 0, 300, 250, 200, 150, 100, 80, 70, 60, 50, 40 };
 int  _tmp_iMLevelPenalty[] = { 0,   5,   5,   8,   8,  10, 14, 28, 32, 36, 40 };
 void CGame::PlayerMagicHandler(int iClientH, int dX, int dY, short sType, bool bItemEffect, int iV1)
 {
-	short* sp, sX, sY, sOwnerH, sMagicCircle, rx, ry, sLevelMagic, sTemp;
-	char* cp, cData[120], cDir, cOwnerType, cName[11], cItemName[21], cNpcWaypoint[11], cName_Master[11], cNpcName[21], cRemainItemColor, cScanMessage[256];
+	short sX, sY, sOwnerH, sMagicCircle, rx, ry, sLevelMagic, sTemp;
+	char cDir, cOwnerType, cName[11], cItemName[21], cNpcWaypoint[11], cName_Master[11], cNpcName[21], cRemainItemColor, cScanMessage[256];
 	double dV1, dV2, dV3, dV4;
 	int    i, iErr, iRet, ix, iy, iResult, iDiceRes, iNamingValue, iFollowersNum, iEraseReq, iWhetherBonus;
 	int    tX, tY, iManaCost, iMagicAttr;
 	class  CItem* pItem;
-	uint32_t* dwp, dwTime;
-	uint16_t* wp, wWeaponType;
+	uint32_t dwTime;
+	uint16_t wWeaponType;
 	short sEqStatus;
 	int iMapSide = 0;
 	short sIDNum;
@@ -14782,78 +14062,7 @@ void CGame::PlayerMagicHandler(int iClientH, int dX, int dY, short sType, bool b
 					// v1.411 Â·ÃŽÂ±Ã— Â³Â²Â±Ã¤Â´Ã™.
 					_bItemLog(DEF_ITEMLOG_GET, iClientH, (int)-1, pItem);
 
-					dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-					*dwp = MSGID_NOTIFY;
-					wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-					*wp = DEF_NOTIFY_ITEMOBTAINED;
-
-					cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-
-					// 1Â°Â³ ÃˆÂ¹ÂµÃ¦Ã‡ÃŸÂ´Ã™. <- Â¿Â©Â±Ã¢Â¼Â­ 1Â°Â³Â¶Ãµ Ã„Â«Â¿Ã®Ã†Â®Â¸Â¦ Â¸Â»Ã‡ÃÂ´Ã‚ Â°ÃÃ€ÃŒ Â¾Ã†Â´ÃÂ´Ã™
-					*cp = 1;
-					cp++;
-
-					memcpy(cp, pItem->m_cName, 20);
-					cp += 20;
-
-					dwp = (uint32_t*)cp;
-					*dwp = pItem->m_dwCount;
-					cp += 4;
-
-					*cp = pItem->m_cItemType;
-					cp++;
-
-					*cp = pItem->m_cEquipPos;
-					cp++;
-
-					*cp = (char)0; // Â¾Ã²Ã€Âº Â¾Ã†Ã€ÃŒÃ…Ã›Ã€ÃŒÂ¹Ã‡Â·ÃŽ Ã€Ã¥Ã‚Ã¸ÂµÃ‡ÃÃ¶ Â¾ÃŠÂ¾Ã’Â´Ã™.
-					cp++;
-
-					sp = (short*)cp;
-					*sp = pItem->m_sLevelLimit;
-					cp += 2;
-
-					*cp = pItem->m_cGenderLimit;
-					cp++;
-
-					wp = (uint16_t*)cp;
-					*wp = pItem->m_wCurLifeSpan;
-					cp += 2;
-
-					wp = (uint16_t*)cp;
-					*wp = pItem->m_wWeight;
-					cp += 2;
-
-					sp = (short*)cp;
-					*sp = pItem->m_sSprite;
-					cp += 2;
-
-					sp = (short*)cp;
-					*sp = pItem->m_sSpriteFrame;
-					cp += 2;
-
-					*cp = pItem->m_cItemColor;
-					cp++;
-
-					*cp = (char)pItem->m_sItemSpecEffectValue2; // v1.41 
-					cp++;
-
-					dwp = (uint32_t*)cp;
-					*dwp = pItem->m_dwAttribute;
-					cp += 4;
-					/*
-					*cp = (char)(pItem->m_dwAttribute & 0x00000001); // Custom-ItemÃ€ÃŽÃÃ¶Ã€Ã‡ Â¿Â©ÂºÃŽ
-					cp++;
-					*/
-
-					if (iEraseReq == 1) delete pItem;
-
-					// Â¾Ã†Ã€ÃŒÃ…Ã›Ã€Â» ÃÃÂ°Ã­Â³Â­ ÃˆÃ„ Â³Â²Ã€Âº Â¾Ã†Ã€ÃŒÃ…Ã›Ã€Â» Â´Ã™Â¸Â¥ Ã…Â¬Â¶Ã³Ã€ÃŒÂ¾Ã°Ã†Â®Â¿Â¡Â°Ã” Â¾Ã‹Â¸Â°Â´Ã™. 
-					SendEventToNearClient_TypeB(MSGID_EVENT_COMMON, DEF_COMMONTYPE_SETITEM, m_pClientList[iClientH]->m_cMapIndex,
-						dX, dY, sIDNum, 0, cRemainItemColor, dwAttr); // v1.4
-
-					// Â¾Ã†Ã€ÃŒÃ…Ã› ÃÂ¤ÂºÂ¸ Ã€Ã¼Â¼Ã› 
-					iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 53);
+					iRet = SendItemNotifyMsg(iClientH, DEF_NOTIFY_ITEMOBTAINED, pItem, 0);
 
 					switch (iRet) {
 					case DEF_XSOCKEVENT_QUENEFULL:
@@ -14872,12 +14081,9 @@ void CGame::PlayerMagicHandler(int iClientH, int dX, int dY, short sType, bool b
 					// Â°Â¡ÃÂ®Â¿Ã”Â´Ã¸ Â¾Ã†Ã€ÃŒÃ…Ã›Ã€Â» Â¿Ã¸Â»Ã³ÃˆÂ¸ÂºÂ¹Â½ÃƒÃ…Â²Â´Ã™. 
 					m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->bSetItem(dX, dY, pItem);
 
-					dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-					*dwp = MSGID_NOTIFY;
-					wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-					*wp = DEF_NOTIFY_CANNOTCARRYMOREITEM;
+					iRet = SendItemNotifyMsg(iClientH, DEF_NOTIFY_CANNOTCARRYMOREITEM, 0, 0);
 
-					iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 6);
+
 					switch (iRet) {
 					case DEF_XSOCKEVENT_QUENEFULL:
 					case DEF_XSOCKEVENT_SOCKETERROR:
@@ -15283,12 +14489,10 @@ MAGIC_NOEFFECT:
 
 void CGame::RequestTeleportHandler(int iClientH, char* pData, char* cMapName, int dX, int dY)
 {
-	char* pBuffer, cTempMapName[21];
-	uint32_t* dwp;
-	uint16_t* wp;
-	char* cp, cDestMapName[11], cDir, cMapIndex, cQuestRemain;
-	short* sp, sX, sY, sSummonPoints;
-	int* ip, i, iRet, iSize, iDestX, iDestY, iExH, iMapSide;
+	char cTempMapName[21];
+	char cDestMapName[11], cDir, cMapIndex, cQuestRemain;
+	short sX, sY, sSummonPoints;
+	int i, iRet, iSize, iDestX, iDestY, iExH, iMapSide;
 	bool    bRet, bIsLockedMapNotify;
 	SYSTEMTIME SysTime;
 
@@ -15591,89 +14795,41 @@ RTH_NEXTSTEP:
 	// Crusade
 	if (bIsLockedMapNotify) SendNotifyMsg(0, iClientH, DEF_NOTIFY_LOCKEDMAP, m_pClientList[iClientH]->m_iLockedMapTime, 0, 0, m_pClientList[iClientH]->m_cLockedMapName);
 
-	pBuffer = new char[DEF_MSGBUFFERSIZE + 1];
-	std::memset(pBuffer, 0, DEF_MSGBUFFERSIZE + 1);
+	hb::net::PacketWriter writer;
+	char initMapData[DEF_MSGBUFFERSIZE + 1];
 
-	// ë§µë°ì´í„°ë¥¼ ì „ì†¡í•œë‹¤.
-	dwp = (uint32_t*)(pBuffer + DEF_INDEX4_MSGID);
-	*dwp = MSGID_RESPONSE_INITDATA;
-	wp = (uint16_t*)(pBuffer + DEF_INDEX2_MSGTYPE);
-	*wp = DEF_MSGTYPE_CONFIRM;
+	writer.Reset();
+	auto* init_header = writer.Append<hb::net::PacketResponseInitDataHeader>();
+	init_header->header.msg_id = MSGID_RESPONSE_INITDATA;
+	init_header->header.msg_type = DEF_MSGTYPE_CONFIRM;
 
-	cp = (char*)(pBuffer + DEF_INDEX2_MSGTYPE + 2);
-
-	// í”Œë ˆì´ì–´ì˜ ìœ„ì¹˜ë¥¼ í™•ì •í•œë‹¤.
 	if (m_pClientList[iClientH]->m_bIsObserverMode == false)
 		bGetEmptyPosition(&m_pClientList[iClientH]->m_sX, &m_pClientList[iClientH]->m_sY, m_pClientList[iClientH]->m_cMapIndex);
 	else GetMapInitialPoint(m_pClientList[iClientH]->m_cMapIndex, &m_pClientList[iClientH]->m_sX, &m_pClientList[iClientH]->m_sY);
 
-	// ì „ì†¡í•  ë§µ ë°ì´í„°ì˜ ê¸°ì¤€ìœ„ì¹˜. í”Œë ˆì´ì–´ëŠ” ê¸°ì¤€ìœ„ì¹˜ (x, y)ë¡œë¶€í„° (x+14, y+12)ì— ìœ„ì¹˜í•œë‹¤.
-	sp = (short*)cp;
-	*sp = iClientH;		// Player ObjectID
-	cp += 2;
+	init_header->player_object_id = static_cast<std::int16_t>(iClientH);
+	init_header->pivot_x = static_cast<std::int16_t>(m_pClientList[iClientH]->m_sX - 14 - 5);
+	init_header->pivot_y = static_cast<std::int16_t>(m_pClientList[iClientH]->m_sY - 12 - 5);
+	init_header->player_type = m_pClientList[iClientH]->m_sType;
+	init_header->appr1 = m_pClientList[iClientH]->m_sAppr1;
+	init_header->appr2 = m_pClientList[iClientH]->m_sAppr2;
+	init_header->appr3 = m_pClientList[iClientH]->m_sAppr3;
+	init_header->appr4 = m_pClientList[iClientH]->m_sAppr4;
+	init_header->appr_color = m_pClientList[iClientH]->m_iApprColor;
+	init_header->status = m_pClientList[iClientH]->m_iStatus;
+	std::memcpy(init_header->map_name, m_pClientList[iClientH]->m_cMapName, sizeof(init_header->map_name));
+	std::memcpy(init_header->cur_location, m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_cLocationName, sizeof(init_header->cur_location));
 
-	sp = (short*)cp;
-	*sp = m_pClientList[iClientH]->m_sX - 14 - 5;
-	cp += 2;
-
-	sp = (short*)cp;
-	*sp = m_pClientList[iClientH]->m_sY - 12 - 5;
-	cp += 2;
-
-	sp = (short*)cp;
-	*sp = m_pClientList[iClientH]->m_sType;
-	cp += 2;
-
-	sp = (short*)cp;
-	*sp = m_pClientList[iClientH]->m_sAppr1;
-	cp += 2;
-
-	sp = (short*)cp;
-	*sp = m_pClientList[iClientH]->m_sAppr2;
-	cp += 2;
-
-	sp = (short*)cp;
-	*sp = m_pClientList[iClientH]->m_sAppr3;
-	cp += 2;
-
-	sp = (short*)cp;
-	*sp = m_pClientList[iClientH]->m_sAppr4;
-	cp += 2;
-	// v1.4 ApprColor
-	ip = (int*)cp;
-	*ip = m_pClientList[iClientH]->m_iApprColor;
-	cp += 4;
-
-	ip = (int*)cp;
-	*ip = m_pClientList[iClientH]->m_iStatus;
-	cp += 4;//Original 2
-
-	// (!) í”Œë ˆì´ì–´ê°€ ìœ„ì¹˜í•˜ëŠ” ë§µì´ë¦„ì„ ê¸°ë¡í•œë‹¤.
-	memcpy(cp, m_pClientList[iClientH]->m_cMapName, 10);
-	cp += 10;
-
-	// ëª…ì¹­ìƒì˜ ë§µ ì´ë¦„ì„ ìž…ë ¥í•œë‹¤. 
-	memcpy(cp, m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_cLocationName, 10);
-	cp += 10;
-
-	// ì£¼ì•¼ê°„ ëª¨ë“œë¥¼ ì‚½ìž… 
 	if (m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_bIsFixedDayMode)
-		*cp = 1;
-	else *cp = m_cDayOrNight;
-	cp++;
+		init_header->sprite_alpha = 1;
+	else init_header->sprite_alpha = m_cDayOrNight;
 
-	// ê¸°ìƒ ìƒíƒœ ëª¨ë“œë¥¼ ì‚½ìž… 
 	if (m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_bIsFixedDayMode)
-		*cp = 0;
-	else *cp = m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_cWhetherStatus;
-	cp++;
+		init_header->weather_status = 0;
+	else init_header->weather_status = m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->m_cWhetherStatus;
 
-	// v1.4 Contribution
-	ip = (int*)cp;
-	*ip = m_pClientList[iClientH]->m_iContribution;
-	cp += 4;
+	init_header->contribution = m_pClientList[iClientH]->m_iContribution;
 
-	// @@@ í”Œë ˆì´ì–´ë¥¼ ë§µìƒì— ìµœì´ˆë¡œ ìœ„ì¹˜ì‹œí‚¨ë‹¤.
 	if (m_pClientList[iClientH]->m_bIsObserverMode == false) {
 		m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->SetOwner(iClientH,
 			DEF_OWNERTYPE_PLAYER,
@@ -15681,42 +14837,24 @@ RTH_NEXTSTEP:
 			m_pClientList[iClientH]->m_sY);
 	}
 
-	// v1.41
-	*cp = (char)m_pClientList[iClientH]->m_bIsObserverMode;
-	cp++;
+	init_header->observer_mode = static_cast<std::uint8_t>(m_pClientList[iClientH]->m_bIsObserverMode);
+	init_header->rating = m_pClientList[iClientH]->m_iRating;
+	init_header->hp = m_pClientList[iClientH]->m_iHP;
+	init_header->discount = 0;
 
-	// v1.41 
-	ip = (int*)cp;
-	*ip = m_pClientList[iClientH]->m_iRating;
-	cp += 4;
+	iSize = iComposeInitMapData(m_pClientList[iClientH]->m_sX - 12, m_pClientList[iClientH]->m_sY - 9, iClientH, initMapData);
+	writer.AppendBytes(initMapData, static_cast<std::size_t>(iSize));
 
-	// v1.44
-	ip = (int*)cp;
-	*ip = m_pClientList[iClientH]->m_iHP;
-	cp += 4;
-	//Unknown variable
-	*cp = 0;
-	cp++;
-
-	// ë§µì˜ ì •ë³´ë¥¼ ì¶”ê°€í•œë‹¤. 
-	iSize = iComposeInitMapData(m_pClientList[iClientH]->m_sX - 12, m_pClientList[iClientH]->m_sY - 9, iClientH, cp);
-	// ë©”ì‹œì§€ ì „ì†¡ 
-	iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(pBuffer, 46 + iSize + 4 + 4 + 1 + 4 + 4 + 3); //Zabuza fix
-	//iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(pBuffer, 46 + iSize +4 +4 +1 +4 +4); // v1.41
+	iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(writer.Data(), static_cast<int>(writer.Size()));
 	switch (iRet) {
 	case DEF_XSOCKEVENT_QUENEFULL:
 	case DEF_XSOCKEVENT_SOCKETERROR:
 	case DEF_XSOCKEVENT_CRITICALERROR:
 	case DEF_XSOCKEVENT_SOCKETCLOSED:
-		// ë©”ì‹œì§€ë¥¼ ë³´ë‚¼ë•Œ ì—ëŸ¬ê°€ ë°œìƒí–ˆë‹¤ë©´ ì œê±°í•œë‹¤.
 		DeleteClient(iClientH, true, true);
-		if (pBuffer != 0) delete[] pBuffer;
 		return;
 	}
 
-	if (pBuffer != 0) delete[] pBuffer;
-
-	// ë‹¤ë¥¸ í´ë¼ì´ì–¸íŠ¸ë“¤ì—ê²Œ í”Œë ˆì´ì–´ê°€ ìƒˆë¡œìš´ ìœ„ì¹˜ì— ë‚˜íƒ€ë‚¬ìŒì„ ì•Œë¦°ë‹¤. 
 	SendEventToNearClient_TypeA(iClientH, DEF_OWNERTYPE_PLAYER, MSGID_EVENT_LOG, DEF_MSGTYPE_CONFIRM, 0, 0, 0);
 
 	if ((memcmp(m_pClientList[iClientH]->m_cLocation, "are", 3) == 0) &&
@@ -15917,19 +15055,17 @@ void CGame::ReleaseFollowMode(short sOwnerH, char cOwnerType)
 		}
 }
 
-void CGame::RequestStudyMagicHandler(int iClientH, char* pName, bool bIsPurchase)
+void CGame::RequestStudyMagicHandler(int iClientH, const char* pName, bool bIsPurchase)
 {
-	char* cp, cMagicName[31], cData[100];
-	uint32_t* dwp, dwGoldCount;
-	uint16_t* wp;
-	int* ip, iReqInt, iCost, iRet;
+	char cMagicName[31];
+	uint32_t dwGoldCount;
+	int iReqInt, iCost, iRet;
 	bool bMagic = true;
 
 	if (m_pClientList[iClientH] == 0) return;
 	if (m_pClientList[iClientH]->m_bIsInitComplete == false) return;
 
 	// ������ ����. 
-	std::memset(cData, 0, sizeof(cData));
 
 	std::memset(cMagicName, 0, sizeof(cMagicName));
 	memcpy(cMagicName, pName, 30);
@@ -15961,22 +15097,15 @@ void CGame::RequestStudyMagicHandler(int iClientH, char* pName, bool bIsPurchase
 			m_pClientList[iClientH]->m_cMagicMastery[iRet] = 1;
 
 			// ������ ����ٴ� �޽����� �����Ѵ�.
-			dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-			*dwp = MSGID_NOTIFY;
-			wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-			*wp = DEF_NOTIFY_MAGICSTUDYSUCCESS;
+			{
 
-			cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-
-			// ���� ��ȣ 
-			*cp = iRet;
-			cp++;
-
-			memcpy(cp, cMagicName, 30);
-			cp += 30;
-
-			// ���� ���� 
-			iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 37);
+				hb::net::PacketNotifyMagicStudySuccess pkt{};
+				pkt.header.msg_id = MSGID_NOTIFY;
+				pkt.header.msg_type = DEF_NOTIFY_MAGICSTUDYSUCCESS;
+				pkt.magic_id = static_cast<uint8_t>(iRet);
+				memcpy(pkt.magic_name, cMagicName, sizeof(pkt.magic_name));
+				iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+			}
 
 			switch (iRet) {
 			case DEF_XSOCKEVENT_QUENEFULL:
@@ -15991,33 +15120,18 @@ void CGame::RequestStudyMagicHandler(int iClientH, char* pName, bool bIsPurchase
 		else {
 			// ������ �������� �ʾ� ������ ��� �� ����.
 			// ������ ���� �����ٴ� �޽����� �����Ѵ�.
-			dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-			*dwp = MSGID_NOTIFY;
-			wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-			*wp = DEF_NOTIFY_MAGICSTUDYFAIL;
+			{
 
-			cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-			// ��������.
-			*cp = 1;
-			cp++;
-
-			// ���� ��ȣ 
-			*cp = iRet;
-			cp++;
-
-			memcpy(cp, cMagicName, 30);
-			cp += 30;
-
-			ip = (int*)cp;
-			*ip = iCost;
-			cp += 4;
-
-			ip = (int*)cp;
-			*ip = iReqInt;
-			cp += 4;
-
-			// ���� ���� 
-			iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 46);
+				hb::net::PacketNotifyMagicStudyFail pkt{};
+				pkt.header.msg_id = MSGID_NOTIFY;
+				pkt.header.msg_type = DEF_NOTIFY_MAGICSTUDYFAIL;
+				pkt.result = 1;
+				pkt.magic_id = static_cast<uint8_t>(iRet);
+				memcpy(pkt.magic_name, cMagicName, sizeof(pkt.magic_name));
+				pkt.cost = static_cast<int32_t>(iCost);
+				pkt.req_int = static_cast<int32_t>(iReqInt);
+				iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+			}
 			switch (iRet) {
 			case DEF_XSOCKEVENT_QUENEFULL:
 			case DEF_XSOCKEVENT_SOCKETERROR:
@@ -16055,9 +15169,7 @@ int CGame::_iGetMagicNumber(char* pMagicName, int* pReqInt, int* pCost)
 
 void CGame::TrainSkillResponse(bool bSuccess, int iClientH, int iSkillNum, int iSkillLevel)
 {
-	char* cp, cData[100];
-	uint32_t* dwp;
-	uint16_t* wp;
+
 	int   iRet;
 
 	if (m_pClientList[iClientH] == 0) return;
@@ -16074,29 +15186,15 @@ void CGame::TrainSkillResponse(bool bSuccess, int iClientH, int iSkillNum, int i
 		bCheckTotalSkillMasteryPoints(iClientH, iSkillNum);
 
 		// ����� ����ٴ� �޽����� �����Ѵ�.
-		dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-		*dwp = MSGID_NOTIFY;
-		wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-		*wp = DEF_NOTIFY_SKILLTRAINSUCCESS;
+		{
 
-		cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-
-		// �����ȣ
-		*cp = iSkillNum;
-		cp++;
-
-		// ��� ���� .
-		*cp = iSkillLevel;
-		cp++;
-
-		//std::snprintf(G_cTxt, sizeof(G_cTxt), "Skill Improve: (%s) increased (%s) at %s (%d,%d).", m_pClientList[iClientH]->m_cCharName, m_pSkillConfigList[iSkillNum]->m_cName, m_pClientList[iClientH]->m_cMapName, m_pClientList[iClientH]->m_sX, m_pClientList[iClientH]->m_sY);
-		//PutLogFileList(G_cTxt);
-
-		if (m_pSkillConfigList[iSkillNum]->m_cName != 0)
-			_bItemLog(DEF_ITEMLOG_SKILLLEARN, iClientH, m_pSkillConfigList[iSkillNum]->m_cName, 0);
-
-		// ���� ���� 
-		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 8);
+			hb::net::PacketNotifySkillTrainSuccess pkt{};
+			pkt.header.msg_id = MSGID_NOTIFY;
+			pkt.header.msg_type = DEF_NOTIFY_SKILLTRAINSUCCESS;
+			pkt.skill_num = static_cast<uint8_t>(iSkillNum);
+			pkt.skill_level = static_cast<uint8_t>(iSkillLevel);
+			iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		}
 		switch (iRet) {
 		case DEF_XSOCKEVENT_QUENEFULL:
 		case DEF_XSOCKEVENT_SOCKETERROR:
@@ -18155,7 +17253,7 @@ bool CGame::bCheckLevelUp(int iClientH)
 /////////////////////////////////////////////////////////////////////////////////////
 void CGame::StateChangeHandler(int iClientH, char* pData, uint32_t dwMsgSize)
 {
-	char* cp, cStateChange1, cStateChange2, cStateChange3;
+	char cStateChange1, cStateChange2, cStateChange3;
 	char cStr, cVit, cDex, cInt, cMag, cChar;
 	char cStateTxt[512];
 	int iOldStr, iOldVit, iOldDex, iOldInt, iOldMag, iOldChar;
@@ -18165,18 +17263,13 @@ void CGame::StateChangeHandler(int iClientH, char* pData, uint32_t dwMsgSize)
 	if (m_pClientList[iClientH]->m_bIsInitComplete == false) return;
 	if (m_pClientList[iClientH]->m_iGizonItemUpgradeLeft <= 0) return;
 
+	const auto* pkt = hb::net::PacketCast<hb::net::PacketRequestStateChange>(
+		pData, sizeof(hb::net::PacketRequestStateChange));
+	if (!pkt) return;
 	cStr = cVit = cDex = cInt = cMag = cChar = 0;
-
-	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
-
-	cStateChange1 = *cp;
-	cp++;
-
-	cStateChange2 = *cp;
-	cp++;
-
-	cStateChange3 = *cp;
-	cp++;
+	cStateChange1 = static_cast<char>(pkt->change1);
+	cStateChange2 = static_cast<char>(pkt->change2);
+	cStateChange3 = static_cast<char>(pkt->change3);
 
 	iOldStr = m_pClientList[iClientH]->m_iStr;
 	iOldVit = m_pClientList[iClientH]->m_iVit;
@@ -18410,10 +17503,8 @@ bool CGame::bChangeState(char cStateChange, char* cStr, char* cVit, char* cDex, 
 
 void CGame::LevelUpSettingsHandler(int iClientH, char* pData, uint32_t dwMsgSize)
 {
-	char* cp;
 	int iTotalSetting = 0;
 
-	short* sp;
 	short cStr, cVit, cDex, cInt, cMag, cChar;
 
 	if (m_pClientList[iClientH] == 0) return;
@@ -18425,31 +17516,15 @@ void CGame::LevelUpSettingsHandler(int iClientH, char* pData, uint32_t dwMsgSize
 		return;
 	}
 
-	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
+	const auto* req = hb::net::PacketCast<hb::net::PacketRequestLevelUpSettings>(pData, sizeof(hb::net::PacketRequestLevelUpSettings));
+	if (!req) return;
 
-	sp = (short*)cp;
-	cStr = *sp;
-	cp += 2;
-
-	sp = (short*)cp;
-	cVit = *sp;
-	cp += 2;
-
-	sp = (short*)cp;
-	cDex = *sp;
-	cp += 2;
-
-	sp = (short*)cp;
-	cInt = *sp;
-	cp += 2;
-
-	sp = (short*)cp;
-	cMag = *sp;
-	cp += 2;
-
-	sp = (short*)cp;
-	cChar = *sp;
-	cp += 2;
+	cStr = req->str;
+	cVit = req->vit;
+	cDex = req->dex;
+	cInt = req->intel;
+	cMag = req->mag;
+	cChar = req->chr;
 
 	//	if(m_pClientList[iClientH]->m_iLU_Pool < 3) {
 	//		m_pClientList[iClientH]->m_iLU_Pool = 3;
@@ -18521,10 +17596,9 @@ void CGame::LevelUpSettingsHandler(int iClientH, char* pData, uint32_t dwMsgSize
 // v1.4311-3 Ãß°¡ »çÅõÀå ¿¹¾à ÇÔ¼ö FightzoneReserveHandler
 void CGame::FightzoneReserveHandler(int iClientH, char* pData, uint32_t dwMsgSize)
 {
-	char cData[100];
-	int iFightzoneNum, * ip, iEnableReserveTime;
-	uint32_t* dwp, dwGoldCount;
-	uint16_t* wp, wResult;
+	int iFightzoneNum, iEnableReserveTime;
+	uint32_t dwGoldCount;
+	uint16_t wResult;
 	int     iRet, iResult = 1, iCannotReserveDay;
 	SYSTEMTIME SysTime;
 
@@ -18538,9 +17612,11 @@ void CGame::FightzoneReserveHandler(int iClientH, char* pData, uint32_t dwMsgSiz
 
 	dwGoldCount = dwGetItemCount(iClientH, "Gold");
 
-	ip = (int*)(pData + DEF_INDEX2_MSGTYPE + 2);
+	const auto* pkt = hb::net::PacketCast<hb::net::PacketRequestFightzoneReserve>(
+		pData, sizeof(hb::net::PacketRequestFightzoneReserve));
+	if (!pkt) return;
 	// ¿¹¾àÀ» ¿øÇÏ´Â »çÅõÀå ¹øÈ£¸¦ ¹Þ´Â´Ù.
-	iFightzoneNum = *ip;
+	iFightzoneNum = pkt->fightzone;
 
 	// Àß¸øµÈ fightzone ¹øÈ£¸¦ °É·¯³½´Ù.
 	if ((iFightzoneNum < 1) || (iFightzoneNum > DEF_MAXFIGHTZONE)) return;
@@ -18605,21 +17681,14 @@ void CGame::FightzoneReserveHandler(int iClientH, char* pData, uint32_t dwMsgSiz
 		iResult = 1;
 	}
 
-	std::memset(cData, 0, sizeof(cData));
-
-	dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-	*dwp = MSGID_RESPONSE_FIGHTZONE_RESERVE;
-
-	wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-	*wp = wResult;
-
-	ip = (int*)(cData + DEF_INDEX2_MSGTYPE + 2);
-	*ip = iResult;
-	ip += 4;
+	hb::net::PacketResponseFightzoneReserve resp{};
+	resp.header.msg_id = MSGID_RESPONSE_FIGHTZONE_RESERVE;
+	resp.header.msg_type = wResult;
+	resp.result = iResult;
 
 	// »çÅõÀå ¿¹¾à ÀÀ´ä ¸Þ¼¼Áö  Å¬¶óÀÌ¾ðÆ®¿¡°Ô Àü¼Û
 
-	iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 10);
+	iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&resp), sizeof(resp));
 
 	switch (iRet) {
 	case DEF_XSOCKEVENT_QUENEFULL:
@@ -18653,9 +17722,7 @@ bool CGame::bCheckLimitedUser(int iClientH)
 
 void CGame::RequestCivilRightHandler(int iClientH, char* pData)
 {
-	char* cp, cData[100];
-	uint32_t* dwp;
-	uint16_t* wp, wResult;
+	uint16_t wResult;
 	int  iRet;
 
 	if (m_pClientList[iClientH] == 0) return;
@@ -18682,18 +17749,14 @@ void CGame::RequestCivilRightHandler(int iClientH, char* pData)
 	if (memcmp(m_pClientList[iClientH]->m_cLocation, "elv", 3) == 0)
 		m_pClientList[iClientH]->m_cSide = 2;
 
-	dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-	*dwp = MSGID_RESPONSE_CIVILRIGHT;
-	wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-	*wp = wResult;
+	hb::net::PacketResponseCivilRight pkt{};
+	pkt.header.msg_id = MSGID_RESPONSE_CIVILRIGHT;
+	pkt.header.msg_type = wResult;
+	std::memset(pkt.location, 0, sizeof(pkt.location));
+	memcpy(pkt.location, m_pClientList[iClientH]->m_cLocation, sizeof(pkt.location));
 
-	// v1.41 쨍횎 ?횑쨍짠 쩐횏쨌횁횁횥 
-	cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-	memcpy(cp, m_pClientList[iClientH]->m_cLocation, 10);
-	cp += 10;
-
-	// ??쨈채 쨍횧쩍횄횁철쨍짝 횇짭쨋처?횑쩐챨횈짰쩔징째횚 ?체쩌횤
-	iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 16);
+	// ???? ???????? ?????????????? ????
+	iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 	switch (iRet) {
 	case DEF_XSOCKEVENT_QUENEFULL:
 	case DEF_XSOCKEVENT_SOCKETERROR:
@@ -18711,30 +17774,28 @@ void CGame::RequestCivilRightHandler(int iClientH, char* pData)
 
 void CGame::RequestRetrieveItemHandler(int iClientH, char* pData)
 {
-	char* cp, cBankItemIndex, cMsg[100];
+	char cBankItemIndex;
 	int i, j, iRet, iItemWeight;
-	uint32_t* dwp;
-	uint16_t* wp;
 
 	if (m_pClientList[iClientH] == 0) return;
 	if (m_pClientList[iClientH]->m_bIsInitComplete == false) return;
 
-	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
-	cBankItemIndex = *cp;
+	const auto* pkt = hb::net::PacketCast<hb::net::PacketRequestRetrieveItem>(
+		pData, sizeof(hb::net::PacketRequestRetrieveItem));
+	if (!pkt) return;
+	cBankItemIndex = static_cast<char>(pkt->item_slot);
 	//wh remove
 	//if (m_pClientList[iClientH]->m_bIsInsideWarehouse == false) return;
 
 	if ((cBankItemIndex < 0) || (cBankItemIndex >= DEF_MAXBANKITEMS)) return;
 	if (m_pClientList[iClientH]->m_pItemInBankList[cBankItemIndex] == 0) {
-		// ¿À·ù´Ù. 
-		std::memset(cMsg, 0, sizeof(cMsg));
-
-		dwp = (uint32_t*)(cMsg + DEF_INDEX4_MSGID);
-		*dwp = MSGID_RESPONSE_RETRIEVEITEM;
-		wp = (uint16_t*)(cMsg + DEF_INDEX2_MSGTYPE);
-		*wp = DEF_MSGTYPE_REJECT;
-
-		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cMsg, 8);
+		// Bank item missing.
+		hb::net::PacketResponseRetrieveItem pkt{};
+		pkt.header.msg_id = MSGID_RESPONSE_RETRIEVEITEM;
+		pkt.header.msg_type = DEF_MSGTYPE_REJECT;
+		pkt.bank_index = 0;
+		pkt.item_index = 0;
+		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 	}
 	else {
 		// Áß·®°è»ê 
@@ -18752,15 +17813,8 @@ void CGame::RequestRetrieveItemHandler(int iClientH, char* pData)
 		if ((iItemWeight + m_pClientList[iClientH]->m_iCurWeightLoad) > _iCalcMaxLoad(iClientH)) {
 			// ÇÑ°èÁß·® ÃÊ°ú, ¾ÆÀÌÅÛÀ» Ã£À» ¼ö ¾ø´Ù. 
 			// ½ÇÆÐ ¸Þ½ÃÁö¸¦ º¸³½´Ù.
-			std::memset(cMsg, 0, sizeof(cMsg));
-
-			// ´õÀÌ»ó °¡Áú¼ö ¾ø´Ù´Â ¸Þ½ÃÁö¸¦ º¸³½´Ù.
-			dwp = (uint32_t*)(cMsg + DEF_INDEX4_MSGID);
-			*dwp = MSGID_NOTIFY;
-			wp = (uint16_t*)(cMsg + DEF_INDEX2_MSGTYPE);
-			*wp = DEF_NOTIFY_CANNOTCARRYMOREITEM;
-
-			iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cMsg, 6);
+		// Notify cannot carry more items.
+		iRet = SendItemNotifyMsg(iClientH, DEF_NOTIFY_CANNOTCARRYMOREITEM, 0, 0);
 			switch (iRet) {
 			case DEF_XSOCKEVENT_QUENEFULL:
 			case DEF_XSOCKEVENT_SOCKETERROR:
@@ -18798,27 +17852,18 @@ void CGame::RequestRetrieveItemHandler(int iClientH, char* pData)
 						}
 					}
 
-					// ¼º°ø ¸Þ½ÃÁö¸¦ º¸³½´Ù.
-					std::memset(cMsg, 0, sizeof(cMsg));
+			// Send retrieve confirmation.
+			hb::net::PacketResponseRetrieveItem pkt{};
+			pkt.header.msg_id = MSGID_RESPONSE_RETRIEVEITEM;
+			pkt.header.msg_type = DEF_MSGTYPE_CONFIRM;
+			pkt.bank_index = cBankItemIndex;
+			pkt.item_index = static_cast<int8_t>(i);
 
-					dwp = (uint32_t*)(cMsg + DEF_INDEX4_MSGID);
-					*dwp = MSGID_RESPONSE_RETRIEVEITEM;
-					wp = (uint16_t*)(cMsg + DEF_INDEX2_MSGTYPE);
-					*wp = DEF_MSGTYPE_CONFIRM;
+			iCalcTotalWeight(iClientH);
+			m_pClientList[iClientH]->m_cArrowIndex = _iGetArrowItemIndex(iClientH);
 
-					cp = (char*)(cMsg + DEF_INDEX2_MSGTYPE + 2);
-					*cp = cBankItemIndex;
-					cp++;
-					*cp = i;
-					cp++;
+			iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 
-					// ¼ÒÁöÇ° ÃÑ Áß·® Àç °è»ê 
-					iCalcTotalWeight(iClientH);
-					// È­»ì ÇÒ´ç
-					m_pClientList[iClientH]->m_cArrowIndex = _iGetArrowItemIndex(iClientH);
-
-					// ¸Þ½ÃÁö Àü¼Û 
-					iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cMsg, 8);
 					switch (iRet) {
 					case DEF_XSOCKEVENT_QUENEFULL:
 					case DEF_XSOCKEVENT_SOCKETERROR:
@@ -18859,28 +17904,17 @@ void CGame::RequestRetrieveItemHandler(int iClientH, char* pData)
 						}
 					}
 
-					// ¼º°ø ¸Þ½ÃÁö¸¦ º¸³½´Ù.
-					std::memset(cMsg, 0, sizeof(cMsg));
+			// Send retrieve confirmation.
+			hb::net::PacketResponseRetrieveItem pktConfirm{};
+			pktConfirm.header.msg_id = MSGID_RESPONSE_RETRIEVEITEM;
+			pktConfirm.header.msg_type = DEF_MSGTYPE_CONFIRM;
+			pktConfirm.bank_index = cBankItemIndex;
+			pktConfirm.item_index = static_cast<int8_t>(i);
 
-					dwp = (uint32_t*)(cMsg + DEF_INDEX4_MSGID);
-					*dwp = MSGID_RESPONSE_RETRIEVEITEM;
-					wp = (uint16_t*)(cMsg + DEF_INDEX2_MSGTYPE);
-					*wp = DEF_MSGTYPE_CONFIRM;
+			iCalcTotalWeight(iClientH);
+			m_pClientList[iClientH]->m_cArrowIndex = _iGetArrowItemIndex(iClientH);
 
-					cp = (char*)(cMsg + DEF_INDEX2_MSGTYPE + 2);
-					*cp = cBankItemIndex;
-					cp++;
-					*cp = i;
-					cp++;
-
-					// ¼ÒÁöÇ° ÃÑ Áß·® Àç °è»ê 
-					iCalcTotalWeight(iClientH);
-
-					// È­»ì ÇÒ´ç
-					m_pClientList[iClientH]->m_cArrowIndex = _iGetArrowItemIndex(iClientH);
-
-					// ¸Þ½ÃÁö Àü¼Û 
-					iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cMsg, 8);
+			iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pktConfirm), sizeof(pktConfirm));
 					switch (iRet) {
 					case DEF_XSOCKEVENT_QUENEFULL:
 					case DEF_XSOCKEVENT_SOCKETERROR:
@@ -18892,15 +17926,13 @@ void CGame::RequestRetrieveItemHandler(int iClientH, char* pData)
 					}
 					return;
 				}
-			// ¾ÆÀÌÅÛÀ» µÇÃ£À» °ø°£ÀÌ ¾ø´Ù. ¿À·ù
-			std::memset(cMsg, 0, sizeof(cMsg));
-
-			dwp = (uint32_t*)(cMsg + DEF_INDEX4_MSGID);
-			*dwp = MSGID_RESPONSE_RETRIEVEITEM;
-			wp = (uint16_t*)(cMsg + DEF_INDEX2_MSGTYPE);
-			*wp = DEF_MSGTYPE_REJECT;
-
-			iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cMsg, 8);
+		// No empty inventory slot.
+		hb::net::PacketResponseRetrieveItem pktReject{};
+		pktReject.header.msg_id = MSGID_RESPONSE_RETRIEVEITEM;
+		pktReject.header.msg_type = DEF_MSGTYPE_REJECT;
+		pktReject.bank_index = 0;
+		pktReject.item_index = 0;
+		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pktReject), sizeof(pktReject));
 		}
 	}
 
@@ -18918,11 +17950,6 @@ void CGame::RequestRetrieveItemHandler(int iClientH, char* pData)
 bool CGame::bSetItemToBankItem(int iClientH, short sItemIndex)
 {
 	int i, iRet;
-	uint32_t* dwp;
-	uint16_t* wp;
-	char* cp;
-	short* sp;
-	char cData[100];
 	class CItem* pItem;
 
 	// ¼ÒÁöÇÏ°í ÀÖ´Â ¾ÆÀÌÅÛÀ» º¸°üÇÑ´Ù.
@@ -18944,74 +17971,29 @@ bool CGame::bSetItemToBankItem(int iClientH, short sItemIndex)
 			// ¼ÒÁöÇ° ÃÑ Áß·® Àç °è»ê 
 			iCalcTotalWeight(iClientH);
 
-			dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-			*dwp = MSGID_NOTIFY;
-			wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-			*wp = DEF_NOTIFY_ITEMTOBANK;
-
-			cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-
-			*cp = i; // À§Ä¡ ÀúÀå 
-			cp++;
-
-			// 1°³.
-			*cp = 1;
-			cp++;
-
-			memcpy(cp, pItem->m_cName, 20);
-			cp += 20;
-
-			dwp = (uint32_t*)cp;
-			*dwp = pItem->m_dwCount;
-			cp += 4;
-
-			*cp = pItem->m_cItemType;
-			cp++;
-
-			*cp = pItem->m_cEquipPos;
-			cp++;
-
-			*cp = (char)0;
-			cp++;
-
-			sp = (short*)cp;
-			*sp = pItem->m_sLevelLimit;
-			cp += 2;
-
-			*cp = pItem->m_cGenderLimit;
-			cp++;
-
-			wp = (uint16_t*)cp;
-			*wp = pItem->m_wCurLifeSpan;
-			cp += 2;
-
-			wp = (uint16_t*)cp;
-			*wp = pItem->m_wWeight;
-			cp += 2;
-
-			sp = (short*)cp;
-			*sp = pItem->m_sSprite;
-			cp += 2;
-
-			sp = (short*)cp;
-			*sp = pItem->m_sSpriteFrame;
-			cp += 2;
-
-			*cp = pItem->m_cItemColor;
-			cp++;
-
-			// v1.432
-			sp = (short*)cp;
-			*sp = pItem->m_sItemEffectValue2;
-			cp += 2;
-
-			// v1.42
-			dwp = (uint32_t*)cp;
-			*dwp = pItem->m_dwAttribute;
-			cp += 4;
-
-			// ¾ÆÀÌÅÛ Á¤º¸ Àü¼Û 
-			iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 55);
+			{
+				hb::net::PacketNotifyItemToBank pkt{};
+				pkt.header.msg_id = MSGID_NOTIFY;
+				pkt.header.msg_type = DEF_NOTIFY_ITEMTOBANK;
+				pkt.bank_index = static_cast<uint8_t>(i);
+				pkt.is_new = 1;
+				memcpy(pkt.name, pItem->m_cName, sizeof(pkt.name));
+				pkt.count = pItem->m_dwCount;
+				pkt.item_type = pItem->m_cItemType;
+				pkt.equip_pos = pItem->m_cEquipPos;
+				pkt.is_equipped = 0;
+				pkt.level_limit = pItem->m_sLevelLimit;
+				pkt.gender_limit = pItem->m_cGenderLimit;
+				pkt.cur_lifespan = pItem->m_wCurLifeSpan;
+				pkt.weight = pItem->m_wWeight;
+				pkt.sprite = pItem->m_sSprite;
+				pkt.sprite_frame = pItem->m_sSpriteFrame;
+				pkt.item_color = pItem->m_cItemColor;
+				pkt.item_effect_value2 = pItem->m_sItemEffectValue2;
+				pkt.attribute = pItem->m_dwAttribute;
+				pkt.spec_effect_value2 = static_cast<uint8_t>(pItem->m_sItemSpecEffectValue2);
+				iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+			}
 			switch (iRet) {
 			case DEF_XSOCKEVENT_QUENEFULL:
 			case DEF_XSOCKEVENT_SOCKETERROR:
@@ -19511,11 +18493,9 @@ PID_DROP:
 void CGame::GetRewardMoneyHandler(int iClientH)
 {
 	int iRet, iEraseReq, iWeightLeft;
-	uint32_t* dwp, iRewardGoldLeft;
-	uint16_t* wp;
-	char* cp, cData[100], cItemName[21];
+	uint32_t iRewardGoldLeft;
+	char cItemName[21];
 	class CItem* pItem;
-	short* sp;
 
 	if (m_pClientList[iClientH] == 0) return;
 	if (m_pClientList[iClientH]->m_bIsInitComplete == false) return;
@@ -19554,74 +18534,7 @@ void CGame::GetRewardMoneyHandler(int iClientH)
 		// ³²Àº Æ÷»ó±Ý ³»¿ª °è»ê.
 		m_pClientList[iClientH]->m_iRewardGold = iRewardGoldLeft;
 
-		dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-		*dwp = MSGID_NOTIFY;
-		wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-		*wp = DEF_NOTIFY_ITEMOBTAINED;
-
-		cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-
-		// 1°³ È¹µæÇß´Ù. <- ¿©±â¼­ 1°³¶õ Ä«¿îÆ®¸¦ ¸»ÇÏ´Â °ÍÀÌ ¾Æ´Ï´Ù
-		*cp = 1;
-		cp++;
-
-		memcpy(cp, pItem->m_cName, 20);
-		cp += 20;
-
-		dwp = (uint32_t*)cp;
-		*dwp = pItem->m_dwCount;
-		cp += 4;
-
-		*cp = pItem->m_cItemType;
-		cp++;
-
-		*cp = pItem->m_cEquipPos;
-		cp++;
-
-		*cp = (char)0; // ¾òÀº ¾ÆÀÌÅÛÀÌ¹Ç·Î ÀåÂøµÇÁö ¾Ê¾Ò´Ù.
-		cp++;
-
-		sp = (short*)cp;
-		*sp = pItem->m_sLevelLimit;
-		cp += 2;
-
-		*cp = pItem->m_cGenderLimit;
-		cp++;
-
-		wp = (uint16_t*)cp;
-		*wp = pItem->m_wCurLifeSpan;
-		cp += 2;
-
-		wp = (uint16_t*)cp;
-		*wp = pItem->m_wWeight;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = pItem->m_sSprite;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = pItem->m_sSpriteFrame;
-		cp += 2;
-
-		*cp = pItem->m_cItemColor;
-		cp++;
-
-		*cp = (char)pItem->m_sItemSpecEffectValue2; // v1.41 
-		cp++;
-
-		dwp = (uint32_t*)cp;
-		*dwp = pItem->m_dwAttribute;
-		cp += 4;
-		/*
-		*cp = (char)(pItem->m_dwAttribute & 0x00000001); // Custom-ItemÀÎÁöÀÇ ¿©ºÎ
-		cp++;
-		*/
-
-		if (iEraseReq == 1) delete pItem;
-
-		// ¾ÆÀÌÅÛ Á¤º¸ Àü¼Û 
-		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 53);
+		iRet = SendItemNotifyMsg(iClientH, DEF_NOTIFY_ITEMOBTAINED, pItem, 0);
 
 		switch (iRet) {
 		case DEF_XSOCKEVENT_QUENEFULL:
@@ -20038,136 +18951,71 @@ void CGame::DeleteNpc(int iNpcH)
 
 void CGame::RequestFullObjectData(int iClientH, char* pData)
 {
-	uint32_t* dwp;
-	uint16_t* wp, wObjectID;
-	char* cp, cData[100];
-	short* sp, sX, sY;
-	int     sTemp, sTemp2;
-	int* ip, iRet;
+	uint16_t wObjectID;
+	int sTemp, sTemp2;
+	int iRet;
 
 	if (m_pClientList[iClientH] == 0) return;
 	if (m_pClientList[iClientH]->m_bIsInitComplete == false) return;
 
-	wp = (uint16_t*)(pData + DEF_INDEX2_MSGTYPE);
-	wObjectID = *wp;
-
-	std::memset(cData, 0, sizeof(cData));
-	dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-	*dwp = MSGID_EVENT_MOTION;
-	wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-	*wp = DEF_OBJECTSTOP;
-
-	cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
+	const auto* header = hb::net::PacketCast<hb::net::PacketHeader>(pData, sizeof(hb::net::PacketHeader));
+	if (!header) return;
+	wObjectID = header->msg_type;
 
 	if (wObjectID < 10000) {
-		// Ä³¸¯ÅÍÀÇ Á¤º¸¸¦ ¿øÇÑ´Ù. 
-		// Àß¸øµÈ ÀÎµ¦½º°ªÀÌ°Å³ª Á¸ÀçÇÏÁö ¾Ê´Â ÇÃ·¹ÀÌ¾î¶ó¸é ¹«½Ã.
 		if ((wObjectID == 0) || (wObjectID >= DEF_MAXCLIENTS)) return;
 		if (m_pClientList[wObjectID] == 0) return;
 
-		wp = (uint16_t*)cp;
-		*wp = wObjectID;			// ObjectID
-		cp += 2;
-		sp = (short*)cp;
-		sX = m_pClientList[wObjectID]->m_sX;
-		*sp = sX;
-		cp += 2;
-		sp = (short*)cp;
-		sY = m_pClientList[wObjectID]->m_sY;
-		*sp = sY;
-		cp += 2;
-		sp = (short*)cp;
-		*sp = m_pClientList[wObjectID]->m_sType;
-		cp += 2;
-		*cp = m_pClientList[wObjectID]->m_cDir;
-		cp++;
-		memcpy(cp, m_pClientList[wObjectID]->m_cCharName, 10);
-		cp += 10;
-		sp = (short*)cp;
-		*sp = m_pClientList[wObjectID]->m_sAppr1;
-		cp += 2;
-		sp = (short*)cp;
-		*sp = m_pClientList[wObjectID]->m_sAppr2;
-		cp += 2;
-		sp = (short*)cp;
-		*sp = m_pClientList[wObjectID]->m_sAppr3;
-		cp += 2;
-		sp = (short*)cp;
-		*sp = m_pClientList[wObjectID]->m_sAppr4;
-		cp += 2;
-		//v1.4 ApprColor
-		ip = (int*)cp;
-		*ip = m_pClientList[wObjectID]->m_iApprColor;
-		cp += 4;
+		hb::net::PacketEventMotionPlayer pkt{};
+		pkt.header.msg_id = MSGID_EVENT_MOTION;
+		pkt.header.msg_type = DEF_OBJECTSTOP;
+		pkt.object_id = wObjectID;
+		pkt.x = m_pClientList[wObjectID]->m_sX;
+		pkt.y = m_pClientList[wObjectID]->m_sY;
+		pkt.type = m_pClientList[wObjectID]->m_sType;
+		pkt.dir = static_cast<uint8_t>(m_pClientList[wObjectID]->m_cDir);
+		memcpy(pkt.name, m_pClientList[wObjectID]->m_cCharName, sizeof(pkt.name));
+		pkt.appr1 = m_pClientList[wObjectID]->m_sAppr1;
+		pkt.appr2 = m_pClientList[wObjectID]->m_sAppr2;
+		pkt.appr3 = m_pClientList[wObjectID]->m_sAppr3;
+		pkt.appr4 = m_pClientList[wObjectID]->m_sAppr4;
+		pkt.appr_color = m_pClientList[wObjectID]->m_iApprColor;
 
-		ip = (int*)cp;
-
-		// m_pClientList[i]¿Í m_pClientList[sOwnerH]ÀÇ °ü°è¸¦ ÀÔ·ÂÇÑ´Ù.
-		// sStatusÀÇ »óÀ§ 4ºñÆ®°¡ FOE °ü°è¸¦ ³ªÅ¸³½´Ù. 
 		sTemp = m_pClientList[wObjectID]->m_iStatus;
-		sTemp = 0x0FFFFFFF & sTemp;//Original : sTemp = 0x0FFF & sTemp; // »óÀ§ 4ºñÆ® Å¬¸®¾î
-		sTemp2 = iGetPlayerABSStatus(wObjectID, iClientH); //(short)iGetPlayerRelationship(iClientH, wObjectID);
-		sTemp = (sTemp | (sTemp2 << 28));//Original : 12
+		sTemp = 0x0FFFFFFF & sTemp;
+		sTemp2 = iGetPlayerABSStatus(wObjectID, iClientH);
+		sTemp = (sTemp | (sTemp2 << 28));
+		pkt.status = sTemp;
+		pkt.loc = m_pClientList[wObjectID]->m_bIsKilled ? 1 : 0;
 
-		*ip = sTemp;
-		//*sp = DEF_TEST;
-		cp += 4;//Original 2
-
-		if (m_pClientList[wObjectID]->m_bIsKilled) // v1.4
-			*cp = 1;
-		else *cp = 0;
-		cp++;
-
-		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 41); // v1.4
+		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 	}
 	else {
-		// NPCÀÇ Á¤º¸¸¦ ¿øÇÑ´Ù.
-		// Àß¸øµÈ ÀÎµ¦½º °ªÀÌ°Å³ª »ý¼ºµÇÁö ¾ÊÀº NPC¶ó¸é ¹«½Ã 
 		if (((wObjectID - 10000) == 0) || ((wObjectID - 10000) >= DEF_MAXNPCS)) return;
 		if (m_pNpcList[wObjectID - 10000] == 0) return;
 
-		wp = (uint16_t*)cp;
-		*wp = wObjectID;
-		cp += 2;
-
+		const uint16_t objectId = wObjectID;
 		wObjectID -= 10000;
 
-		sp = (short*)cp;
-		sX = m_pNpcList[wObjectID]->m_sX;
-		*sp = sX;
-		cp += 2;
-		sp = (short*)cp;
-		sY = m_pNpcList[wObjectID]->m_sY;
-		*sp = sY;
-		cp += 2;
-		sp = (short*)cp;
-		*sp = m_pNpcList[wObjectID]->m_sType;
-		cp += 2;
-		*cp = m_pNpcList[wObjectID]->m_cDir;
-		cp++;
-		memcpy(cp, m_pNpcList[wObjectID]->m_cName, 5);
-		cp += 5;
-		sp = (short*)cp;
-		*sp = m_pNpcList[wObjectID]->m_sAppr2;
-		cp += 2;
-
-		ip = (int*)cp;
+		hb::net::PacketEventMotionNpc pkt{};
+		pkt.header.msg_id = MSGID_EVENT_MOTION;
+		pkt.header.msg_type = DEF_OBJECTSTOP;
+		pkt.object_id = objectId;
+		pkt.x = m_pNpcList[wObjectID]->m_sX;
+		pkt.y = m_pNpcList[wObjectID]->m_sY;
+		pkt.type = m_pNpcList[wObjectID]->m_sType;
+		pkt.dir = static_cast<uint8_t>(m_pNpcList[wObjectID]->m_cDir);
+		memcpy(pkt.name, m_pNpcList[wObjectID]->m_cName, sizeof(pkt.name));
+		pkt.appr2 = m_pNpcList[wObjectID]->m_sAppr2;
 
 		sTemp = m_pNpcList[wObjectID]->m_iStatus;
-		sTemp = 0x0FFFFFFF & sTemp;//Original : sTemp = 0x0FFF & sTemp; // »óÀ§ 4ºñÆ® Å¬¸®¾î
-
+		sTemp = 0x0FFFFFFF & sTemp;
 		sTemp2 = m_pEntityManager->iGetNpcRelationship(wObjectID, iClientH);
-		sTemp = (sTemp | (sTemp2 << 28));//Original : 12	
-		*ip = sTemp;
-		//*sp = DEF_TEST;
-		cp += 4;//Original 2
+		sTemp = (sTemp | (sTemp2 << 28));
+		pkt.status = sTemp;
+		pkt.loc = m_pNpcList[wObjectID]->m_bIsKilled ? 1 : 0;
 
-		if (m_pNpcList[wObjectID]->m_bIsKilled) // v1.4
-			*cp = 1;
-		else *cp = 0;
-		cp++;
-
-		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 27); // v1.4 //Original : 25
+		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 	}
 
 	switch (iRet) {
@@ -20175,11 +19023,11 @@ void CGame::RequestFullObjectData(int iClientH, char* pData)
 	case DEF_XSOCKEVENT_SOCKETERROR:
 	case DEF_XSOCKEVENT_CRITICALERROR:
 	case DEF_XSOCKEVENT_SOCKETCLOSED:
-		// ¸Þ½ÃÁö¸¦ º¸³¾¶§ ¿¡·¯°¡ ¹ß»ýÇß´Ù¸é Á¦°ÅÇÑ´Ù.
 		DeleteClient(iClientH, true, true);
 		return;
 	}
 }
+
 
 int CGame::_iGetArrowItemIndex(int iClientH)
 {
@@ -22411,11 +21259,6 @@ bool CGame::bCheckResistingIceSuccess(char cAttackerDir, short sTargetH, char cT
 bool CGame::bSetItemToBankItem(int iClientH, class CItem* pItem)
 {
 	int i, iRet;
-	uint32_t* dwp;
-	uint16_t* wp;
-	char* cp;
-	short* sp;
-	char cData[100];
 
 	if (m_pClientList[iClientH] == 0) return false;
 	if (pItem == 0) return false;
@@ -22427,74 +21270,29 @@ bool CGame::bSetItemToBankItem(int iClientH, class CItem* pItem)
 
 			m_pClientList[iClientH]->m_pItemInBankList[i] = pItem;
 
-			dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-			*dwp = MSGID_NOTIFY;
-			wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-			*wp = DEF_NOTIFY_ITEMTOBANK;
-
-			cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-
-			*cp = i; // À§Ä¡ ÀúÀå 
-			cp++;
-
-			// 1°³.
-			*cp = 1;
-			cp++;
-
-			memcpy(cp, pItem->m_cName, 20);
-			cp += 20;
-
-			dwp = (uint32_t*)cp;
-			*dwp = pItem->m_dwCount;
-			cp += 4;
-
-			*cp = pItem->m_cItemType;
-			cp++;
-
-			*cp = pItem->m_cEquipPos;
-			cp++;
-
-			*cp = (char)0;
-			cp++;
-
-			sp = (short*)cp;
-			*sp = pItem->m_sLevelLimit;
-			cp += 2;
-
-			*cp = pItem->m_cGenderLimit;
-			cp++;
-
-			wp = (uint16_t*)cp;
-			*wp = pItem->m_wCurLifeSpan;
-			cp += 2;
-
-			wp = (uint16_t*)cp;
-			*wp = pItem->m_wWeight;
-			cp += 2;
-
-			sp = (short*)cp;
-			*sp = pItem->m_sSprite;
-			cp += 2;
-
-			sp = (short*)cp;
-			*sp = pItem->m_sSpriteFrame;
-			cp += 2;
-
-			*cp = pItem->m_cItemColor;
-			cp++;
-
-			// v1.432
-			sp = (short*)cp;
-			*sp = pItem->m_sItemEffectValue2;
-			cp += 2;
-
-			// v1.42
-			dwp = (uint32_t*)cp;
-			*dwp = pItem->m_dwAttribute;
-			cp += 4;
-
-			// ¾ÆÀÌÅÛ Á¤º¸ Àü¼Û 
-			iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 55);
+			{
+			hb::net::PacketNotifyItemToBank pkt{};
+			pkt.header.msg_id = MSGID_NOTIFY;
+			pkt.header.msg_type = DEF_NOTIFY_ITEMTOBANK;
+			pkt.bank_index = static_cast<uint8_t>(i);
+			pkt.is_new = 1;
+			memcpy(pkt.name, pItem->m_cName, sizeof(pkt.name));
+			pkt.count = pItem->m_dwCount;
+			pkt.item_type = pItem->m_cItemType;
+			pkt.equip_pos = pItem->m_cEquipPos;
+			pkt.is_equipped = 0;
+			pkt.level_limit = pItem->m_sLevelLimit;
+			pkt.gender_limit = pItem->m_cGenderLimit;
+			pkt.cur_lifespan = pItem->m_wCurLifeSpan;
+			pkt.weight = pItem->m_wWeight;
+			pkt.sprite = pItem->m_sSprite;
+			pkt.sprite_frame = pItem->m_sSpriteFrame;
+			pkt.item_color = pItem->m_cItemColor;
+			pkt.item_effect_value2 = pItem->m_sItemEffectValue2;
+			pkt.attribute = pItem->m_dwAttribute;
+			pkt.spec_effect_value2 = static_cast<uint8_t>(pItem->m_sItemSpecEffectValue2);
+			iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		}
 			switch (iRet) {
 			case DEF_XSOCKEVENT_QUENEFULL:
 			case DEF_XSOCKEVENT_SOCKETERROR:
@@ -22993,40 +21791,30 @@ bool CGame::bRemoveFromDelayEventList(int iH, char cType, int iEffectType)
 
 void CGame::SendObjectMotionRejectMsg(int iClientH)
 {
-	char* cp, cData[30];
-	uint32_t* dwp;
-	uint16_t* wp;
-	short* sp;
 	int     iRet;
 
 	m_pClientList[iClientH]->m_bIsMoveBlocked = true; // v2.171
 
-	// ÀÌµ¿ÀÌ ºÒ°¡´ÉÇÏ´Ù. 
-	dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-	*dwp = MSGID_RESPONSE_MOTION;
-	wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-	*wp = DEF_OBJECTMOTION_REJECT;
-
-	cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-	sp = (short*)cp;
-	*sp = m_pClientList[iClientH]->m_sX;
-	cp += 2;
-	sp = (short*)cp;
-	*sp = m_pClientList[iClientH]->m_sY;
-	cp += 2;
-
-	iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 10);
+	// Send motion reject response.
+	hb::net::PacketResponseMotionReject pkt{};
+	pkt.header.msg_id = MSGID_RESPONSE_MOTION;
+	pkt.header.msg_type = DEF_OBJECTMOTION_REJECT;
+	pkt.x = m_pClientList[iClientH]->m_sX;
+	pkt.y = m_pClientList[iClientH]->m_sY;
+	iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 	switch (iRet) {
 	case DEF_XSOCKEVENT_QUENEFULL:
 	case DEF_XSOCKEVENT_SOCKETERROR:
 	case DEF_XSOCKEVENT_CRITICALERROR:
 	case DEF_XSOCKEVENT_SOCKETCLOSED:
-		// ¸Þ½ÃÁö¸¦ º¸³¾¶§ ¿¡·¯°¡ ¹ß»ýÇß´Ù¸é Á¦°ÅÇÑ´Ù.
+		// Socket error while sending motion reject.
 		DeleteClient(iClientH, true, true);
 		return;
 	}
 	return;
 }
+
+
 
 int CGame::_iGetTotalClients()
 {
@@ -23665,7 +22453,7 @@ void CGame::UseSkillHandler(int iClientH, int iV1, int iV2, int iV3)
 	m_pClientList[iClientH]->m_bSkillUsingStatus[iV1] = true;
 }
 
-void CGame::ReqSellItemHandler(int iClientH, char cItemID, char cSellToWhom, int iNum, char* pItemName)
+void CGame::ReqSellItemHandler(int iClientH, char cItemID, char cSellToWhom, int iNum, const char* pItemName)
 {
 	char cItemCategory, cItemName[21];
 	short sRemainLife;
@@ -23850,17 +22638,15 @@ void CGame::ReqSellItemHandler(int iClientH, char cItemID, char cSellToWhom, int
 	if (m_pGold != 0) delete m_pGold;
 }
 
-void CGame::ReqSellItemConfirmHandler(int iClientH, char cItemID, int iNum, char* pString)
+void CGame::ReqSellItemConfirmHandler(int iClientH, char cItemID, int iNum, const char* pString)
 {
 	class CItem* pItemGold;
 	short sRemainLife;
 	int   iPrice;
 	double d1, d2, d3;
-	char* cp, cItemName[21], cData[120], cItemCategory;
-	uint32_t* dwp, dwMul1, dwMul2, dwSWEType, dwSWEValue, dwAddPrice1, dwAddPrice2;
-	uint16_t* wp;
+	char cItemName[21], cItemCategory;
+	uint32_t dwMul1, dwMul2, dwSWEType, dwSWEValue, dwAddPrice1, dwAddPrice2;
 	int    iEraseReq, iRet;
-	short* sp;
 	bool   bNeutral;
 
 
@@ -24056,75 +22842,7 @@ void CGame::ReqSellItemConfirmHandler(int iClientH, char cItemID, int iNum, char
 	if (_bAddClientItemList(iClientH, pItemGold, &iEraseReq)) {
 		// ¾ÆÀÌÅÛÀ» È¹µæÇß´Ù.
 
-		dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-		*dwp = MSGID_NOTIFY;
-		wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-		*wp = DEF_NOTIFY_ITEMOBTAINED;
-
-		cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-
-		// 1°³ È¹µæÇß´Ù. <- ¿©±â¼­ 1°³¶õ Ä«¿îÆ®¸¦ ¸»ÇÏ´Â °ÍÀÌ ¾Æ´Ï´Ù
-		*cp = 1;
-		cp++;
-
-		memcpy(cp, pItemGold->m_cName, 20);
-		cp += 20;
-
-		dwp = (uint32_t*)cp;
-		*dwp = pItemGold->m_dwCount;
-		cp += 4;
-
-		*cp = pItemGold->m_cItemType;
-		cp++;
-
-		*cp = pItemGold->m_cEquipPos;
-		cp++;
-
-		*cp = (char)0; // ¾òÀº ¾ÆÀÌÅÛÀÌ¹Ç·Î ÀåÂøµÇÁö ¾Ê¾Ò´Ù.
-		cp++;
-
-		sp = (short*)cp;
-		*sp = pItemGold->m_sLevelLimit;
-		cp += 2;
-
-		*cp = pItemGold->m_cGenderLimit;
-		cp++;
-
-		wp = (uint16_t*)cp;
-		*wp = pItemGold->m_wCurLifeSpan;
-		cp += 2;
-
-		wp = (uint16_t*)cp;
-		*wp = pItemGold->m_wWeight;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = pItemGold->m_sSprite;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = pItemGold->m_sSpriteFrame;
-		cp += 2;
-
-		*cp = pItemGold->m_cItemColor;
-		cp++;
-
-		*cp = (char)pItemGold->m_sItemSpecEffectValue2; // v1.41 
-		cp++;
-
-		dwp = (uint32_t*)cp;
-		*dwp = pItemGold->m_dwAttribute;
-		cp += 4;
-		/*
-		*cp = (char)(pItemGold->m_dwAttribute & 0x00000001); // Custom-ItemÀÎÁöÀÇ ¿©ºÎ
-		cp++;
-		*/
-
-		if (iEraseReq == 1)
-			delete pItemGold;
-
-		// ¾ÆÀÌÅÛ Á¤º¸ Àü¼Û 
-		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 53);
+		iRet = SendItemNotifyMsg(iClientH, DEF_NOTIFY_ITEMOBTAINED, pItemGold, 0);
 
 		// ¼ÒÁöÇ° ÃÑ Áß·® Àç °è»ê 
 		iCalcTotalWeight(iClientH);
@@ -24154,12 +22872,9 @@ void CGame::ReqSellItemConfirmHandler(int iClientH, char cItemID, int iNum, char
 		iCalcTotalWeight(iClientH);
 
 		// ´õÀÌ»ó °¡Áú¼ö ¾ø´Ù´Â ¸Þ½ÃÁö¸¦ º¸³½´Ù.
-		dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-		*dwp = MSGID_NOTIFY;
-		wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-		*wp = DEF_NOTIFY_CANNOTCARRYMOREITEM;
+		iRet = SendItemNotifyMsg(iClientH, DEF_NOTIFY_CANNOTCARRYMOREITEM, 0, 0);
 
-		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 6);
+
 		switch (iRet) {
 		case DEF_XSOCKEVENT_QUENEFULL:
 		case DEF_XSOCKEVENT_SOCKETERROR:
@@ -24172,7 +22887,7 @@ void CGame::ReqSellItemConfirmHandler(int iClientH, char cItemID, int iNum, char
 	}
 }
 
-void CGame::ReqRepairItemHandler(int iClientH, char cItemID, char cRepairWhom, char* pString)
+void CGame::ReqRepairItemHandler(int iClientH, char cItemID, char cRepairWhom, const char* pString)
 {
 	char cItemCategory;
 	short sRemainLife, sPrice;
@@ -24251,13 +22966,12 @@ void CGame::ReqRepairItemHandler(int iClientH, char cItemID, char cRepairWhom, c
 	}
 }
 
-void CGame::ReqRepairItemCofirmHandler(int iClientH, char cItemID, char* pString)
+void CGame::ReqRepairItemCofirmHandler(int iClientH, char cItemID, const char* pString)
 {
 	short    sRemainLife, sPrice;
-	char* cp, cItemCategory, cData[120];
+	char cItemCategory;
 	double   d1, d2, d3;
-	uint32_t* dwp, dwGoldCount;
-	uint16_t* wp;
+	uint32_t dwGoldCount;
 	int      iRet, iGoldWeight;
 
 	// ¾ÆÀÌÅÛÀ» ¼ö¸®ÇÏ°Ú´Ù´Â °ÍÀÌ °áÁ¤µÇ¾ú´Ù.
@@ -24303,15 +23017,13 @@ void CGame::ReqRepairItemCofirmHandler(int iClientH, char cItemID, char* pString
 
 		if (dwGoldCount < (uint32_t)sPrice) {
 			// ÇÃ·¹ÀÌ¾î°¡ °®°íÀÖ´Â Gold°¡ ¾ÆÀÌÅÛ ¼ö¸® ºñ¿ë¿¡ ºñÇØ Àû´Ù. °íÄ¥ ¼ö ¾øÀ½.
-			dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-			*dwp = MSGID_NOTIFY;
-			wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-			*wp = DEF_NOTIFY_NOTENOUGHGOLD;
-			cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-			*cp = cItemID;
-			cp++;
-
-			iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 7);
+			{
+				hb::net::PacketNotifyNotEnoughGold pkt{};
+				pkt.header.msg_id = MSGID_NOTIFY;
+				pkt.header.msg_type = DEF_NOTIFY_NOTENOUGHGOLD;
+				pkt.item_index = static_cast<int8_t>(cItemID);
+				iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+			}
 			switch (iRet) {
 			case DEF_XSOCKEVENT_QUENEFULL:
 			case DEF_XSOCKEVENT_SOCKETERROR:
@@ -26020,7 +24732,9 @@ void CGame::ResponseSavePlayerDataReplyHandler(char* pData, uint32_t dwMsgSize)
 
 	std::memset(cCharName, 0, sizeof(cCharName));
 
-	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
+	const auto* header = hb::net::PacketCast<hb::net::PacketHeader>(pData, sizeof(hb::net::PacketHeader));
+	if (!header) return;
+	cp = (char*)(pData + sizeof(hb::net::PacketHeader));
 	memcpy(cCharName, cp, 10);
 
 	// ÀÌÁ¦ ÀÌ ÀÌ¸§À» °®´Â Å¬¶óÀÌ¾ðÆ®¸¦ Ã£¾Æ Á¢¼ÓÀ» ²÷¾îµµ ÁÁ´Ù´Â ¸Þ½ÃÁö¸¦ º¸³½´Ù. 
@@ -26624,7 +25338,7 @@ void CGame::UserCommand_DissmissGuild(int iClientH, char* pData, uint32_t dwMsgS
 
 void CGame::RequestCreateNewGuild(int iClientH, char* pData)
 {
-	char cFileName[255], cData[512];
+	char cFileName[255];
 	char cTxt[500];
 	char cTxt2[100];
 	char cGuildMasterName[11], cGuildLocation[11], cDir[255], cGuildName[21];
@@ -26638,7 +25352,6 @@ void CGame::RequestCreateNewGuild(int iClientH, char* pData)
 	std::memset(cTxt, 0, sizeof(cTxt));
 	std::memset(cTxt2, 0, sizeof(cTxt2));
 	std::memset(cDir, 0, sizeof(cDir));
-	std::memset(cData, 0, sizeof(cData));
 	std::memset(cGuildMasterName, 0, sizeof(cGuildMasterName));
 	std::memset(cGuildName, 0, sizeof(cGuildName));
 	std::memset(cGuildLocation, 0, sizeof(cGuildLocation));
@@ -28121,11 +26834,9 @@ void CGame::_CheckAttackType(int iClientH, short* spType)
 
 void CGame::ReqCreatePortionHandler(int iClientH, char* pData)
 {
-	uint32_t* dwp;
-	uint16_t* wp;
-	char* cp, cI[6], cPortionName[21], cData[120];
+	char cI[6], cPortionName[21];
 	int    iRet, i, j, iEraseReq, iSkillLimit, iSkillLevel, iResult, iDifficulty;
-	short* sp, sItemIndex[6], sTemp;
+	short sItemIndex[6], sTemp;
 	short  sItemNumber[6], sItemArray[12];
 	bool   bDup, bFlag;
 	class  CItem* pItem;
@@ -28139,19 +26850,12 @@ void CGame::ReqCreatePortionHandler(int iClientH, char* pData)
 		sItemNumber[i] = 0;
 	}
 
-	cp = (char*)(pData + 11);
-	cI[0] = *cp;
-	cp++;
-	cI[1] = *cp;
-	cp++;
-	cI[2] = *cp;
-	cp++;
-	cI[3] = *cp;
-	cp++;
-	cI[4] = *cp;
-	cp++;
-	cI[5] = *cp;
-	cp++;
+	const auto* pkt = hb::net::PacketCast<hb::net::PacketCommandCommonItems>(
+		pData, sizeof(hb::net::PacketCommandCommonItems));
+	if (!pkt) return;
+	for (i = 0; i < 6; i++) {
+		cI[i] = static_cast<char>(pkt->item_ids[i]);
+	}
 	// Æ÷¼ÇÀÇ Àç·á ÀÎµ¦½º¸¦ ¹Þ¾Ò´Ù. ÀÌ Àç·á°¡ Æ÷¼ÇÀ» ¸¸µé ¼ö ÀÖ´Â Á¶ÇÕÀÎÁö È®ÀÎÇÑ´Ù. 
 
 	// µ¥ÀÌÅÍ°¡ À¯È¿ÇÑ ¾ÆÀÌÅÛ ÀÎµ¦½ºÀÎÁö Ã¼Å©ÇÑ´Ù.
@@ -28278,73 +26982,7 @@ void CGame::ReqCreatePortionHandler(int iClientH, char* pData)
 
 		if ((_bInitItemAttr(pItem, cPortionName))) {
 			if (_bAddClientItemList(iClientH, pItem, &iEraseReq)) {
-				std::memset(cData, 0, sizeof(cData));
-				dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-				*dwp = MSGID_NOTIFY;
-				wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-				*wp = DEF_NOTIFY_ITEMOBTAINED;
-
-				cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-
-				*cp = 1;
-				cp++;
-
-				memcpy(cp, pItem->m_cName, 20);
-				cp += 20;
-
-				dwp = (uint32_t*)cp;
-				*dwp = pItem->m_dwCount;	// ¼ö·®À» ÀÔ·Â 
-				cp += 4;
-
-				*cp = pItem->m_cItemType;
-				cp++;
-
-				*cp = pItem->m_cEquipPos;
-				cp++;
-
-				*cp = (char)0;
-				cp++;
-
-				sp = (short*)cp;
-				*sp = pItem->m_sLevelLimit;
-				cp += 2;
-
-				*cp = pItem->m_cGenderLimit;
-				cp++;
-
-				wp = (uint16_t*)cp;
-				*wp = pItem->m_wCurLifeSpan;
-				cp += 2;
-
-				wp = (uint16_t*)cp;
-				*wp = pItem->m_wWeight;
-				cp += 2;
-
-				sp = (short*)cp;
-				*sp = pItem->m_sSprite;
-				cp += 2;
-
-				sp = (short*)cp;
-				*sp = pItem->m_sSpriteFrame;
-				cp += 2;
-
-				*cp = pItem->m_cItemColor;
-				cp++;
-
-				*cp = (char)pItem->m_sItemSpecEffectValue2; // v1.41 
-				cp++;
-
-				dwp = (uint32_t*)cp;
-				*dwp = pItem->m_dwAttribute;
-				cp += 4;
-				/*
-				*cp = (char)(pItem->m_dwAttribute & 0x00000001); // Custom-ItemÀÎÁöÀÇ ¿©ºÎ
-				cp++;
-				*/
-
-				if (iEraseReq == 1) delete pItem;
-
-				iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 53);
+				iRet = SendItemNotifyMsg(iClientH, DEF_NOTIFY_ITEMOBTAINED, pItem, 0);
 				switch (iRet) {
 				case DEF_XSOCKEVENT_QUENEFULL:
 				case DEF_XSOCKEVENT_SOCKETERROR:
@@ -28365,12 +27003,9 @@ void CGame::ReqCreatePortionHandler(int iClientH, char* pData)
 					m_pClientList[iClientH]->m_sX, m_pClientList[iClientH]->m_sY,
 					pItem->m_sIDnum, 0, pItem->m_cItemColor, pItem->m_dwAttribute); // v1.4
 
-				dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-				*dwp = MSGID_NOTIFY;
-				wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-				*wp = DEF_NOTIFY_CANNOTCARRYMOREITEM;
+				iRet = SendItemNotifyMsg(iClientH, DEF_NOTIFY_CANNOTCARRYMOREITEM, 0, 0);
 
-				iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 6);
+
 				switch (iRet) {
 				case DEF_XSOCKEVENT_QUENEFULL:
 				case DEF_XSOCKEVENT_SOCKETERROR:
@@ -28509,11 +27144,9 @@ void CGame::ReqCreatePortionHandler(int iClientH, char* pData)
 //////////////////////////////////////////////////////////////////////////////////////////
 void CGame::ReqCreateCraftingHandler(int iClientH, char* pData)
 {
-	uint32_t* dwp;
-	uint16_t* wp;
-	char* cp, cI[6], cCraftingName[21], cData[120];
+	char cI[6], cCraftingName[21];
 	int    iRet, i, j, iEraseReq, iRiskLevel, iDifficulty, iNeededContrib = 0;
-	short* sp, sTemp;
+	short sTemp;
 	short  sItemIndex[6], sItemPurity[6], sItemNumber[6], sItemArray[12];
 	bool   bDup, bFlag, bNeedLog;
 	class  CItem* pItem;
@@ -28528,20 +27161,12 @@ void CGame::ReqCreateCraftingHandler(int iClientH, char* pData)
 		sItemNumber[i] = 0;
 		sItemPurity[i] = -1;
 	}
-	cp = (char*)(pData + 11);
-	cp += 20;
-	cI[0] = *cp;
-	cp++;
-	cI[1] = *cp;
-	cp++;
-	cI[2] = *cp;
-	cp++;
-	cI[3] = *cp;
-	cp++;
-	cI[4] = *cp;
-	cp++;
-	cI[5] = *cp;
-	cp++;
+	const auto* pkt = hb::net::PacketCast<hb::net::PacketCommandCommonBuild>(
+		pData, sizeof(hb::net::PacketCommandCommonBuild));
+	if (!pkt) return;
+	for (i = 0; i < 6; i++) {
+		cI[i] = static_cast<char>(pkt->item_ids[i]);
+	}
 
 	for (i = 0; i < 6; i++)
 	{
@@ -28796,53 +27421,7 @@ void CGame::ReqCreateCraftingHandler(int iClientH, char* pData)
 			}
 			if (_bAddClientItemList(iClientH, pItem, &iEraseReq))
 			{
-				std::memset(cData, 0, sizeof(cData));
-				dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-				*dwp = MSGID_NOTIFY;
-				wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-				*wp = DEF_NOTIFY_ITEMOBTAINED;
-				cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-				*cp = 1;
-				cp++;
-				memcpy(cp, pItem->m_cName, 20);
-				cp += 20;
-				dwp = (uint32_t*)cp;
-				*dwp = pItem->m_dwCount;
-				cp += 4;
-				*cp = pItem->m_cItemType;
-				cp++;
-				*cp = pItem->m_cEquipPos;
-				cp++;
-				*cp = (char)0;
-				cp++;
-				sp = (short*)cp;
-				*sp = pItem->m_sLevelLimit;
-				cp += 2;
-				*cp = pItem->m_cGenderLimit;
-				cp++;
-				wp = (uint16_t*)cp;
-				*wp = pItem->m_wCurLifeSpan;
-				cp += 2;
-				wp = (uint16_t*)cp;
-				*wp = pItem->m_wWeight;
-				cp += 2;
-				sp = (short*)cp;
-				*sp = pItem->m_sSprite;
-				cp += 2;
-				sp = (short*)cp;
-				*sp = pItem->m_sSpriteFrame;
-				cp += 2;
-				*cp = pItem->m_cItemColor;
-				cp++;
-				*cp = (char)pItem->m_sItemSpecEffectValue2; // v1.41 
-				cp++;
-				dwp = (uint32_t*)cp;
-				*dwp = pItem->m_dwAttribute;
-				cp += 4;
-				/*	*cp = (char)(pItem->m_dwAttribute & 0x00000001); // Custom-Item
-				cp++;	*/
-				if (iEraseReq == 1) delete pItem;
-				iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 53);
+				iRet = SendItemNotifyMsg(iClientH, DEF_NOTIFY_ITEMOBTAINED, pItem, 0);
 				switch (iRet) {
 				case DEF_XSOCKEVENT_QUENEFULL:
 				case DEF_XSOCKEVENT_SOCKETERROR:
@@ -28862,11 +27441,9 @@ void CGame::ReqCreateCraftingHandler(int iClientH, char* pData)
 					m_pClientList[iClientH]->m_sX, m_pClientList[iClientH]->m_sY,
 					pItem->m_sIDnum, 0, pItem->m_cItemColor, pItem->m_dwAttribute);
 
-				dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-				*dwp = MSGID_NOTIFY;
-				wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-				*wp = DEF_NOTIFY_CANNOTCARRYMOREITEM;
-				iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 6);
+				iRet = SendItemNotifyMsg(iClientH, DEF_NOTIFY_CANNOTCARRYMOREITEM, 0, 0);
+
+
 				switch (iRet) {
 				case DEF_XSOCKEVENT_QUENEFULL:
 				case DEF_XSOCKEVENT_SOCKETERROR:
@@ -29803,11 +28380,8 @@ void CGame::SetSummonMobAction(int iClientH, int iMode, uint32_t dwMsgSize, char
 void CGame::GetOccupyFlagHandler(int iClientH)
 {
 	int   i, iNum, iRet, iEraseReq, iEKNum;
-	char* cp, cData[256], cItemName[21];
+	char cItemName[21];
 	class CItem* pItem;
-	uint32_t* dwp;
-	short* sp;
-	uint16_t* wp;
 
 	if (m_pClientList[iClientH] == 0) return;
 	if (m_pClientList[iClientH]->m_iEnemyKillCount < 3) return;
@@ -29852,73 +28426,7 @@ void CGame::GetOccupyFlagHandler(int iClientH)
 				PutLogFileList(G_cTxt);
 
 				// ¾ÆÀÌÅÛ ¾ò¾ú´Ù´Â ¸Þ½ÃÁö¸¦ Àü¼ÛÇÑ´Ù.
-				dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-				*dwp = MSGID_NOTIFY;
-				wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-				*wp = DEF_NOTIFY_ITEMOBTAINED;
-
-				cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-				// 1°³ È¹µæÇß´Ù.
-				*cp = 1;
-				cp++;
-
-				memcpy(cp, pItem->m_cName, 20);
-				cp += 20;
-
-				dwp = (uint32_t*)cp;
-				*dwp = pItem->m_dwCount;
-				cp += 4;
-
-				*cp = pItem->m_cItemType;
-				cp++;
-
-				*cp = pItem->m_cEquipPos;
-				cp++;
-
-				*cp = (char)0; // ¾òÀº ¾ÆÀÌÅÛÀÌ¹Ç·Î ÀåÂøµÇÁö ¾Ê¾Ò´Ù.
-				cp++;
-
-				sp = (short*)cp;
-				*sp = pItem->m_sLevelLimit;
-				cp += 2;
-
-				*cp = pItem->m_cGenderLimit;
-				cp++;
-
-				wp = (uint16_t*)cp;
-				*wp = pItem->m_wCurLifeSpan;
-				cp += 2;
-
-				wp = (uint16_t*)cp;
-				*wp = pItem->m_wWeight;
-				cp += 2;
-
-				sp = (short*)cp;
-				*sp = pItem->m_sSprite;
-				cp += 2;
-
-				sp = (short*)cp;
-				*sp = pItem->m_sSpriteFrame;
-				cp += 2;
-
-				*cp = pItem->m_cItemColor;
-				cp++;
-
-				*cp = (char)pItem->m_sItemSpecEffectValue2; // v1.41 
-				cp++;
-
-				dwp = (uint32_t*)cp;
-				*dwp = pItem->m_dwAttribute;
-				cp += 4;
-				/*
-				*cp = (char)(pItem->m_dwAttribute & 0x00000001); // Custom-ItemÀÎÁöÀÇ ¿©ºÎ
-				cp++;
-				*/
-
-				if (iEraseReq == 1) delete pItem;
-
-				// ¾ÆÀÌÅÛ Á¤º¸ Àü¼Û 
-				iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 53);
+				iRet = SendItemNotifyMsg(iClientH, DEF_NOTIFY_ITEMOBTAINED, pItem, 0);
 
 				// ¼ÒÁöÇ° ÃÑ Áß·® Àç °è»ê 
 				iCalcTotalWeight(iClientH);
@@ -29944,12 +28452,9 @@ void CGame::GetOccupyFlagHandler(int iClientH)
 				// ¼ÒÁöÇ° ÃÑ Áß·® Àç °è»ê 
 				iCalcTotalWeight(iClientH);
 
-				dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-				*dwp = MSGID_NOTIFY;
-				wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-				*wp = DEF_NOTIFY_CANNOTCARRYMOREITEM;
+				iRet = SendItemNotifyMsg(iClientH, DEF_NOTIFY_CANNOTCARRYMOREITEM, 0, 0);
 
-				iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 6);
+
 				switch (iRet) {
 				case DEF_XSOCKEVENT_QUENEFULL:
 				case DEF_XSOCKEVENT_SOCKETERROR:
@@ -29970,11 +28475,8 @@ void CGame::GetOccupyFlagHandler(int iClientH)
 void CGame::GetFightzoneTicketHandler(int iClientH)
 {
 	int   iRet, iEraseReq, iMonth, iDay, iHour;
-	char* cp, cData[256], cItemName[21];
+	char cItemName[21];
 	class CItem* pItem;
-	uint32_t* dwp;
-	short* sp;
-	uint16_t* wp;
 
 	if (m_pClientList[iClientH] == 0) return;
 
@@ -30020,72 +28522,9 @@ void CGame::GetFightzoneTicketHandler(int iClientH)
 		PutLogFileList(G_cTxt);
 		PutLogList(G_cTxt);
 
-		std::memset(cData, 0, sizeof(cData));
 
 		// ¾ÆÀÌÅÛ ¾ò¾ú´Ù´Â ¸Þ½ÃÁö¸¦ Àü¼ÛÇÑ´Ù.
-		dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-		*dwp = MSGID_NOTIFY;
-		wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-		*wp = DEF_NOTIFY_ITEMOBTAINED;
-
-		cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-		// 1°³ È¹µæÇß´Ù.
-		*cp = 1;
-		cp++;
-
-		memcpy(cp, pItem->m_cName, 20);
-		cp += 20;
-
-		dwp = (uint32_t*)cp;
-		*dwp = pItem->m_dwCount;
-		cp += 4;
-
-		*cp = pItem->m_cItemType;
-		cp++;
-
-		*cp = pItem->m_cEquipPos;
-		cp++;
-
-		*cp = (char)0; // ¾òÀº ¾ÆÀÌÅÛÀÌ¹Ç·Î ÀåÂøµÇÁö ¾Ê¾Ò´Ù.
-		cp++;
-
-		sp = (short*)cp;
-		*sp = pItem->m_sLevelLimit;
-		cp += 2;
-
-		*cp = pItem->m_cGenderLimit;
-		cp++;
-
-		wp = (uint16_t*)cp;
-		*wp = pItem->m_wCurLifeSpan;
-		cp += 2;
-
-		wp = (uint16_t*)cp;
-		*wp = pItem->m_wWeight;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = pItem->m_sSprite;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = pItem->m_sSpriteFrame;
-		cp += 2;
-
-		*cp = pItem->m_cItemColor;
-		cp++;
-
-		*cp = (char)pItem->m_sItemSpecEffectValue2; // v1.41 
-		cp++;
-
-		dwp = (uint32_t*)cp;
-		*dwp = pItem->m_dwAttribute;
-		cp += 4;
-
-		if (iEraseReq == 1) delete pItem;
-
-		// ¾ÆÀÌÅÛ Á¤º¸ Àü¼Û 
-		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 53);
+		iRet = SendItemNotifyMsg(iClientH, DEF_NOTIFY_ITEMOBTAINED, pItem, 0);
 
 		// ¼ÒÁöÇ° ÃÑ Áß·® Àç °è»ê 
 		iCalcTotalWeight(iClientH);
@@ -30107,12 +28546,9 @@ void CGame::GetFightzoneTicketHandler(int iClientH)
 		// ¼ÒÁöÇ° ÃÑ Áß·® Àç °è»ê 
 		iCalcTotalWeight(iClientH);
 
-		dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-		*dwp = MSGID_NOTIFY;
-		wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-		*wp = DEF_NOTIFY_CANNOTCARRYMOREITEM;
+		iRet = SendItemNotifyMsg(iClientH, DEF_NOTIFY_CANNOTCARRYMOREITEM, 0, 0);
 
-		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 6);
+
 		switch (iRet) {
 		case DEF_XSOCKEVENT_QUENEFULL:
 		case DEF_XSOCKEVENT_SOCKETERROR:
@@ -30267,14 +28703,11 @@ bool CGame::_bDecodeOccupyFlagSaveFileContents(char* pData, uint32_t dwMsgSize)
 	return true;
 }
 //Hero Code by Zabuza
-void CGame::GetHeroMantleHandler(int iClientH, int iItemID, char* pString)
+void CGame::GetHeroMantleHandler(int iClientH, int iItemID, const char* pString)
 {
 	int   i, iNum, iRet, iEraseReq;
-	char* cp, cData[256], cItemName[21];
+	char cItemName[21];
 	class CItem* pItem;
-	uint32_t* dwp;
-	short* sp;
-	uint16_t* wp;
 
 	if (m_pClientList[iClientH] == 0) return;
 	if (m_pClientList[iClientH]->m_iEnemyKillCount < 100) return;
@@ -30390,71 +28823,7 @@ void CGame::GetHeroMantleHandler(int iClientH, int iItemID, char* pString)
 				pItem->m_sTouchEffectValue2 = m_pClientList[iClientH]->m_sCharIDnum2;
 				pItem->m_sTouchEffectValue3 = m_pClientList[iClientH]->m_sCharIDnum3;
 
-				dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-				*dwp = MSGID_NOTIFY;
-				wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-				*wp = DEF_NOTIFY_ITEMOBTAINED;
-				cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-
-				*cp = 1;
-				cp++;
-
-				memcpy(cp, pItem->m_cName, 20);
-				cp += 20;
-
-				dwp = (uint32_t*)cp;
-				*dwp = pItem->m_dwCount;
-				cp += 4;
-
-				*cp = pItem->m_cItemType;
-				cp++;
-
-				*cp = pItem->m_cEquipPos;
-				cp++;
-
-				*cp = (char)0;
-				cp++;
-
-				sp = (short*)cp;
-				*sp = pItem->m_sLevelLimit;
-				cp += 2;
-
-				*cp = pItem->m_cGenderLimit;
-				cp++;
-
-				wp = (uint16_t*)cp;
-				*wp = pItem->m_wCurLifeSpan;
-				cp += 2;
-
-				wp = (uint16_t*)cp;
-				*wp = pItem->m_wWeight;
-				cp += 2;
-
-				sp = (short*)cp;
-				*sp = pItem->m_sSprite;
-				cp += 2;
-
-				sp = (short*)cp;
-				*sp = pItem->m_sSpriteFrame;
-				cp += 2;
-
-				*cp = pItem->m_cItemColor;
-				cp++;
-
-				*cp = (char)pItem->m_sItemSpecEffectValue2; // v1.41 
-				cp++;
-
-				dwp = (uint32_t*)cp;
-				*dwp = pItem->m_dwAttribute;
-				cp += 4;
-				/*
-				*cp = (char)(pItem->m_dwAttribute & 0x00000001); // Custom-Item??? ??
-				cp++;
-				*/
-
-				if (iEraseReq == 1) delete pItem;
-
-				iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 53);
+				iRet = SendItemNotifyMsg(iClientH, DEF_NOTIFY_ITEMOBTAINED, pItem, 0);
 
 				iCalcTotalWeight(iClientH);
 
@@ -30475,12 +28844,9 @@ void CGame::GetHeroMantleHandler(int iClientH, int iItemID, char* pString)
 
 				iCalcTotalWeight(iClientH);
 
-				dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-				*dwp = MSGID_NOTIFY;
-				wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-				*wp = DEF_NOTIFY_CANNOTCARRYMOREITEM;
+				iRet = SendItemNotifyMsg(iClientH, DEF_NOTIFY_CANNOTCARRYMOREITEM, 0, 0);
 
-				iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 6);
+
 				switch (iRet) {
 				case DEF_XSOCKEVENT_QUENEFULL:
 				case DEF_XSOCKEVENT_SOCKETERROR:
@@ -30497,22 +28863,16 @@ void CGame::GetHeroMantleHandler(int iClientH, int iItemID, char* pString)
 
 void CGame::_SetItemPos(int iClientH, char* pData)
 {
-	char* cp, cItemIndex;
-	short* sp, sX, sY;
+	char cItemIndex;
+	short sX, sY;
 
 	if (m_pClientList[iClientH] == 0) return;
 
-	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
-	cItemIndex = *cp;
-	cp++;
-
-	sp = (short*)cp;
-	sX = *sp;
-	cp += 2;
-
-	sp = (short*)cp;
-	sY = *sp;
-	cp += 2;
+	const auto* req = hb::net::PacketCast<hb::net::PacketRequestSetItemPos>(pData, sizeof(hb::net::PacketRequestSetItemPos));
+	if (!req) return;
+	cItemIndex = static_cast<char>(req->dir);
+	sX = req->x;
+	sY = req->y;
 
 	// Àß¸øµÈ ÁÂÇ¥°ª º¸Á¤ 
 	if (sY < -10) sY = -10;
@@ -30571,7 +28931,9 @@ void CGame::_BWM_Command_Shutup(char* pData)
 	char* cp, cName[11];
 	int i;
 
-	cp = (char*)(pData + 16);
+	const auto* header = hb::net::PacketCast<hb::net::PacketHeader>(pData, sizeof(hb::net::PacketHeader));
+	if (!header) return;
+	cp = (char*)(pData + sizeof(hb::net::PacketHeader) + 10);
 
 	std::memset(cName, 0, sizeof(cName));
 	memcpy(cName, cp, 10);
@@ -30592,7 +28954,7 @@ void CGame::_BWM_Command_Shutup(char* pData)
 }
 
 
-void CGame::ExchangeItemHandler(int iClientH, short sItemIndex, int iAmount, short dX, short dY, uint16_t wObjectID, char* pItemName)
+void CGame::ExchangeItemHandler(int iClientH, short sItemIndex, int iAmount, short dX, short dY, uint16_t wObjectID, const char* pItemName)
 {
 	short sOwnerH;
 	char  cOwnerType;
@@ -31001,90 +29363,12 @@ int CGame::_iGetItemSpaceLeft(int iClientH)
 
 bool CGame::bAddItem(int iClientH, CItem* pItem, char cMode)
 {
-	char* cp, cData[256];
-	uint32_t* dwp;
-	uint16_t* wp;
-	short* sp;
 	int iRet, iEraseReq;
 
 
-	std::memset(cData, 0, sizeof(cData));
 	if (_bAddClientItemList(iClientH, pItem, &iEraseReq)) {
 		// ¾ÆÀÌÅÛÀ» È¹µæÇß´Ù.
-		dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-		*dwp = MSGID_NOTIFY;
-		wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-		*wp = DEF_NOTIFY_ITEMOBTAINED;
-
-		cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-
-		// 1°³ È¹µæÇß´Ù. Amount°¡ ¾Æ´Ï´Ù!
-		*cp = 1;
-		cp++;
-
-		memcpy(cp, pItem->m_cName, 20);
-		cp += 20;
-
-		dwp = (uint32_t*)cp;
-		*dwp = pItem->m_dwCount;	// ¼ö·®À» ÀÔ·Â 
-		cp += 4;
-
-		*cp = pItem->m_cItemType;
-		cp++;
-
-		*cp = pItem->m_cEquipPos;
-		cp++;
-
-		*cp = (char)0; // ¾òÀº ¾ÆÀÌÅÛÀÌ¹Ç·Î ÀåÂøµÇÁö ¾Ê¾Ò´Ù.
-		cp++;
-
-		sp = (short*)cp;
-		*sp = pItem->m_sLevelLimit;
-		cp += 2;
-
-		*cp = pItem->m_cGenderLimit;
-		cp++;
-
-		wp = (uint16_t*)cp;
-		*wp = pItem->m_wCurLifeSpan;
-		cp += 2;
-
-		wp = (uint16_t*)cp;
-		*wp = pItem->m_wWeight;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = pItem->m_sSprite;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = pItem->m_sSpriteFrame;
-		cp += 2;
-
-		*cp = pItem->m_cItemColor;
-		cp++;
-
-		*cp = (char)pItem->m_sItemSpecEffectValue2; // v1.41 
-		cp++;
-
-		dwp = (uint32_t*)cp;
-		*dwp = pItem->m_dwAttribute;
-		cp += 4;
-		/*
-		*cp = (char)(pItem->m_dwAttribute & 0x00000001); // Custom-ItemÀÎÁöÀÇ ¿©ºÎ
-		cp++;
-		*/
-
-		if (iEraseReq == 1) {
-			//testcode
-			//std::snprintf(G_cTxt, sizeof(G_cTxt), "AddItem: Delete (%s)", pItem->m_cName);
-			//PutLogFileList(G_cTxt);
-			delete pItem;
-			pItem = 0;
-		}
-
-		// ¾ÆÀÌÅÛ Á¤º¸ Àü¼Û 
-		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 53);
+		iRet = SendItemNotifyMsg(iClientH, DEF_NOTIFY_ITEMOBTAINED, pItem, 0);
 
 		return true;
 	}
@@ -31101,12 +29385,9 @@ bool CGame::bAddItem(int iClientH, CItem* pItem, char cMode)
 			pItem->m_sIDnum, 0, pItem->m_cItemColor, pItem->m_dwAttribute); //v1.4 color
 
 		// ´õÀÌ»ó °¡Áú¼ö ¾ø´Ù´Â ¸Þ½ÃÁö¸¦ º¸³½´Ù.
-		dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-		*dwp = MSGID_NOTIFY;
-		wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-		*wp = DEF_NOTIFY_CANNOTCARRYMOREITEM;
+		iRet = SendItemNotifyMsg(iClientH, DEF_NOTIFY_CANNOTCARRYMOREITEM, 0, 0);
 
-		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 6);
+
 
 		return true;
 	}
@@ -31495,139 +29776,71 @@ int CGame::_iTalkToNpcResult_WTower(int iClientH, int* pQuestType, int* pMode, i
 	return -4;
 }
 
-void CGame::SendItemNotifyMsg(int iClientH, uint16_t wMsgType, CItem* pItem, int iV1)
+int CGame::SendItemNotifyMsg(int iClientH, uint16_t wMsgType, CItem* pItem, int iV1)
 {
-	char* cp, cData[512];
-	uint32_t* dwp;
-	uint16_t* wp;
-	short* sp;
-	int     iRet;
+	int iRet = 0;
 
-	if (m_pClientList[iClientH] == 0) return;
-
-	dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-	*dwp = MSGID_NOTIFY;
-	wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-	*wp = wMsgType;
-	cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
+	if (m_pClientList[iClientH] == 0) return 0;
 
 	switch (wMsgType) {
 	case DEF_NOTIFY_ITEMOBTAINED:
-		*cp = 1; // 1°³ È¹µæÇß´Ù. <- ¿©±â¼­ 1°³¶õ ¼ö·® Ä«¿îÆ®¸¦ ¸»ÇÏ´Â °ÍÀÌ ¾Æ´Ï´Ù
-		cp++;
-
-		memcpy(cp, pItem->m_cName, 20);
-		cp += 20;
-
-		dwp = (uint32_t*)cp;
-		*dwp = pItem->m_dwCount;
-		cp += 4;
-
-		*cp = pItem->m_cItemType;
-		cp++;
-
-		*cp = pItem->m_cEquipPos;
-		cp++;
-
-		*cp = (char)0; // ¾òÀº ¾ÆÀÌÅÛÀÌ¹Ç·Î ÀåÂøµÇÁö ¾Ê¾Ò´Ù.
-		cp++;
-
-		sp = (short*)cp;
-		*sp = pItem->m_sLevelLimit;
-		cp += 2;
-
-		*cp = pItem->m_cGenderLimit;
-		cp++;
-
-		wp = (uint16_t*)cp;
-		*wp = pItem->m_wCurLifeSpan;
-		cp += 2;
-
-		wp = (uint16_t*)cp;
-		*wp = pItem->m_wWeight;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = pItem->m_sSprite;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = pItem->m_sSpriteFrame;
-		cp += 2;
-
-		*cp = pItem->m_cItemColor; // v1.4
-		cp++;
-
-		*cp = (char)pItem->m_sItemSpecEffectValue2; // v1.41 
-		cp++;
-
-		dwp = (uint32_t*)cp;
-		*dwp = pItem->m_dwAttribute;
-		cp += 4;
-		/*
-		*cp = (char)(pItem->m_dwAttribute & 0x00000001); // Custom-ItemÀÎÁöÀÇ ¿©ºÎ
-		cp++;
-		*/
-
-		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 53);
-		break;
+	{
+		hb::net::PacketNotifyItemObtained pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.is_new = 1;
+		memcpy(pkt.name, pItem->m_cName, sizeof(pkt.name));
+		pkt.count = pItem->m_dwCount;
+		pkt.item_type = pItem->m_cItemType;
+		pkt.equip_pos = pItem->m_cEquipPos;
+		pkt.is_equipped = 0;
+		pkt.level_limit = pItem->m_sLevelLimit;
+		pkt.gender_limit = pItem->m_cGenderLimit;
+		pkt.cur_lifespan = pItem->m_wCurLifeSpan;
+		pkt.weight = pItem->m_wWeight;
+		pkt.sprite = pItem->m_sSprite;
+		pkt.sprite_frame = pItem->m_sSpriteFrame;
+		pkt.item_color = pItem->m_cItemColor;
+		pkt.spec_value2 = static_cast<uint8_t>(pItem->m_sItemSpecEffectValue2);
+		pkt.attribute = pItem->m_dwAttribute;
+		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
+	break;
 
 	case DEF_NOTIFY_ITEMPURCHASED:
-		*cp = 1;
-		cp++;
-
-		memcpy(cp, pItem->m_cName, 20);
-		cp += 20;
-
-		dwp = (uint32_t*)cp;
-		*dwp = pItem->m_dwCount;
-		cp += 4;
-
-		*cp = pItem->m_cItemType;
-		cp++;
-
-		*cp = pItem->m_cEquipPos;
-		cp++;
-
-		*cp = (char)0; // ¾òÀº ¾ÆÀÌÅÛÀÌ¹Ç·Î ÀåÂøµÇÁö ¾Ê¾Ò´Ù.
-		cp++;
-
-		sp = (short*)cp;
-		*sp = pItem->m_sLevelLimit;
-		cp += 2;
-
-		*cp = pItem->m_cGenderLimit;
-		cp++;
-
-		wp = (uint16_t*)cp;
-		*wp = pItem->m_wCurLifeSpan;
-		cp += 2;
-
-		wp = (uint16_t*)cp;
-		*wp = pItem->m_wWeight;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = pItem->m_sSprite;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = pItem->m_sSpriteFrame;
-		cp += 2;
-
-		*cp = pItem->m_cItemColor;
-		cp++;
-
-		wp = (uint16_t*)cp;
-		*wp = iV1; // (iCost - iDiscountCost);
-
-		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 48);
-		break;
+	{
+		hb::net::PacketNotifyItemPurchased pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		pkt.is_new = 1;
+		memcpy(pkt.name, pItem->m_cName, sizeof(pkt.name));
+		pkt.count = pItem->m_dwCount;
+		pkt.item_type = pItem->m_cItemType;
+		pkt.equip_pos = pItem->m_cEquipPos;
+		pkt.is_equipped = 0;
+		pkt.level_limit = pItem->m_sLevelLimit;
+		pkt.gender_limit = pItem->m_cGenderLimit;
+		pkt.cur_lifespan = pItem->m_wCurLifeSpan;
+		pkt.weight = pItem->m_wWeight;
+		pkt.sprite = pItem->m_sSprite;
+		pkt.sprite_frame = pItem->m_sSpriteFrame;
+		pkt.item_color = pItem->m_cItemColor;
+		pkt.cost = static_cast<uint16_t>(iV1);
+		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
+	break;
 
 	case DEF_NOTIFY_CANNOTCARRYMOREITEM:
-		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 6);
+	{
+		hb::net::PacketNotifyEmpty pkt{};
+		pkt.header.msg_id = MSGID_NOTIFY;
+		pkt.header.msg_type = wMsgType;
+		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+	}
 		break;
 	}
+
+	return iRet;
 }
 
 bool CGame::_bCheckItemReceiveCondition(int iClientH, CItem* pItem)
@@ -31951,7 +30164,7 @@ bool CGame::_bCheckSubLogSocketIndex()
 
 void CGame::BuildItemHandler(int iClientH, char* pData)
 {
-	char* cp, cName[21], cElementItemID[6];
+	char cName[21], cElementItemID[6];
 	int    i, x, z, iMatch, iCount, iPlayerSkillLevel, iResult, iTotalValue, iResultValue, iTemp, iItemCount[DEF_MAXITEMS];
 	class  CItem* pItem;
 	bool   bFlag, bItemFlag[6];
@@ -31963,27 +30176,19 @@ void CGame::BuildItemHandler(int iClientH, char* pData)
 	if (m_pClientList[iClientH] == 0) return;
 	m_pClientList[iClientH]->m_iSkillMsgRecvCount++;
 
-	cp = (char*)(pData + 11);
+	const auto* pkt = hb::net::PacketCast<hb::net::PacketCommandCommonBuild>(
+		pData, sizeof(hb::net::PacketCommandCommonBuild));
+	if (!pkt) return;
 	std::memset(cName, 0, sizeof(cName));
-	memcpy(cName, cp, 20);
-	cp += 20;
+	memcpy(cName, pkt->name, 20);
 
 	//testcode
 	//PutLogList(cName);
 
 	std::memset(cElementItemID, 0, sizeof(cElementItemID));
-	cElementItemID[0] = *cp;
-	cp++;
-	cElementItemID[1] = *cp;
-	cp++;
-	cElementItemID[2] = *cp;
-	cp++;
-	cElementItemID[3] = *cp;
-	cp++;
-	cElementItemID[4] = *cp;
-	cp++;
-	cElementItemID[5] = *cp;
-	cp++;
+	for (i = 0; i < 6; i++) {
+		cElementItemID[i] = static_cast<char>(pkt->item_ids[i]);
+	}
 
 	// �պκ��� ������� ���ش�.
 	bFlag = true;
@@ -32737,50 +30942,45 @@ void CGame::_AdjustRareItemValue(CItem* pItem)
 
 void CGame::RequestNoticementHandler(int iClientH, char* pData)
 {
-	char* cp, cData[120];
-	int* ip, iRet, iClientSize;
-	uint32_t* dwp;
-	uint16_t* wp;
+	char* cp;
+	int iRet, iClientSize;
 
 	if (m_pClientList[iClientH] == 0) return;
 	if (m_dwNoticementDataSize < 10) return;
 
-	ip = (int*)(pData + DEF_INDEX2_MSGTYPE + 2);
-	iClientSize = *ip;
+	const auto* pkt = hb::net::PacketCast<hb::net::PacketRequestNoticement>(
+		pData, sizeof(hb::net::PacketRequestNoticement));
+	if (!pkt) return;
+	iClientSize = pkt->value;
 
 	if (iClientSize != m_dwNoticementDataSize) {
 		// Å¬¶óÀÌ¾ðÆ®°¡ °®°í ÀÖ´Â ÆÄÀÏ »çÀÌÁî¿Í ´Ù¸£¸é ³»¿ëÀ» ¸ðµÎ º¸³½´Ù.
-		cp = new char[m_dwNoticementDataSize + 2 + DEF_INDEX2_MSGTYPE + 2];
-		std::memset(cp, 0, m_dwNoticementDataSize + 2 + DEF_INDEX2_MSGTYPE + 2);
-		memcpy((cp + DEF_INDEX2_MSGTYPE + 2), m_pNoticementData, m_dwNoticementDataSize);
+		cp = new char[m_dwNoticementDataSize + 2 + sizeof(hb::net::PacketHeader)];
+		std::memset(cp, 0, m_dwNoticementDataSize + 2 + sizeof(hb::net::PacketHeader));
+		memcpy((cp + sizeof(hb::net::PacketHeader)), m_pNoticementData, m_dwNoticementDataSize);
 
-		dwp = (uint32_t*)(cp + DEF_INDEX4_MSGID);
-		*dwp = MSGID_RESPONSE_NOTICEMENT;
-		wp = (uint16_t*)(cp + DEF_INDEX2_MSGTYPE);
-		*wp = DEF_MSGTYPE_REJECT;
+		{
+			auto* header = reinterpret_cast<hb::net::PacketResponseNoticementHeader*>(cp);
+			header->header.msg_id = MSGID_RESPONSE_NOTICEMENT;
+			header->header.msg_type = DEF_MSGTYPE_REJECT;
+		}
 
-		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cp, m_dwNoticementDataSize + 2 + DEF_INDEX2_MSGTYPE + 2);
+		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cp, m_dwNoticementDataSize + 2 + sizeof(hb::net::PacketHeader));
 
 		delete cp;
 	}
 	else {
-		std::memset(cData, 0, sizeof(cData));
-
-		dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-		*dwp = MSGID_RESPONSE_NOTICEMENT;
-		wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-		*wp = DEF_MSGTYPE_CONFIRM;
-
-		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 6);
+		hb::net::PacketResponseNoticementHeader pkt{};
+		pkt.header.msg_id = MSGID_RESPONSE_NOTICEMENT;
+		pkt.header.msg_type = DEF_MSGTYPE_CONFIRM;
+		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
 	}
 	// ¿¡·¯ ¹ß»ýÇØµµ ²÷Áö ¾Ê´Â´Ù.	
 }
 
 void CGame::RequestNoticementHandler(int iClientH)
 {
-	uint32_t* dwp;
 	DWORD lpNumberOfBytesRead;
-	uint16_t* wp;
 
 	if (m_pClientList[iClientH] == 0) return;
 
@@ -32794,16 +30994,16 @@ void CGame::RequestNoticementHandler(int iClientH)
 
 	SetFilePointer(hFile, 0, 0, FILE_BEGIN);
 
-	ReadFile(hFile, G_cData50000 + 6, dwFileSize, &lpNumberOfBytesRead, 0);
+	ReadFile(hFile, G_cData50000 + sizeof(hb::net::PacketHeader), dwFileSize, &lpNumberOfBytesRead, 0);
 	CloseHandle(hFile);
 
-	dwp = (uint32_t*)(G_cData50000);
-	*dwp = MSGID_RESPONSE_NOTICEMENT;
+	{
+		auto* header = reinterpret_cast<hb::net::PacketResponseNoticementHeader*>(G_cData50000);
+		header->header.msg_id = MSGID_RESPONSE_NOTICEMENT;
+		header->header.msg_type = DEF_MSGTYPE_CONFIRM;
+	}
 
-	wp = (uint16_t*)(G_cData50000 + DEF_INDEX2_MSGTYPE);
-	*wp = DEF_MSGTYPE_CONFIRM;
-
-	int iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(G_cData50000, dwFileSize + 8);
+	int iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(G_cData50000, dwFileSize + 2 + sizeof(hb::net::PacketHeader));
 
 	switch (iRet) {
 	case DEF_XSOCKEVENT_QUENEFULL:
@@ -32840,7 +31040,9 @@ void CGame::RequestCheckAccountPasswordHandler(char* pData, uint32_t dwMsgSize)
 	int* ip, i, iLevel;
 	char* cp, cAccountName[11], cAccountPassword[11];
 
-	cp = (char*)(pData + 6);
+	const auto* header = hb::net::PacketCast<hb::net::PacketHeader>(pData, sizeof(hb::net::PacketHeader));
+	if (!header) return;
+	cp = (char*)(pData + sizeof(hb::net::PacketHeader));
 
 	std::memset(cAccountName, 0, sizeof(cAccountName));
 	std::memset(cAccountPassword, 0, sizeof(cAccountPassword));
@@ -32941,10 +31143,8 @@ void CGame::GetMagicAbilityHandler(int iClientH)
 
 int CGame::iRequestPanningMapDataRequest(int iClientH, char* pData)
 {
-	char* cp, cDir, cData[3000];
-	uint32_t* dwp;
-	uint16_t* wp;
-	short* sp, dX, dY;
+	char cDir, mapData[3000];
+	short dX, dY;
 	int   iRet, iSize;
 
 	if (m_pClientList[iClientH] == 0) return 0;
@@ -32955,7 +31155,9 @@ int CGame::iRequestPanningMapDataRequest(int iClientH, char* pData)
 	dX = m_pClientList[iClientH]->m_sX;
 	dY = m_pClientList[iClientH]->m_sY;
 
-	cDir = *(pData + DEF_INDEX2_MSGTYPE + 2);
+	const auto* req = hb::net::PacketCast<hb::net::PacketRequestPanning>(pData, sizeof(hb::net::PacketRequestPanning));
+	if (!req) return 0;
+	cDir = static_cast<char>(req->dir);
 	if ((cDir <= 0) || (cDir > 8)) return 0;
 
 	switch (cDir) {
@@ -32983,26 +31185,21 @@ int CGame::iRequestPanningMapDataRequest(int iClientH, char* pData)
 	m_pClientList[iClientH]->m_sY = dY;
 	m_pClientList[iClientH]->m_cDir = cDir;
 
-	dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-	*dwp = MSGID_RESPONSE_PANNING;
-	wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-	*wp = DEF_OBJECTMOVE_CONFIRM;
+	iSize = iComposeMoveMapData((short)(dX - 12), (short)(dY - 9), iClientH, cDir, mapData);
 
-	cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
+	hb::net::PacketWriter writer;
+	writer.Reserve(sizeof(hb::net::PacketResponsePanningHeader) + iSize);
 
-	sp = (short*)cp;
-	*sp = (short)(dX - 12);
-	cp += 2;
+	auto* pkt = writer.Append<hb::net::PacketResponsePanningHeader>();
+	pkt->header.msg_id = MSGID_RESPONSE_PANNING;
+	pkt->header.msg_type = DEF_OBJECTMOVE_CONFIRM;
+	pkt->x = static_cast<int16_t>(dX - 12);
+	pkt->y = static_cast<int16_t>(dY - 9);
+	pkt->dir = static_cast<uint8_t>(cDir);
 
-	sp = (short*)cp;
-	*sp = (short)(dY - 9);
-	cp += 2;
+	writer.AppendBytes(mapData, iSize);
 
-	*cp = cDir;
-	cp++;
-
-	iSize = iComposeMoveMapData((short)(dX - 12), (short)(dY - 9), iClientH, cDir, cp);
-	iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, iSize + 12 + 1 + 4);
+	iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(writer.Data(), static_cast<int>(writer.Size()));
 	switch (iRet) {
 	case DEF_XSOCKEVENT_QUENEFULL:
 	case DEF_XSOCKEVENT_SOCKETERROR:
@@ -33155,13 +31352,11 @@ void CGame::AdminOrder_EnableAdminCommand(int iClientH, char* pData, uint32_t dw
 void CGame::AdminOrder_CreateItem(int iClientH, char* pData, uint32_t dwMsgSize)
 {
 	char   seps[] = "= \t\r\n";
-	char* cp, * token, cBuff[256], cItemName[256], cData[256], cTemp[256], cAttribute[256], cValue[256];
+	char* token, cBuff[256], cItemName[256], cTemp[256], cAttribute[256], cValue[256];
 	SYSTEMTIME SysTime;
 	class  CItem* pItem;
-	short* sp;
 	int    iRet, iTemp, iEraseReq, iValue;
-	uint32_t* dwp;
-	uint16_t* wp, wTemp;
+	uint16_t wTemp;
 	double dV1, dV2, dV3;
 
 	// if the client doesnt exist than no effect.
@@ -33300,77 +31495,9 @@ void CGame::AdminOrder_CreateItem(int iClientH, char* pData, uint32_t dwMsgSize)
 		break;
 	}
 
-	std::memset(cData, 0, sizeof(cData));
 	if (_bAddClientItemList(iClientH, pItem, &iEraseReq)) {
 		// �������� ȹ���ߴ�.
-		dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-		*dwp = MSGID_NOTIFY;
-		wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-		*wp = DEF_NOTIFY_ITEMOBTAINED;
-
-		cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-
-		// 1�� ȹ���ߴ�. Amount�� �ƴϴ�!
-		*cp = 1;
-		cp++;
-
-		memcpy(cp, pItem->m_cName, 20);
-		cp += 20;
-
-		dwp = (uint32_t*)cp;
-		*dwp = pItem->m_dwCount;	// ������ �Է� 
-		cp += 4;
-
-		*cp = pItem->m_cItemType;
-		cp++;
-
-		*cp = pItem->m_cEquipPos;
-		cp++;
-
-		*cp = (char)0; // ���� �������̹Ƿ� �������� �ʾҴ�.
-		cp++;
-
-		sp = (short*)cp;
-		*sp = pItem->m_sLevelLimit;
-		cp += 2;
-
-		*cp = pItem->m_cGenderLimit;
-		cp++;
-
-		wp = (uint16_t*)cp;
-		*wp = pItem->m_wCurLifeSpan;
-		cp += 2;
-
-		wp = (uint16_t*)cp;
-		*wp = pItem->m_wWeight;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = pItem->m_sSprite;
-		cp += 2;
-
-		sp = (short*)cp;
-		*sp = pItem->m_sSpriteFrame;
-		cp += 2;
-
-		*cp = pItem->m_cItemColor;
-		cp++;
-
-		*cp = (char)pItem->m_sItemSpecEffectValue2; // v1.41 
-		cp++;
-
-		dwp = (uint32_t*)cp;
-		*dwp = pItem->m_dwAttribute;
-		cp += 4;
-
-		// v2.15 �α� ���� ����
-		if (iEraseReq == 1) {
-			delete pItem;
-			pItem = 0;
-		}
-
-		// ������ ���� ���� 
-		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 53);
+		iRet = SendItemNotifyMsg(iClientH, DEF_NOTIFY_ITEMOBTAINED, pItem, 0);
 
 
 		// v2.14 Admin Log
@@ -33388,29 +31515,18 @@ void CGame::AdminOrder_CreateItem(int iClientH, char* pData, uint32_t dwMsgSize)
 
 void CGame::RequestSellItemListHandler(int iClientH, char* pData)
 {
-	int i, * ip, iAmount;
-	char* cp, cIndex;
-	struct {
-		char cIndex;
-		int  iAmount;
-	} stTemp[12];
+	int i, iAmount;
+	char cIndex;
 
 	if (m_pClientList[iClientH] == 0) return;
 
-	cp = (char*)(pData + 6);
-	for (i = 0; i < 12; i++) {
-		stTemp[i].cIndex = *cp;
-		cp++;
-
-		ip = (int*)cp;
-		stTemp[i].iAmount = *ip;
-		cp += 4;
-	}
+	const auto* req = hb::net::PacketCast<hb::net::PacketRequestSellItemList>(pData, sizeof(hb::net::PacketRequestSellItemList));
+	if (!req) return;
 
 	// ³»¿ëÀ» ´Ù ÀÐ¾ú´Ù. ¼ø¼­´ë·Î ÆÈ¾ÆÄ¡¿î´Ù.
 	for (i = 0; i < 12; i++) {
-		cIndex = stTemp[i].cIndex;
-		iAmount = stTemp[i].iAmount;
+		cIndex = static_cast<char>(req->entries[i].index);
+		iAmount = req->entries[i].amount;
 
 		if ((cIndex == -1) || (cIndex < 0) || (cIndex >= DEF_MAXITEMS)) return;
 		if (m_pClientList[iClientH]->m_pItemList[cIndex] == 0) return;
@@ -33523,7 +31639,7 @@ void CGame::CreateNewPartyHandler(int iClientH)
 	SendNotifyMsg(0, iClientH, DEF_NOTIFY_RESPONSE_CREATENEWPARTY, (int)bFlag, 0, 0, 0);
 }
 
-void CGame::JoinPartyHandler(int iClientH, int iV1, char* pMemberName)
+void CGame::JoinPartyHandler(int iClientH, int iV1, const char* pMemberName)
 {
 	char* cp, cData[120];
 	short sAppr2;
@@ -34299,7 +32415,7 @@ void CGame::CreateCrusadeStructures()
 		}
 }
 
-void CGame::RequestSetGuildConstructLocHandler(int iClientH, int dX, int dY, int iGuildGUID, char* pMapName)
+void CGame::RequestSetGuildConstructLocHandler(int iClientH, int dX, int dY, int iGuildGUID, const char* pMapName)
 {
 	int i;
 	int iIndex;
@@ -34693,16 +32809,15 @@ void CGame::RequestSummonWarUnitHandler(int iClientH, int dX, int dY, char cType
 
 void CGame::CheckConnectionHandler(int iClientH, char* pData)
 {
-	char* cp;
-	uint32_t* dwp, dwTimeRcv, dwTime, dwTimeGapClient, dwTimeGapServer;
+	uint32_t dwTimeRcv, dwTime, dwTimeGapClient, dwTimeGapServer;
 
 	if (m_pClientList[iClientH] == 0) return;
 	//m_pClientList[iClientH]->m_cConnectionCheck = 0;
 
 	dwTime = GameClock::GetTimeMS();
-	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
-	dwp = (uint32_t*)cp;
-	dwTimeRcv = *dwp;
+	const auto* req = hb::net::PacketCast<hb::net::PacketCommandCheckConnection>(pData, sizeof(hb::net::PacketCommandCheckConnection));
+	if (!req) return;
+	dwTimeRcv = req->time_ms;
 
 	if (m_pClientList[iClientH]->m_dwInitCCTimeRcv == 0) {
 		m_pClientList[iClientH]->m_dwInitCCTimeRcv = dwTimeRcv;
@@ -34741,7 +32856,7 @@ void CGame::SelectCrusadeDutyHandler(int iClientH, int iDuty)
 		_bCrusadeLog(DEF_CRUSADELOG_SELECTDUTY, iClientH, 0, "Commander");
 }
 
-void CGame::MapStatusHandler(int iClientH, int iMode, char* pMapName)
+void CGame::MapStatusHandler(int iClientH, int iMode, const char* pMapName)
 {
 	int i;
 
@@ -34839,7 +32954,6 @@ void CGame::_SendMapStatus(int iClientH)
 	char* cp, cData[DEF_MAXCRUSADESTRUCTURES * 6];
 	short* sp;
 
-	std::memset(cData, 0, sizeof(cData));
 	cp = (char*)(cData);
 
 	memcpy(cp, m_pClientList[iClientH]->m_cSendingMapName, 10);
@@ -37670,14 +35784,11 @@ bool CGame::_bInitItemAttr(class CItem* pItem, int iItemID)
 void CGame::ReqCreateSlateHandler(int iClientH, char* pData)
 {
 	int i, iRet;
-	short* sp;
 	char cItemID[4], ctr[4];
-	char* cp, cSlateColour, cData[120];
+	char cSlateColour;
 	bool bIsSlatePresent = false;
 	CItem* pItem;
 	int iSlateType, iEraseReq;
-	uint32_t* dwp;
-	uint16_t* wp;
 
 	if (m_pClientList[iClientH] == 0) return;
 	if (m_pClientList[iClientH]->m_bIsOnServerChange) return;
@@ -37686,9 +35797,9 @@ void CGame::ReqCreateSlateHandler(int iClientH, char* pData)
 		cItemID[i] = 0;
 		ctr[i] = 0;
 	}
-
-	cp = (char*)pData;
-	cp += 11;
+	const auto* pkt = hb::net::PacketCast<hb::net::PacketCommandCommonItems>(
+		pData, sizeof(hb::net::PacketCommandCommonItems));
+	if (!pkt) return;
 
 	// 14% chance of creating slates
 	if (iDice(1, 100) < static_cast<uint32_t>(m_sSlateSuccessRate)) bIsSlatePresent = true;
@@ -37696,8 +35807,7 @@ void CGame::ReqCreateSlateHandler(int iClientH, char* pData)
 	try {
 		// make sure slates really exist
 		for (i = 0; i < 4; i++) {
-			cItemID[i] = *cp;
-			cp++;
+			cItemID[i] = static_cast<char>(pkt->item_ids[i]);
 
 			if (m_pClientList[iClientH]->m_pItemList[cItemID[i]] == 0 || cItemID[i] > DEF_MAXITEMS) {
 				bIsSlatePresent = false;
@@ -37780,7 +35890,6 @@ void CGame::ReqCreateSlateHandler(int iClientH, char* pData)
 	// Notify client
 	SendNotifyMsg(0, iClientH, DEF_NOTIFY_SLATE_CREATESUCCESS, iSlateType, 0, 0, 0);
 
-	std::memset(cData, 0, sizeof(cData));
 
 	// Create slates
 	if (_bInitItemAttr(pItem, 867) == false) {
@@ -37798,69 +35907,7 @@ void CGame::ReqCreateSlateHandler(int iClientH, char* pData)
 		pItem->m_sItemSpecEffectValue2 = iSlateType;
 		pItem->m_cItemColor = cSlateColour;
 		if (_bAddClientItemList(iClientH, pItem, &iEraseReq)) {
-			std::memset(cData, 0, sizeof(cData));
-			dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-			*dwp = MSGID_NOTIFY;
-			wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-			*wp = DEF_NOTIFY_ITEMOBTAINED;
-
-			cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-			*cp = 1;
-			cp++;
-
-			memcpy(cp, pItem->m_cName, 20);
-			cp += 20;
-
-			dwp = (uint32_t*)cp;
-			*dwp = pItem->m_dwCount;
-			cp += 4;
-
-			*cp = pItem->m_cItemType;
-			cp++;
-
-			*cp = pItem->m_cEquipPos;
-			cp++;
-
-			*cp = (char)0; // ���� �������̹Ƿ� �������� �ʾҴ�.
-			cp++;
-
-			sp = (short*)cp;
-			*sp = pItem->m_sLevelLimit;
-			cp += 2;
-
-			*cp = pItem->m_cGenderLimit;
-			cp++;
-
-			wp = (uint16_t*)cp;
-			*wp = pItem->m_wCurLifeSpan;
-			cp += 2;
-
-			wp = (uint16_t*)cp;
-			*wp = pItem->m_wWeight;
-			cp += 2;
-
-			sp = (short*)cp;
-			*sp = pItem->m_sSprite;
-			cp += 2;
-
-			sp = (short*)cp;
-			*sp = pItem->m_sSpriteFrame;
-			cp += 2;
-
-			*cp = pItem->m_cItemColor;
-			cp++;
-
-			*cp = (char)pItem->m_sItemSpecEffectValue2;
-			cp++;
-
-			dwp = (uint32_t*)cp;
-			*dwp = pItem->m_dwAttribute;
-			cp += 4;
-
-			if (iEraseReq == 1) delete pItem;
-
-			// ������ ���� ���� 
-			iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 53);
+			iRet = SendItemNotifyMsg(iClientH, DEF_NOTIFY_ITEMOBTAINED, pItem, 0);
 			switch (iRet) {
 			case DEF_XSOCKEVENT_QUENEFULL:
 			case DEF_XSOCKEVENT_SOCKETERROR:
@@ -37875,12 +35922,9 @@ void CGame::ReqCreateSlateHandler(int iClientH, char* pData)
 			m_pMapList[m_pClientList[iClientH]->m_cMapIndex]->bSetItem(m_pClientList[iClientH]->m_sX, m_pClientList[iClientH]->m_sY, pItem);
 			SendEventToNearClient_TypeB(MSGID_MAGICCONFIGURATIONCONTENTS, DEF_COMMONTYPE_ITEMDROP, m_pClientList[iClientH]->m_cMapIndex,
 				m_pClientList[iClientH]->m_sX, m_pClientList[iClientH]->m_sY, pItem->m_sIDnum, 0, pItem->m_cItemColor, pItem->m_dwAttribute);
-			dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-			*dwp = MSGID_NOTIFY;
-			wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-			*wp = DEF_NOTIFY_CANNOTCARRYMOREITEM;
+			iRet = SendItemNotifyMsg(iClientH, DEF_NOTIFY_CANNOTCARRYMOREITEM, 0, 0);
 
-			iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 6);
+
 			switch (iRet) {
 			case DEF_XSOCKEVENT_QUENEFULL:
 			case DEF_XSOCKEVENT_SOCKETERROR:
@@ -39918,19 +37962,18 @@ bool CGame::bCheckIsItemUpgradeSuccess(int iClientH, int iItemIndex, int iSomH, 
 void CGame::ShowClientMsg(int iClientH, char* pMsg)
 {
 	char* cp, cTemp[256];
-	uint32_t* dwp, dwMsgSize;
-	uint16_t* wp;
+	uint32_t dwMsgSize;
 	short* sp;
 
 	std::memset(cTemp, 0, sizeof(cTemp));
 
-	dwp = (uint32_t*)cTemp;
-	*dwp = MSGID_COMMAND_CHATMSG;
+	{
+		auto* header = reinterpret_cast<hb::net::PacketHeader*>(cTemp);
+		header->msg_id = MSGID_COMMAND_CHATMSG;
+		header->msg_type = 0;
+	}
 
-	wp = (uint16_t*)(cTemp + DEF_INDEX2_MSGTYPE);
-	*wp = 0;
-
-	cp = (char*)(cTemp + DEF_INDEX2_MSGTYPE + 2);
+	cp = (char*)(cTemp + sizeof(hb::net::PacketHeader));
 	sp = (short*)cp;
 	*sp = 0;
 	cp += 2;
@@ -40548,7 +38591,6 @@ void CGame::RequestCreatePartyHandler(int iClientH)
 	m_pClientList[iClientH]->m_iPartyStatus = DEF_PARTYSTATUS_PROCESSING;
 
 	// Gate Server¿¡ ÆÄÆ¼ »ý¼ºÈÄ PartyID¸¦ ¾Ë·ÁÁÙ °ÍÀ» ¿äÃ»ÇÑ´Ù. 
-	std::memset(cData, 0, sizeof(cData));
 	cp = (char*)cData;
 
 	/*dwp = (uint32_t *)cp;
@@ -41019,7 +39061,6 @@ void CGame::RequestDismissPartyHandler(int iClientH)
 	if (m_pClientList[iClientH] == 0) return;
 	if (m_pClientList[iClientH]->m_iPartyStatus != DEF_PARTYSTATUS_CONFIRM) return;
 
-	std::memset(cData, 0, sizeof(cData));
 	cp = (char*)cData;
 	/*dwp = (uint32_t *)cp;
 	*dwp = MSGID_PARTYOPERATION;
@@ -41049,7 +39090,6 @@ void CGame::GetPartyInfoHandler(int iClientH)
 	if (m_pClientList[iClientH] == 0) return;
 	if (m_pClientList[iClientH]->m_iPartyStatus != DEF_PARTYSTATUS_CONFIRM) return;
 
-	std::memset(cData, 0, sizeof(cData));
 	cp = (char*)cData;
 	/*dwp = (uint32_t *)cp;
 	*dwp = MSGID_PARTYOPERATION;
@@ -41273,7 +39313,6 @@ void CGame::PartyOperation(char* pData)
 	std::snprintf(G_cTxt, sizeof(G_cTxt), "Party Operation Type: %d Name: %s PartyID:%d", wRequestType, cName, iPartyID);
 	PutLogList(G_cTxt);
 
-	std::memset(cData, 0, sizeof(cData));
 	cp = (char*)cData;
 	wp = (uint16_t*)cp;
 
@@ -44617,7 +42656,9 @@ void CGame::RequestHeldenianTeleport(int iClientH, char* pData, uint32_t dwMsgSi
 	iProcessed = 1;
 	if (m_pClientList[iClientH] == 0) return;
 
-	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
+	const auto* header = hb::net::PacketCast<hb::net::PacketHeader>(pData, sizeof(hb::net::PacketHeader));
+	if (!header) return;
+	cp = (char*)(pData + sizeof(hb::net::PacketHeader));
 	std::memset(cTmpName, 0, sizeof(cTmpName));
 	strcpy(cTmpName, cp);
 	if (strcmp(cTmpName, "Gail") == 0) {
@@ -45757,69 +43798,9 @@ void CGame::SetSkillAll(int iClientH, char* pData, uint32_t dwMsgSize)
 		   pItem->m_sTouchEffectValue2 = m_pClientList[iClientH]->m_sCharIDnum2;
 		   pItem->m_sTouchEffectValue3 = m_pClientList[iClientH]->m_sCharIDnum3;
 
-		   dwp  = (uint32_t *)(cData + DEF_INDEX4_MSGID);
-		   *dwp = MSGID_NOTIFY;
-		   wp   = (uint16_t *)(cData + DEF_INDEX2_MSGTYPE);
-		   *wp  = DEF_NOTIFY_ITEMOBTAINED;
-		   cp = (char *)(cData + DEF_INDEX2_MSGTYPE + 2);
-
-		   *cp = 1;
-		   cp++;
-
-		   memcpy(cp, pItem->m_cName, 20);
-		   cp += 20;
-
-		   dwp  = (uint32_t *)cp;
-		   *dwp = pItem->m_dwCount;
-		   cp += 4;
-
-		   *cp = pItem->m_cItemType;
-		   cp++;
-
-		   *cp = pItem->m_cEquipPos;
-		   cp++;
-
-		   *cp = (char)0;
-		   cp++;
-
-		   sp  = (short *)cp;
-		   *sp = pItem->m_sLevelLimit;
-		   cp += 2;
-
-		   *cp = pItem->m_cGenderLimit;
-		   cp++;
-
-		   wp = (uint16_t *)cp;
-		   *wp = pItem->m_wCurLifeSpan;
-		   cp += 2;
-
-		   wp = (uint16_t *)cp;
-		   *wp = pItem->m_wWeight;
-		   cp += 2;
-
-		   sp  = (short *)cp;
-		   *sp = pItem->m_sSprite;
-		   cp += 2;
-
-		   sp  = (short *)cp;
-		   *sp = pItem->m_sSpriteFrame;
-		   cp += 2;
-
-		   *cp = pItem->m_cItemColor;
-		   cp++;
-
-		   *cp = (char)pItem->m_sItemSpecEffectValue2; // v1.41
-		   cp++;
-
-		   dwp = (uint32_t *)cp;
-		   *dwp = pItem->m_dwAttribute;
-		   cp += 4;
-		   //*cp = (char)(pItem->m_dwAttribute & 0x00000001); // Custom-Item??? ??
-		   //cp++;
+		   iRet = SendItemNotifyMsg(iClientH, DEF_NOTIFY_ITEMOBTAINED, pItem, 0);
 
 		   if (iEraseReq == 1) delete pItem;
-
-		   iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 53);
 
 		   iCalcTotalWeight(iClientH);
 
@@ -45840,12 +43821,9 @@ void CGame::SetSkillAll(int iClientH, char* pData, uint32_t dwMsgSize)
 
 		   iCalcTotalWeight(iClientH);
 
-		   dwp  = (uint32_t *)(cData + DEF_INDEX4_MSGID);
-		   *dwp = MSGID_NOTIFY;
-		   wp   = (uint16_t *)(cData + DEF_INDEX2_MSGTYPE);
-		   *wp  = DEF_NOTIFY_CANNOTCARRYMOREITEM;
+	   iRet = SendItemNotifyMsg(iClientH, DEF_NOTIFY_CANNOTCARRYMOREITEM, 0, 0);
 
-		   iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 6);
+
 		   switch (iRet) {
 		   case DEF_XSOCKEVENT_QUENEFULL:
 		   case DEF_XSOCKEVENT_SOCKETERROR:
@@ -45935,15 +43913,11 @@ void CGame::SetAngelFlag(short sOwnerH, char cOwnerType, int iStatus, int iTemp)
 *********************************************************************************************************************/
 void CGame::GetAngelHandler(int iClientH, char* pData, uint32_t dwMsgSize)
 {
-	char* cp, cData[256], cTmpName[21];
+	char cTmpName[21];
 	int   iAngel;
 	class CItem* pItem;
 	int   iRet, iEraseReq;
 	char  cItemName[21];
-	short* sp;
-	uint16_t* wp;
-	int* ip;
-	uint32_t* dwp;
 	if (m_pClientList[iClientH] == 0)					 return;
 	if (m_pClientList[iClientH]->m_bIsInitComplete == false) return;
 	if (_iGetItemSpaceLeft(iClientH) == 0)
@@ -45951,13 +43925,11 @@ void CGame::GetAngelHandler(int iClientH, char* pData, uint32_t dwMsgSize)
 		SendItemNotifyMsg(iClientH, DEF_NOTIFY_CANNOTCARRYMOREITEM, 0, 0);
 		return;
 	}
-	cp = (char*)(pData + DEF_INDEX2_MSGTYPE + 2);
+	const auto* req = hb::net::PacketCast<hb::net::PacketRequestAngel>(pData, sizeof(hb::net::PacketRequestAngel));
+	if (!req) return;
 	std::memset(cTmpName, 0, sizeof(cTmpName));
-	strcpy(cTmpName, cp);
-	cp += 20;
-	ip = (int*)cp;
-	iAngel = (int)*ip; // 0x00 l a i
-	cp += 2;
+	std::memcpy(cTmpName, req->name, 20);
+	iAngel = req->angel_id; // 0x00 l a i
 	std::snprintf(G_cTxt, sizeof(G_cTxt), "PC(%s) obtained an Angel (%d).   %s(%d %d)"
 		, m_pClientList[iClientH]->m_cCharName
 		, iAngel
@@ -45998,51 +43970,7 @@ void CGame::GetAngelHandler(int iClientH, char* pData, uint32_t dwMsgSize)
 		pItem->m_sTouchEffectValue3 = m_pClientList[iClientH]->m_sCharIDnum3;
 		if (_bAddClientItemList(iClientH, pItem, &iEraseReq))
 		{
-			std::memset(cData, 0, sizeof(cData));
-			dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-			*dwp = MSGID_NOTIFY;
-			wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-			*wp = DEF_NOTIFY_ITEMOBTAINED;
-			cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-			*cp = 1;
-			cp++;
-			memcpy(cp, pItem->m_cName, 20);
-			cp += 20;
-			dwp = (uint32_t*)cp;
-			*dwp = pItem->m_dwCount;
-			cp += 4;
-			*cp = pItem->m_cItemType;
-			cp++;
-			*cp = pItem->m_cEquipPos;
-			cp++;
-			*cp = (char)0;
-			cp++;
-			sp = (short*)cp;
-			*sp = pItem->m_sLevelLimit;
-			cp += 2;
-			*cp = pItem->m_cGenderLimit;
-			cp++;
-			wp = (uint16_t*)cp;
-			*wp = pItem->m_wCurLifeSpan;
-			cp += 2;
-			wp = (uint16_t*)cp;
-			*wp = pItem->m_wWeight;
-			cp += 2;
-			sp = (short*)cp;
-			*sp = pItem->m_sSprite;
-			cp += 2;
-			sp = (short*)cp;
-			*sp = pItem->m_sSpriteFrame;
-			cp += 2;
-			*cp = pItem->m_cItemColor;
-			cp++;
-			*cp = (char)pItem->m_sItemSpecEffectValue2; // v1.41 
-			cp++;
-			dwp = (uint32_t*)cp;
-			*dwp = pItem->m_dwAttribute;
-			cp += 4;
-			if (iEraseReq == 1) delete pItem;
-			iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 53);
+			iRet = SendItemNotifyMsg(iClientH, DEF_NOTIFY_ITEMOBTAINED, pItem, 0);
 			switch (iRet) {
 			case DEF_XSOCKEVENT_QUENEFULL:
 			case DEF_XSOCKEVENT_SOCKETERROR:
@@ -46059,11 +43987,9 @@ void CGame::GetAngelHandler(int iClientH, char* pData, uint32_t dwMsgSize)
 			SendEventToNearClient_TypeB(MSGID_EVENT_COMMON, DEF_COMMONTYPE_ITEMDROP, m_pClientList[iClientH]->m_cMapIndex,
 				m_pClientList[iClientH]->m_sX, m_pClientList[iClientH]->m_sY,
 				pItem->m_sIDnum, 0, pItem->m_cItemColor, pItem->m_dwAttribute); // v1.4			
-			dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-			*dwp = MSGID_NOTIFY;
-			wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-			*wp = DEF_NOTIFY_CANNOTCARRYMOREITEM;
-			iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 6);
+			iRet = SendItemNotifyMsg(iClientH, DEF_NOTIFY_CANNOTCARRYMOREITEM, 0, 0);
+
+
 			switch (iRet) {
 			case DEF_XSOCKEVENT_QUENEFULL:
 			case DEF_XSOCKEVENT_SOCKETERROR:
@@ -46137,9 +44063,6 @@ void CGame::RequestRepairAllItemsDeleteHandler(int iClientH, int index)
 
 void CGame::RequestRepairAllItemsConfirmHandler(int iClientH)
 {
-	char* cp, cData[120];
-	uint32_t* dwp;
-	uint16_t* wp;
 	int      iRet, i, totalPrice = 0;
 
 	if (m_pClientList[iClientH] == 0) return;
@@ -46152,15 +44075,13 @@ void CGame::RequestRepairAllItemsConfirmHandler(int iClientH)
 
 	if (dwGetItemCount(iClientH, "Gold") < (uint32_t)totalPrice)
 	{
-		dwp = (uint32_t*)(cData + DEF_INDEX4_MSGID);
-		*dwp = MSGID_NOTIFY;
-		wp = (uint16_t*)(cData + DEF_INDEX2_MSGTYPE);
-		*wp = DEF_NOTIFY_NOTENOUGHGOLD;
-		cp = (char*)(cData + DEF_INDEX2_MSGTYPE + 2);
-		*cp = 0;
-		cp++;
-
-		iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(cData, 7);
+		{
+			hb::net::PacketNotifyNotEnoughGold pkt{};
+			pkt.header.msg_id = MSGID_NOTIFY;
+			pkt.header.msg_type = DEF_NOTIFY_NOTENOUGHGOLD;
+			pkt.item_index = 0;
+			iRet = m_pClientList[iClientH]->m_pXSock->iSendMsg(reinterpret_cast<char*>(&pkt), sizeof(pkt));
+		}
 		switch (iRet) {
 		case DEF_XSOCKEVENT_QUENEFULL:
 		case DEF_XSOCKEVENT_SOCKETERROR:
@@ -46183,3 +44104,29 @@ void CGame::RequestRepairAllItemsConfirmHandler(int iClientH)
 		iCalcTotalWeight(SetItemCount(iClientH, "Gold", dwGetItemCount(iClientH, "Gold") - totalPrice));
 	}
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

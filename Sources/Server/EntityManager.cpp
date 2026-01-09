@@ -3574,7 +3574,7 @@ void CEntityManager::ProcessRandomSpawns(int iMapIndex)
 				}
 
 				cSA = 0;
-				if (m_pGame->iDice(1,100) <= iProbSA) {
+				if (m_pGame->iDice(1, 100) <= static_cast<uint32_t>(iProbSA)) {
 					cSA = m_pGame->_cGetSpecialAbility(iKindSA);
 				}
 
@@ -3737,7 +3737,7 @@ void CEntityManager::ProcessRandomSpawns(int iMapIndex)
 
 					cSA = 0;
 
-					if (m_pGame->iDice(1,100) <= iProbSA) {
+					if (m_pGame->iDice(1, 100) <= static_cast<uint32_t>(iProbSA)) {
 						cSA = m_pGame->_cGetSpecialAbility(iKindSA);
 					}
 
