@@ -4,6 +4,7 @@
 
 #include "XSocket.h"
 #include "CommonTypes.h"
+#include <cstring>
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
@@ -202,7 +203,7 @@ bool XSocket::bBlockConnect(char* pAddr, int iPort)
 	setsockopt(m_Sock, SOL_SOCKET, SO_RCVBUF, (const char FAR*) & dwOpt, sizeof(dwOpt));
 	setsockopt(m_Sock, SOL_SOCKET, SO_SNDBUF, (const char FAR*) & dwOpt, sizeof(dwOpt));
 
-	strcpy(m_pAddr, pAddr);
+	strncpy_s(m_pAddr, sizeof(m_pAddr), (pAddr != 0) ? pAddr : "", _TRUNCATE);
 	m_iPortNum = iPort;
 
 	m_cType = DEF_XSOCK_NORMALSOCK;
@@ -258,7 +259,7 @@ bool XSocket::bConnect(char* pAddr, int iPort)
 	setsockopt(m_Sock, SOL_SOCKET, SO_RCVBUF, (const char FAR*) & dwOpt, sizeof(dwOpt));
 	setsockopt(m_Sock, SOL_SOCKET, SO_SNDBUF, (const char FAR*) & dwOpt, sizeof(dwOpt));
 
-	strcpy(m_pAddr, pAddr);
+	strncpy_s(m_pAddr, sizeof(m_pAddr), (pAddr != 0) ? pAddr : "", _TRUNCATE);
 	m_iPortNum = iPort;
 
 	m_cType = DEF_XSOCK_NORMALSOCK;

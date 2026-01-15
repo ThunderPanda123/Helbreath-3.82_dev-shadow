@@ -148,6 +148,7 @@
     <ClInclude Include="Benchmark.h" />
     <ClInclude Include="FrameTiming.h" />
     <ClInclude Include="InputManager.h" />
+    <ClInclude Include="Version.h" />
     <ClInclude Include="BuildItem.h" />
     <ClInclude Include="CharInfo.h" />
     <ClInclude Include="CommonTypes.h" />
@@ -255,6 +256,7 @@
     <ClCompile Include="DialogBox_SellList.cpp" />
     <ClCompile Include="FrameTiming.cpp" />
     <ClCompile Include="InputManager.cpp" />
+    <ClCompile Include="Version.cpp" />
     <ClCompile Include="DXC_ddraw.cpp" />
     <ClCompile Include="Game.cpp" />
     <ClCompile Include="GameMonitor.cpp" />

@@ -17,16 +17,19 @@ public:
 		m_cType = cType;
 
 		m_pMsg = 0;
-		m_pMsg = new char [strlen(pMsg) + 1];
-		std::memset(m_pMsg, 0, strlen(pMsg) + 1);
-		strcpy(m_pMsg, pMsg);
+		const size_t msgLen = (pMsg != 0) ? strlen(pMsg) : 0;
+		m_pMsg = new char [msgLen + 1];
+		std::memset(m_pMsg, 0, msgLen + 1);
+		if (pMsg != 0) {
+			std::memcpy(m_pMsg, pMsg, msgLen);
+		}
 		m_dwTime = dwTime;
 		m_iObjectID = -1;
 	}
 
 	inline virtual ~CMsg()
 	{
-		if (m_pMsg != 0) delete m_pMsg;
+		if (m_pMsg != 0) delete[] m_pMsg;
 	}
 
 	char   m_cType;

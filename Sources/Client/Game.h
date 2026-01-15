@@ -489,7 +489,7 @@ public:
 	char GetOfficialMapName(char * pMapName, char * pName);
 	uint32_t iGetLevelExp(int iLevel);
 	int _iCalcTotalWeight();
-	void DrawVersion(bool bAuthor = false);
+	void DrawVersion();
 	bool _bIsItemOnHand();
 	void DynamicObjectHandler(char * pData);
 	bool _bCheckItemByType(char cType);

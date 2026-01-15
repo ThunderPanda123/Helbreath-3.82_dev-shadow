@@ -6,6 +6,7 @@
 #include "MapData.h"
 #include "CommonTypes.h"
 #include "Benchmark.h"
+#include <cstring>
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
@@ -1599,7 +1600,7 @@ EXIT_SEARCH_LOOP:;
 		m_pData[dX][dY].m_iEffectFrame = iEffectFrame;
 		m_pData[dX][dY].m_iEffectTotalFrame = iEffectTotalFrame;
 		std::memset(m_pData[dX][dY].m_cOwnerName, 0, sizeof(m_pData[dX][dY].m_cOwnerName));
-		strcpy(m_pData[dX][dY].m_cOwnerName, cTmpName);
+		strncpy_s(m_pData[dX][dY].m_cOwnerName, sizeof(m_pData[dX][dY].m_cOwnerName), cTmpName, _TRUNCATE);
 		if ((sAction != DEF_OBJECTNULLACTION) && (sAction != DEF_MSGTYPE_CONFIRM) && (sAction != DEF_MSGTYPE_REJECT))
 		{
 			m_pData[dX][dY].m_cOwnerFrame = iFrame; // 0
@@ -1637,7 +1638,7 @@ EXIT_SEARCH_LOOP:;
 		m_pData[dX][dY].m_iDeadApprColor = iApprColor; // v1.4
 		m_pData[dX][dY].m_iDeadStatus = iStatus;
 		std::memset(m_pData[dX][dY].m_cDeadOwnerName, 0, sizeof(m_pData[dX][dY].m_cDeadOwnerName));
-		strcpy(m_pData[dX][dY].m_cDeadOwnerName, cTmpName);
+		strncpy_s(m_pData[dX][dY].m_cDeadOwnerName, sizeof(m_pData[dX][dY].m_cDeadOwnerName), cTmpName, _TRUNCATE);
 		m_pData[dX][dY].m_dwDeadOwnerTime = dwTime;
 		m_pData[dX][dY].m_iDeadChatMsg = iChatIndex;
 		if ((sAppr4 & 0x00F0) != 0)
@@ -1689,7 +1690,7 @@ bool __fastcall CMapData::bGetOwner(short sX, short sY, short* pOwnerType, char*
 	*pV1 = m_pData[dX][dY].m_sV1;
 	*pV2 = m_pData[dX][dY].m_sV2;
 
-	strcpy(pName, m_pData[dX][dY].m_cOwnerName);
+	strncpy_s(pName, 12, m_pData[dX][dY].m_cOwnerName, _TRUNCATE);
 
 	return true;
 }
@@ -1719,7 +1720,7 @@ bool __fastcall CMapData::bGetDeadOwner(short sX, short sY, short* pOwnerType, c
 	*pFrame = m_pData[dX][dY].m_cDeadOwnerFrame;
 	*pChatIndex = m_pData[dX][dY].m_iDeadChatMsg;
 
-	strcpy(pName, m_pData[dX][dY].m_cDeadOwnerName);
+	strncpy_s(pName, 12, m_pData[dX][dY].m_cDeadOwnerName, _TRUNCATE);
 
 	return true;
 }
@@ -4003,7 +4004,7 @@ bool __fastcall CMapData::bSetDeadOwner(uint16_t wObjectID, short sX, short sY, 
 	m_pData[dX][dY].m_iDeadApprColor = iApprColor;
 	m_pData[dX][dY].m_iDeadStatus = iStatus;
 	m_pData[dX][dY].m_cDeadOwnerFrame = -1;
-	strcpy(m_pData[dX][dY].m_cDeadOwnerName, pTmpName);
+	strncpy_s(m_pData[dX][dY].m_cDeadOwnerName, sizeof(m_pData[dX][dY].m_cDeadOwnerName), pTmpName, _TRUNCATE);
 
 	m_iObjectIDcacheLocX[wObjectID] = -1 * sX; //dX;
 	m_iObjectIDcacheLocY[wObjectID] = -1 * sY; //dY;
@@ -4092,7 +4093,7 @@ bool __fastcall CMapData::bGetOwner(short sX, short sY, char* pName, short* pOwn
 	dY = sY - m_sPivotY;
 
 	*pOwnerType = m_pData[dX][dY].m_sOwnerType;
-	strcpy(pName, m_pData[dX][dY].m_cOwnerName);
+	strncpy_s(pName, 12, m_pData[dX][dY].m_cOwnerName, _TRUNCATE);
 	*pOwnerStatus = m_pData[dX][dY].m_iStatus;
 	*pObjectID = m_pData[dX][dY].m_wObjectID;
 
@@ -4182,7 +4183,7 @@ void CMapData::GetOwnerStatusByObjectID(uint16_t wObjectID, char* pOwnerType, ch
 				*pAppr4 = m_pData[iX][iY].m_sAppr4;
 				*pStatus = m_pData[iX][iY].m_iStatus;
 				*pColor = m_pData[iX][iY].m_iApprColor;
-				strcpy(pName, m_pData[iX][iY].m_cOwnerName);
+				strncpy_s(pName, 12, m_pData[iX][iY].m_cOwnerName, _TRUNCATE);
 				return;
 			}
 }

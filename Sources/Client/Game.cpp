@@ -35,7 +35,6 @@ char _cDrawingOrder[] = { 0, 1, 0, 0, 0, 0, 0, 1, 1 };
 char _cMantleDrawingOrder[] = { 0, 1, 1, 1, 0, 0, 0, 2, 2 };
 char _cMantleDrawingOrderOnRun[] = { 0, 1, 1, 1, 1, 1, 1, 1, 1 };
 
-
 short _tmp_sOwnerType, _tmp_sAppr1, _tmp_sAppr2, _tmp_sAppr3, _tmp_sAppr4;//, _tmp_iStatus;
 //CInt _tmp_iStatus;
 int _tmp_iStatus;
@@ -3822,7 +3821,7 @@ void CGame::UpdateScreen_OnLoading(bool bActive)
 void CGame::UpdateScreen_OnLoading_Progress()
 {
 	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_LOADING, 0 + SCREENX, 0 + SCREENY, 0, true);
-	DrawVersion(true);
+	DrawVersion();
 	int iBarWidth;
 	iBarWidth = (int)m_cLoading;
 	m_pSprite[DEF_SPRID_INTERFACE_ND_LOADING]->PutSpriteFastWidth(472 + SCREENX, 442 + SCREENY, 1, iBarWidth, G_dwGlobalTime);
@@ -21997,10 +21996,6 @@ void CGame::CreateScreenShot()
 		, SysTime.wHour, SysTime.wMinute, SysTime.wSecond
 		, LongMapName);
 	PutAlignedString(500 + SCREENX, 650 + SCREENY, 30, SStime, 255, 255, 255); //ScreenShot time
-	PutString_SprFont3(500 + SCREENX, 390 + SCREENY, " Client coded by", 20, 20, 0, true, 2);
-	PutString_SprFont3(500 + SCREENX, 405 + SCREENY, "Diuuude & Snoopy81", 0, 20, 20, true, 2);
-
-	PutAlignedString(500 + SCREENX, LOGICAL_HEIGHT + SCREENY, 15, MSG_WORLDNAME1, 255, 255, 255);//"ABADDON Server"
 
 	for (i = 0; i < 1000; i++)
 	{
@@ -23006,7 +23001,7 @@ void CGame::DrawScreen_Quit()
 	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_QUIT, 0 + SCREENX, 0 + SCREENY, 0, true);
 	if (m_cGameModeCount > 20) DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_QUIT, 255 + SCREENX, 123 + SCREENY, 1, true);
 	else if ((m_cGameModeCount >= 15) && (m_cGameModeCount <= 20)) m_pSprite[DEF_SPRID_INTERFACE_ND_QUIT]->PutTransSprite25(255 + SCREENX, 123 + SCREENY, 1, true);
-	DrawVersion(true);
+	DrawVersion();
 
 	// Draw cursor at position captured during Update phase
 	m_pSprite[DEF_SPRID_MOUSECURSOR]->PutSpriteFast(m_sFrameMouseX, m_sFrameMouseY, 0, dwTime);
@@ -23071,7 +23066,6 @@ void CGame::DrawScreen_VersionNotMatch()
 	DrawNewDialogBox(DEF_SPRID_INTERFACE_ND_GAME4, 162, 125, 2);
 	PutAlignedString(168, 474, 160, UPDATE_SCREEN_ON_VERSION_NO_MATCH1);
 	PutAlignedString(168, 474, 180, UPDATE_SCREEN_ON_VERSION_NO_MATCH2);
-	PutAlignedString(168, 474, 250, MSG_HOMEPAGE);
 	DrawVersion();
 
 	m_pSprite[DEF_SPRID_MOUSECURSOR]->PutSpriteFast(m_sFrameMouseX, m_sFrameMouseY, 0, dwTime);
@@ -23686,7 +23680,7 @@ void CGame::DrawScreen_MainMenu()
 		break;
 	}
 
-	DrawVersion(true);
+	DrawVersion();
 	m_pSprite[DEF_SPRID_MOUSECURSOR]->PutSpriteFast(m_sFrameMouseX, m_sFrameMouseY, 0, dwTime);
 }
 
@@ -24789,7 +24783,7 @@ void CGame::DrawScreen_CreateNewAccount()
 		m_pSprite[DEF_SPRID_INTERFACE_ND_BUTTON]->PutSpriteFast(390 + 98 + SCREENX, 398 + SCREENY, 17, dwTime);
 	else m_pSprite[DEF_SPRID_INTERFACE_ND_BUTTON]->PutSpriteFast(390 + 98 + SCREENX, 398 + SCREENY, 16, dwTime);
 
-	DrawVersion(true);
+	DrawVersion();
 	m_pSprite[DEF_SPRID_MOUSECURSOR]->PutSpriteFast(m_sFrameMouseX, m_sFrameMouseY, 0, dwTime);
 #endif
 }
@@ -28799,30 +28793,10 @@ bool CGame::FindGuildName(char* pName, int* ipIndex)
 }
 
 
-void CGame::DrawVersion(bool bAuthor)
+void CGame::DrawVersion()
 {
-	uint32_t dwTime = GameClock::GetTimeMS();
-	uint16_t wR, wG, wB;
-	CMisc::ColorTransfer(m_DDraw.m_cPixelFormat, RGB(140, 140, 140), &wR, &wG, &wB);
-	// Ver
-	m_pSprite[DEF_SPRID_INTERFACE_ADDINTERFACE]->PutTransSpriteRGB(14 + SCREENX, 463 + SCREENY, 19, wR, wG, wB, dwTime);
-	// Upper Version
-	wsprintf(G_cTxt, "%d", DEF_UPPERVERSION);
-	PutString_SprNum(36 + SCREENX, 463 + SCREENY, G_cTxt, 140, 140, 140);
-	// .
-	m_pSprite[DEF_SPRID_INTERFACE_ADDINTERFACE]->PutTransSpriteRGB(42 + SCREENX, 463 + SCREENY, 18, wR, wG, wB, dwTime);
-	// Lower Version
-	wsprintf(G_cTxt, "%d", DEF_LOWERVERSION);
-	PutString_SprNum(46 + SCREENX, 463 + SCREENY, G_cTxt, 140, 140, 140);
-	if (bAuthor == false) return;
-	// Of course it's easy to remove those lines, but those people deserve some credit
-	// at least for releasing their work....
-	PutString2(14 + SCREENX, 375 + SCREENY, "V3.51 compatibility by Cleroth", 220, 200, 200);
-	PutString2(14 + SCREENX, 390 + SCREENY, "V3.51 dialogs by Diuuude", 220, 200, 200);
-	PutString2(14 + SCREENX, 405 + SCREENY, "Effects, mobs, Apocalypse, Heldenian,", 220, 200, 200);
-	PutString2(14 + SCREENX, 420 + SCREENY, "& finalizing by Snoopy81", 220, 200, 200);
-	PutString2(14 + SCREENX, 435 + SCREENY, "Angels & Crafting by Snoopy81", 220, 200, 200);
-
+	std::snprintf(G_cTxt, sizeof(G_cTxt), "Ver: %s", hb::version::GetDisplayString());
+	PutString2(12 + SCREENX, (LOGICAL_HEIGHT - 12 - 14) + SCREENY, G_cTxt, 200, 200, 200);
 }
 
 char CGame::GetOfficialMapName(char* pMapName, char* pName)
@@ -38348,58 +38322,6 @@ void CGame::GrandMagicResult(char* pMapName, int iV1, int iV2, int iV3, int iV4,
 	}
 
 	m_dialogBoxManager.EnableDialogBox(DialogBoxId::Text, 0, 0, 0);
-}
-
-LONG CGame::GetRegKey(HKEY key, LPCTSTR subkey, LPTSTR retdata)
-{
-	HKEY hkey;
-	LONG retval = RegOpenKeyEx(key, subkey, 0, KEY_QUERY_VALUE, &hkey);
-	if (retval == ERROR_SUCCESS)
-	{
-		long datasize = MAX_PATH;
-		TCHAR data[MAX_PATH];
-		RegQueryValue(hkey, 0, data, &datasize);
-		lstrcpy(retdata, data);
-		RegCloseKey(hkey);
-	}
-	return retval;
-}
-
-void CGame::GoHomepage()
-{
-	LPCTSTR	url;
-	url = MSG_HOMEPAGE;
-	int		showcmd = SW_SHOW;
-	char	key[MAX_PATH + MAX_PATH];
-	SendMessage(G_hWnd, WM_ACTIVATEAPP, 0, 0);
-	// First try ShellExecute()
-	HINSTANCE result = ShellExecute(0, "open", url, 0, 0, showcmd);
-
-	// If it failed, get the .htm regkey and lookup the program
-	if ((UINT)result <= HINSTANCE_ERROR)
-	{
-		if (GetRegKey(HKEY_CLASSES_ROOT, ".htm", key) == ERROR_SUCCESS)
-		{
-			lstrcat(key, "\\shell\\open\\command");
-
-			if (GetRegKey(HKEY_CLASSES_ROOT, key, key) == ERROR_SUCCESS)
-			{
-				char* pos;
-				pos = strstr(key, "\"%1\"");
-				if (pos == 0)					// No quotes found
-				{
-					pos = strstr(key, "%1");			// Check for %1, without quotes
-					if (pos == 0)				// No parameter at all...
-						pos = key + lstrlen(key) - 1;
-					else *pos = '\0';				// Remove the parameter
-				}
-				else    *pos = '\0';				// Remove the parameter
-				lstrcat(pos, " ");
-				lstrcat(pos, url);
-				result = (HINSTANCE)WinExec(key, showcmd);
-			}
-		}
-	}
 }
 
 // num : 1 - F2, 2 - F3
