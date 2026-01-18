@@ -747,8 +747,7 @@ void EffectManager::AddEffectImpl(EffectType sType, int sX, int sY, int dX, int 
 				AddEffectImpl(static_cast<EffectType>(69 + (rand() % 2)), dX * 32 + 20 - (rand() % 40), dY * 32 + 20 - (rand() % 40), 0, 0, -6, 0);
 				AddEffectImpl(static_cast<EffectType>(69 + (rand() % 2)), dX * 32 + 20 - (rand() % 40), dY * 32 + 20 - (rand() % 40), 0, 0, -3, 0);
 				AddEffectImpl(static_cast<EffectType>(69 + (rand() % 2)), dX * 32 + 20 - (rand() % 40), dY * 32 + 20 - (rand() % 40), 0, 0, 0, 0);
-				delete m_pEffectSpr[i];
-				m_pEffectSpr[i] = 0;
+				m_pEffectSpr->remove(i);
 				break;
 
 			case EffectType::FIRE_BALL_FLYING: // Fire Ball
@@ -765,15 +764,13 @@ void EffectManager::AddEffectImpl(EffectType sType, int sX, int sY, int dX, int 
 			case EffectType::PROTECT_FROM_NM: // Protect form N.M
 			case EffectType::PROTECT_FROM_MAGIC: // Protection from Magic
 				AddEffectImpl( EffectType::PROTECTION_RING, dX * 32, dY * 32, 0, 0, 0, 0);
-				delete m_pEffectSpr[i];
-				m_pEffectSpr[i] = 0;
+				m_pEffectSpr->remove(i);
 				break;
 
 			case EffectType::HOLD_PERSON: // Hold Person
 			case EffectType::PARALYZE: // Paralyze
 				AddEffectImpl( EffectType::HOLD_TWIST, dX * 32, dY * 32, 0, 0, 0, 0);
-				delete m_pEffectSpr[i];
-				m_pEffectSpr[i] = 0;
+				m_pEffectSpr->remove(i);
 				break;
 
 			case EffectType::FIRE_STRIKE_FLYING: // Fire Strike

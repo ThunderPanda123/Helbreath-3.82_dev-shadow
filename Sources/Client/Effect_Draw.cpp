@@ -260,12 +260,12 @@ void EffectManager::DrawEffectsImpl()
 				if ((8 * (static_cast<int>(m_pEffectList[i]->m_sType) - 41) + cTempFrame) < (8 * (static_cast<int>(m_pEffectList[i]->m_sType) - 41) + 7))
 				{
 					iDvalue = -8 * (6 - cTempFrame);
-					(*m_pEffectSpr)[21]->Draw(dX, dY, 8 * (m_pEffectList[i]->m_sType - 41) + cTempFrame, SpriteLib::DrawParams::TintedAlpha(iDvalue, iDvalue, iDvalue, 0.7f)); // RGB2
+					(*m_pEffectSpr)[21]->Draw(dX, dY, 8 * (static_cast<size_t>(m_pEffectList[i]->m_sType) - 41) + cTempFrame, SpriteLib::DrawParams::TintedAlpha(iDvalue, iDvalue, iDvalue, 0.7f)); // RGB2
 				}
 				else
 				{
 					if ((cTempFrame - 5) >= 8) cTempFrame = ((cTempFrame - 5) - 8) + 5;
-					(*m_pEffectSpr)[21]->Draw(dX, dY, 8 * (m_pEffectList[i]->m_sType - 41) + (cTempFrame - 5));
+					(*m_pEffectSpr)[21]->Draw(dX, dY, 8 * (static_cast<size_t>(m_pEffectList[i]->m_sType) - 41) + (cTempFrame - 5));
 				}
 				break;
 
@@ -274,7 +274,7 @@ void EffectManager::DrawEffectsImpl()
 			case EffectType::BLIZZARD_VARIANT_3: // Blizzard
 				dX = (m_pEffectList[i]->m_sX) - m_pGame->m_sViewPointX;
 				dY = (m_pEffectList[i]->m_sY) - m_pGame->m_sViewPointY;
-				(*m_pEffectSpr)[m_pEffectList[i]->m_sType - 1]->Draw(dX, dY, 0, SpriteLib::DrawParams::Alpha(0.7f));
+				(*m_pEffectSpr)[static_cast<size_t>(m_pEffectList[i]->m_sType) - 1]->Draw(dX, dY, 0, SpriteLib::DrawParams::Alpha(0.7f));
 				cTempFrame = m_pEffectList[i]->m_cFrame;
 				if (cTempFrame < 0) break;
 				dX = (m_pEffectList[i]->m_mX) - m_pGame->m_sViewPointX;
@@ -282,11 +282,11 @@ void EffectManager::DrawEffectsImpl()
 				//PutString(dX, dY, "*", RGB(255,255,255);
 				if (cTempFrame < 7) {
 					iDvalue = -8 * (6 - cTempFrame);
-					(*m_pEffectSpr)[m_pEffectList[i]->m_sType - 1]->Draw(dX, dY, cTempFrame + 1, SpriteLib::DrawParams::TintedAlpha(iDvalue, iDvalue, iDvalue, 0.7f));
+					(*m_pEffectSpr)[static_cast<size_t>(m_pEffectList[i]->m_sType) - 1]->Draw(dX, dY, cTempFrame + 1, SpriteLib::DrawParams::TintedAlpha(iDvalue, iDvalue, iDvalue, 0.7f));
 				}
 				else {
 					if (cTempFrame >= 8) cTempFrame = cTempFrame % 8;
-					(*m_pEffectSpr)[m_pEffectList[i]->m_sType - 1]->Draw(dX, dY, cTempFrame + 1);
+					(*m_pEffectSpr)[static_cast<size_t>(m_pEffectList[i]->m_sType) - 1]->Draw(dX, dY, cTempFrame + 1);
 				}
 				break;
 
